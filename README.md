@@ -4,7 +4,7 @@ DEPRECEATED: Look in main branch for the ARDUINO_MEGA version since UNO only sup
 
 This code is for the Arduino Uno with a 16x2 Display Shield. [WORKING]
 
-For the Arduino Mega with a TFT LCD Display Shield look into the [main branch](https://github.com/RXTX4816/OBD-KKL-KW1281-ARDUINO-TRIPCOMPUTER) [WORKING]
+For the Arduino Mega with a TFT LCD Display Shield look into [OBDisplay-Mega](https://github.com/RXTX4816/OBDisplay-Mega) [FAULTY]
 
 ![](assets/obdisplay.gif)
 
@@ -23,6 +23,21 @@ This repo contains all necessary files. The only file containing code is [obdisp
 - Simulation mode to test the display
 - KWP1281 exit procedure
 
+## Installation
+
+Dependencies:
+`python -m pip install --upgrade platformio`
+or
+`sudo pacman -S platformio-core` 
+
+Build:
+`pio run`
+
+Flash:
+`pio run --target upload`
+
+Or just use VS Code with Platformio extension to have the buttons in the bottom line.
+
 ## Setup Instructions
 Requirements: Arduino Uno, 16x2 Liquidcrystal Display Shield, Autodia K409 KKL OBD to USB cable
 
@@ -39,6 +54,10 @@ See the pictures below for visual guidance.
 Refer to the [linked git repo](https://github.com/mkirbst/lupo-gti-tripcomputer-kw1281) for pictures and a bit more info. 
 
 Open the project with platformIO and a programming environment of your chase (VSCode) and flash it to your arduino. If your ECU differs from the 036906034AM ECU you may need to assess your Label files and rewrite a portion of the code to work with your ECU. See below for more information on label files. Each Address may have a different baud rate (E.g. 0x01 baud 9600 while 0x17 baud 10400). Older ECU's (<1997) may use very slow baud rates like 1200 or 2400, while newer ECU's (>1997) most often use baud rates around 9600 and 10400. I have not encountered baud 4800 yet.
+
+## [ECU](https://github.com/RXTX4816/OBDisplay-Emu) Emulator
+
+If you don't want to test on a real ECU just turn your Arduino Mega into a ECU with [OBDServer](https://github.com/RXTX4816/OBDisplay-Emu)
 
 ## KWP1281 Communication
 
