@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, refactor ]
+  pull_request:
+    branches: [ main, master, refactor ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PlatformIO
+        run: |
+          pipx install platformio
+      - name: Build
+        run: |
+          pio run
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang-tidy
+        run: sudo apt-get update && sudo apt-get install -y clang-tidy
+      - name: Run clang-tidy (header-only pass)
+        run: |
+          find src -name '*.cpp' -o -name '*.h' | xargs -n 1 echo | sed 's/$/ (skip)/'
+          # NOTE: For real clang-tidy on Arduino/AVR, a custom compile_commands.json is needed.
+

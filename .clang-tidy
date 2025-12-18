@@ -1,0 +1,5 @@
+Checks: '-*,bugprone-*,performance-*,readability-identifier-naming,readability-magic-numbers,modernize-use-nullptr,modernize-use-override'
+WarningsAsErrors: ''
+HeaderFilterRegex: 'src/.*'
+AnalyzeTemporaryDtors: false
+FormatStyle: none

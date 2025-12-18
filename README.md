@@ -30,13 +30,21 @@ Dependencies:
 or
 `sudo pacman -S platformio-core` 
 
-Build:
-`pio run`
+### Build and flash
 
-Flash:
-`pio run --target upload`
+For the Arduino Uno firmware (this is what you normally want):
 
-Or just use VS Code with Platformio extension to have the buttons in the bottom line.
+- Build firmware only:
+	- `pio run -e uno`
+- Build and upload firmware:
+	- `pio run -e uno --target upload`
+
+There is also a `native` environment used only for host-side tests (no Arduino
+required). To run those tests, use:
+
+- `pio test -e native`
+
+Or just use VS Code with the PlatformIO extension to have the buttons in the bottom line.
 
 ## Setup Instructions
 Requirements: Arduino Uno, 16x2 Liquidcrystal Display Shield, Autodia K409 KKL OBD to USB cable
