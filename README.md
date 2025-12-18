@@ -1,19 +1,17 @@
-# DEPRECEATED Arduino Uno Display Tripcomputer for the KW1281 KKL K-Line protocol
+# Arduino Uno Display Tripcomputer for the KW1281 KKL K-Line protocol
 
-DEPRECEATED: Look in main branch for the ARDUINO_MEGA version since UNO only supports Softwareserial and has too low of PROGMEM/RAM to have a useful and good looking UI. 
+Arduino Shield LiquidCrystal Tripcomputer for most VAG Cars from 1998-2006 with a K-Line OBD interface.
 
-This code is for the Arduino Uno with a 16x2 Display Shield. [WORKING]
-
-For the Arduino Mega with a TFT LCD Display Shield look into [OBDisplay-Mega](https://github.com/RXTX4816/OBDisplay-Mega) [FAULTY]
+For the Arduino Mega (Not working yet) with a TFT LCD Display Shield look into [OBDisplay-Mega](https://github.com/RXTX4816/OBDisplay-Mega) [FAULTY]
 
 ![](assets/obdisplay.gif)
 
 ## Welcome
+
 Simple trip computer for the Arduino Uno with a 16x2 Screen to display useful information in all VAG vehicles with the MARELLI 4LV ECU (VAG Number: 036906034AM). This includes most Golf mk4/Jetta/Bora from the years around 2000 that are limited to the K-Line communication and the KW1281 protocol. Newer cars since around 2005 began to adapt OBD-2 with CAN communication, that can be accessed through a ELM327 controller. No such simple controller exists currently for KKL.
 
-This repo contains all necessary files. The only file containing code is [obdisplay.cpp](src/obdisplay.cpp). 
-
 ## Features
+
 - Supported baud rates 1200, 2400, 4800, 9600, 10400
 - Supports KWP1281 K-Line through NewSoftwareSerial
 - 3 operating modes: Acknowledge, Group reading, Sensors reading
@@ -47,6 +45,7 @@ required). To run those tests, use:
 Or just use VS Code with the PlatformIO extension to have the buttons in the bottom line.
 
 ## Setup Instructions
+
 Requirements: Arduino Uno, 16x2 Liquidcrystal Display Shield, Autodia K409 KKL OBD to USB cable
 
 Look inside the OBD cable and note which MCU is placed (E.g. FT232R or FT232RQ), get its datasheet, find the RXD and TXD pins, solder the first visible contact point to your Arduino digital pins of your liking (Here: 2 and 3) and cut both lines after the contact point. Don't forget to solder the +5V and GROUND from your Arduino to the OBD cable MCU (Just use the USB stripped male on the platine) since without it no communication is possible. You should have 4 cables connected between your OBD cable and your Arduino and a seperate USB or power souce input to power the Arduino and access its Serial debug communication.
