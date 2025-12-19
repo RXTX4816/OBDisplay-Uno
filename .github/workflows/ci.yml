@@ -8,6 +8,7 @@ on:
 
 jobs:
   build:
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,7 +17,19 @@ jobs:
           pipx install platformio
       - name: Build
         run: |
-          pio run
+          pio run -e uno
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PlatformIO
+        run: |
+          pipx install platformio
+      - name: Run tests
+        run: |
+          pio test -e native
 
   lint:
     runs-on: ubuntu-latest
