@@ -184,10 +184,28 @@ void DisplayManager::render(const Input::MenuState &menuState,
 
 void DisplayManager::initMenuCockpit(uint8_t screen, uint8_t addrSelected)
 {
+    // Ensure we never leave artifacts from previous screens like
+    // "->   ENTER   <-" or "Press SELECT". We do this with cheap,
+    // targeted clears of the character regions those texts occupied
+    // (full-screen clear every frame would be too expensive).
+    //
+    // Old texts:
+    //   row0: "->   ENTER   <-"  (columns 0-15)
+    //   row1: "Press SELECT"     (columns 0-11)
+    // Cockpit layouts do not use those label areas fully, so we
+    // explicitly blank them at the start of cockpit init.
+    clearRegion(0, 0, 16);
+    clearRegion(0, 1, 12);
+
     switch (addrSelected) {
     case 0x01: // ADDR_ENGINE
         switch (screen) {
         case 0:
+            // Engine screen 0 has only small labels; ensure numeric
+            // regions on both rows are blank before first draw so
+            // initial view after connect is clean.
+            clearRegion(0, 0, 10);
+            clearRegion(0, 1, 10);
             print(15, 0, F("V"));
             print(13, 1, F("TBa"));
             break;
@@ -217,6 +235,10 @@ void DisplayManager::initMenuCockpit(uint8_t screen, uint8_t addrSelected)
     case 0x17: // ADDR_INSTRUMENTS
         switch (screen) {
         case 0:
+            // regions on both rows are blank before first draw so
+            // initial view after connect is clean.
+            clearRegion(0, 0, 10);
+            clearRegion(0, 1, 10);
             print(4, 0, F("KMH"));
             print(13, 0, F("RPM"));
             print(3, 1, F("C"));
@@ -302,6 +324,7 @@ void DisplayManager::initMenuSettings(uint8_t screen)
 {
     switch (screen) {
     case 0:
+        // Exit / reconnect (settings exit screen)
         print(0, 0, F("Exit ECU:"));
         print(0, 1, F("< Press select >"));
         break;
@@ -472,15 +495,43 @@ void DisplayManager::displayMenuExperimental(uint8_t /*screen*/,
 }
 
 void DisplayManager::displayMenuDebug(uint8_t /*screen*/,
-                                      const Model::OBDSignals & /*signals*/,
-                                      int /*kwpModeInt*/,
-                                      bool /*forceUpdate*/)
+                                      const Model::OBDSignals &signals,
+                                      int kwpModeInt,
+                                      bool forceUpdate)
 {
-    // Status bar: C:connected A:available
-    print(0, 0, F("C:"));
-    print(4, 0, F("A:"));
-    // NOTE: actual connection / available counters are driven elsewhere;
-    // here we only mirror static labels and placeholders.
+    (void)forceUpdate;
+
+    // Match old display_menu_debug as closely as possible using
+    // available model data.
+
+    bool updatedDummy = true;
+
+    // C: connection flag at column 2. We don't have a model flag here,
+    // but we at least ensure the region is cleared and stable.
+    printCockpitNumeric(*this, 2, 0, 0, 1, updatedDummy, true);
+
+    // A: available bytes at column 6 (no real available() in model).
+    // Keep width small enough that it does not overwrite the 'B' of
+    // the "BC:" label at column 9.
+    updatedDummy = true;
+    printCockpitNumeric(*this, 6, 0, 0, 3, updatedDummy, true);
+
+    // BC: block counter at 13,0. For now we just show a stable
+    // placeholder (0) so the "BC:" label has a clean numeric
+    // field next to it.
+    uint8_t bcValue = 0;
+    (void)signals; // avoid unused warning if we later feed a real counter
+    updatedDummy = true;
+    printCockpitNumeric(*this, 13, 0, bcValue, 3, updatedDummy, true);
+
+    // KWP mode numeric at 5,1
+    updatedDummy = true;
+    printCockpitNumeric(*this, 5, 1, kwpModeInt, 1, updatedDummy, true);
+
+    // FPS value at 12,1: theoretical frame rate 1000 / DISPLAY_FRAME_LENGTH.
+    updatedDummy = true;
+    printCockpitNumeric(*this, 12, 1, static_cast<int>(1000 / 177), 3,
+                        updatedDummy, true);
 }
 
 void DisplayManager::displayMenuDtc(uint8_t screen,
@@ -517,17 +568,19 @@ void DisplayManager::displayMenuDtc(uint8_t screen,
                         updatedDummy, forceUpdate);
 }
 
-void DisplayManager::displayMenuSettings(uint8_t /*screen*/,
+void DisplayManager::displayMenuSettings(uint8_t screen,
                                          int kwpModeInt,
-                                         bool forceUpdate)
+                                         bool /*forceUpdate*/)
 {
-    // Screen 1 shows current KWP mode text; others have static content
-    // set in initMenuSettings.
-    // We only support updating the mode string here.
-    (void)forceUpdate;
-    // Mode integer mapping from original: 0=ACK,1=READSENSORS,2=READGROUP
-    const uint8_t screenForMode = 1;
-    // Caller ensures we are on correct screen; here we just render text.
+    // Only sub-screen 1 has a dynamic KWP mode field in the center.
+    // Other sub-screens manage their bottom-line text entirely via
+    // initMenuSettings and should not be touched here.
+    if (screen != 1) {
+        return;
+    }
+
+    // Screen 1: draw the KWP mode text between the "<" and ">" already
+    // printed by initMenuSettings at positions 0 and 15.
     clearRegion(4, 1, 7);
     lcd_.setCursor(4, 1);
     switch (kwpModeInt) {

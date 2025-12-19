@@ -13,9 +13,11 @@ public:
     Display::MenuId currentMenu() const { return currentMenu_; }
     uint8_t cockpitScreen() const { return cockpitScreen_; }
     uint8_t experimentalScreen() const { return experimentalScreen_; }
+    void setExperimentalScreen(uint8_t v) { experimentalScreen_ = v; }
     uint8_t debugScreen() const { return debugScreen_; }
     uint8_t dtcScreen() const { return dtcScreen_; }
     uint8_t settingsScreen() const { return settingsScreen_; }
+    void setSettingsScreen(uint8_t v) { settingsScreen_ = v; }
 
     void nextMenu();
     void prevMenu();

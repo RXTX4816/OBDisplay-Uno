@@ -17,8 +17,10 @@ struct InputActions {
 
     bool invertGroupSide = false;
 
-    // optional changes for KWP mode/group are handled
-    // by toggling in OBDDisplay directly for C++11 compatibility.
+    bool toggleKwpMode = false;
+
+    // optional changes for KWP mode/group can be requested via
+    // toggleKwpMode and are applied in OBDDisplay.
 };
 
 class ButtonInput {

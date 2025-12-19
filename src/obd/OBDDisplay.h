@@ -41,18 +41,29 @@ private:
     uint8_t kwpGroup_;
 
     bool connected_;
+    uint16_t connectionAttempts_ = 0;
     uint32_t connectTimeStart_;
     uint32_t displayFrameTimestamp_;
     uint32_t buttonTimeoutUntil_;
 
+    enum class Phase : uint8_t {
+        Setup,
+        WaitingForConnect,
+        Running
+    } phase_ = Phase::Setup;
+
     // Helper methods mirroring old loop()/setup() structure
     void startupAnimation_();
+    void runSetupFlow_();
     void resetState_();
     bool ensureConnected_();
     void updateKwpOrSimulation_();
     void computeValues_();
     void handleInput_();
     void updateDisplay_();
+
+    void incrementExperimentalGroup_();
+    void decrementExperimentalGroup_();
 };
 
 } // namespace obd

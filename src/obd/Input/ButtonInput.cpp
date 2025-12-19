@@ -38,9 +38,18 @@ bool ButtonInput::update(MenuState &menuState, InputActions &actions)
             else if (isDown(v)) { menuState.prevCockpitScreen(); any = true; }
             break;
         case MenuId::Experimental:
-            if (isUp(v)) { menuState.nextExperimentalScreen(); any = true; }
-            else if (isDown(v)) { menuState.prevExperimentalScreen(); any = true; }
-            else if (isSelect(v)) { actions.invertGroupSide = true; any = true; }
+            if (isUp(v)) {
+                menuState.nextExperimentalScreen();
+                any = true;
+            }
+            else if (isDown(v)) {
+                menuState.prevExperimentalScreen();
+                any = true;
+            }
+            else if (isSelect(v)) {
+                actions.invertGroupSide = true;
+                any = true;
+            }
             break;
         case MenuId::Debug:
             if (isUp(v)) { menuState.nextDebugScreen(); any = true; }
@@ -60,12 +69,13 @@ bool ButtonInput::update(MenuState &menuState, InputActions &actions)
             if (isUp(v)) { menuState.nextSettingsScreen(); any = true; }
             else if (isDown(v)) { menuState.prevSettingsScreen(); any = true; }
             else if (isSelect(v)) {
+                // Map settings actions to match old behaviour: screen 0 = Exit,
+                // screen 1 = KWP mode cycling.
                 if (menuState.settingsScreen() == 0) {
-                    // Exit / reconnect request
-                    actions.requestExit = true; any = true;
-                }
-                else if (menuState.settingsScreen() == 1) {
-                    // KWP mode cycle will be handled directly in OBDDisplay
+                    actions.requestExit = true;
+                    any = true;
+                } else if (menuState.settingsScreen() == 1) {
+                    actions.toggleKwpMode = true;
                     any = true;
                 }
             }
