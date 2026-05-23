@@ -74,24 +74,3 @@ jobs:
 
       - name: Run native tests
         run: pio test -e native
-
-  release:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Download firmware artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: firmware
-          path: .pio/build/uno
-
-      - name: Semantic Release
-        uses: cycjimmy/semantic-release-action@v4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
