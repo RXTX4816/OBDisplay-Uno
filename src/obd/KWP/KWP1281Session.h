@@ -25,7 +25,7 @@ class KWP1281Session
     void setConfig(uint16_t baudRate, uint8_t ecuAddr);
 
     bool connectToEcu(bool simulationMode, bool autoSetup, uint16_t& baudRate,
-                      uint8_t& addrSelected);
+                      const uint8_t& addrSelected);
 
     void disconnect();
 
@@ -48,7 +48,7 @@ class KWP1281Session
     void incrementBlockCounter_();
     void writeByte_(uint8_t data);
     int16_t readByte_();
-    bool sendBlock_(uint8_t* data, int size);
+    bool sendBlock_(const uint8_t* data, int size);
     bool receiveBlock_(uint8_t* buffer, int maxSize, int& size, int source = -1,
                        bool initializationPhase = false);
     bool sendAckBlock_();

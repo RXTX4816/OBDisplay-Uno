@@ -162,6 +162,7 @@ const int XMIT_START_ADJUSTMENT = 5;
 
 #elif F_CPU == 8000000
 
+// cppcheck-suppress unknownMacro
 static const DELAY_TABLE table[] PROGMEM = {
     //  baud    rxcenter    rxintra    rxstop  tx
     {

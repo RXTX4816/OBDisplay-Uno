@@ -119,7 +119,7 @@ void OBDDisplay::runSetupFlow_()
         simulationModeActive_ = (userSimMode == 1);
 
         // 2) Baud rate selection
-        uint16_t supportedBaudRates[5] = {1200, 2400, 4800, 9600, 10400};
+        const uint16_t supportedBaudRates[5] = {1200, 2400, 4800, 9600, 10400};
         uint8_t baudPtr = 3; // default 9600
         uint16_t userBaud = supportedBaudRates[baudPtr];
 

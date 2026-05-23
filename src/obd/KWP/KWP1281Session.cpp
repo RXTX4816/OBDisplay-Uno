@@ -67,7 +67,7 @@ int16_t KWP1281Session::readByte_()
     return data;
 }
 
-bool KWP1281Session::sendBlock_(uint8_t* s, int size)
+bool KWP1281Session::sendBlock_(const uint8_t* s, int size)
 {
     for (uint8_t i = 0; i < size; ++i)
     {
@@ -96,7 +96,6 @@ bool KWP1281Session::receiveBlock_(uint8_t s[], int maxsize, int& size, int sour
                                    bool initializationPhase)
 {
     bool ackEachByte = false;
-    int16_t data = 0;
     int recvCount = 0;
     if (size == 0)
         ackEachByte = true;
@@ -114,7 +113,7 @@ bool KWP1281Session::receiveBlock_(uint8_t s[], int maxsize, int& size, int sour
     {
         while (obd_.available())
         {
-            data = readByte_();
+            int16_t data = readByte_();
             if (data == -1)
             {
                 return false;
@@ -160,7 +159,7 @@ bool KWP1281Session::receiveBlock_(uint8_t s[], int maxsize, int& size, int sour
 
             if ((size == 0) && (recvCount == 1))
             {
-                if (source == 1 && (data != 0x0F || data != 0x03) && obd_.available())
+                if (source == 1 && (data != 0x0F && data != 0x03) && obd_.available())
                 {
                     comError_ = true;
                     size = 6;
@@ -235,7 +234,7 @@ bool KWP1281Session::receiveBlock_(uint8_t s[], int maxsize, int& size, int sour
 
 bool KWP1281Session::sendAckBlock_()
 {
-    uint8_t buf[4] = {0x03, blockCounter_, 0x09, 0x03};
+    const uint8_t buf[4] = {0x03, blockCounter_, 0x09, 0x03};
     return sendBlock_(buf, 4);
 }
 
@@ -344,7 +343,7 @@ bool KWP1281Session::perform5BaudInit_()
 }
 
 bool KWP1281Session::connectToEcu(bool simulationMode, bool autoSetup, uint16_t& baudRate,
-                                  uint8_t& addrSelected)
+                                  const uint8_t& addrSelected)
 {
     (void)simulationMode;
     (void)autoSetup;
@@ -565,7 +564,7 @@ int8_t KWP1281Session::readDtcCodes(Model::DTCStore& dtcStore)
 
     uint8_t s[64];
     // Send DTC read block
-    uint8_t req[4] = {0x03, blockCounter_, 0x07, 0x03};
+    const uint8_t req[4] = {0x03, blockCounter_, 0x07, 0x03};
     if (!sendBlock_(req, 4))
         return -1;
 
@@ -613,7 +612,7 @@ int8_t KWP1281Session::readDtcCodes(Model::DTCStore& dtcStore)
 
 bool KWP1281Session::deleteDtcCodes()
 {
-    uint8_t s[4] = {0x03, blockCounter_, 0x05, 0x03};
+    const uint8_t s[4] = {0x03, blockCounter_, 0x05, 0x03};
     if (!sendBlock_(s, 4))
         return false;
 
@@ -628,7 +627,7 @@ bool KWP1281Session::deleteDtcCodes()
 
 bool KWP1281Session::exitSession()
 {
-    uint8_t s[4] = {0x03, blockCounter_, 0x06, 0x03};
+    const uint8_t s[4] = {0x03, blockCounter_, 0x06, 0x03};
     if (!sendBlock_(s, 4))
     {
         return false;

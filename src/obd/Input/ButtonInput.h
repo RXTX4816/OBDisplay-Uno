@@ -41,11 +41,11 @@ class ButtonInput
 
     int readRaw() const;
 
-    bool isRight(int v) const { return v < 60; }
-    bool isUp(int v) const { return v >= 60 && v < 200; }
-    bool isDown(int v) const { return v >= 200 && v < 400; }
-    bool isLeft(int v) const { return v >= 400 && v < 600; }
-    bool isSelect(int v) const { return v >= 600 && v < 800; }
+    static bool isRight(int v) { return v < 60; }
+    static bool isUp(int v) { return v >= 60 && v < 200; }
+    static bool isDown(int v) { return v >= 200 && v < 400; }
+    static bool isLeft(int v) { return v >= 400 && v < 600; }
+    static bool isSelect(int v) { return v >= 600 && v < 800; }
 };
 
 } // namespace Input
