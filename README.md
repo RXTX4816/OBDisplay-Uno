@@ -1,6 +1,6 @@
 # OBDisplay-Uno
 
-KWP-1281 K-Line trip computer for Arduino Uno with SSD1312 OLED display.
+KWP-1281 K-Line trip computer for Arduino Uno with SH1107 OLED display (64×128, landscape mode work in progress).
 
 Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta, ~1998–2006) that use the K-Line OBD interface and the KWP-1281 protocol.
 
@@ -12,7 +12,7 @@ Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta,
 - Three KWP modes: ACK (keepalive only), group read, full sensor read
 - 56-case sensor decode table (full VW/Audi KWP-1281 measurement type table)
 - Read and clear DTC fault codes
-- SSD1312 128×64 OLED display — full dashboard on a single 8-row screen, no paging needed
+- SH1107 64×128 OLED display (GME64128-02) — full dashboard on a single 8-row screen, no paging needed (landscape orientation currently work in progress)
 - Simulation mode for testing without a car
 - Cooperative task scheduler (TaskScheduler) to prevent ECU timeouts
 - Auto-setup shortcut: hold SELECT during splash to skip the setup menu
@@ -22,14 +22,14 @@ Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta,
 | Component | Details |
 |---|---|
 | Microcontroller | Arduino Uno (ATmega328P) |
-| Display | SSD1312 128×64 OLED, I2C (SDA=A4, SCL=A5), I2C address 0x3C |
+| Display | SH1107 64×128 OLED (GME64128-02), I2C (SDA=A4, SCL=A5), I2C address 0x3C |
 | Buttons | Standard LCD shield analog keypad on A0 |
 | K-Line interface | Autodia K409 or similar KKL OBD-to-USB cable, wired to pins 2 (RX) and 3 (TX) |
 
 ### OLED wiring
 
 ```
-SSD1312 module    Arduino Uno
+SH1107 module     Arduino Uno
 ──────────────────────────────
 VCC           →   3.3V or 5V (check your module label)
 GND           →   GND
@@ -38,6 +38,8 @@ SCL           →   A5
 ```
 
 I2C address is `0x3C` by default. If the display is unresponsive try `0x3D` (update `OLED_I2C_ADDR` in [src/display/Display.h](src/display/Display.h)).
+
+**Note:** The SH1107 display orientation (landscape mode) is currently work in progress. The display hardware is initialized but the rendering orientation needs further investigation.
 
 ### K-Line cable wiring
 
@@ -164,7 +166,7 @@ src/
 ├── main.cpp                      # Arduino entry, TaskScheduler setup
 ├── Controller.h/cpp              # App coordinator
 ├── display/
-│   └── Display.h                 # SSD1312 OLED wrapper (SSD1306Ascii, I2C)
+│   └── Display.h                 # SH1107 OLED wrapper (SSD1306Ascii, I2C)
 ├── scheduler/
 │   └── TaskConfig.h              # Task intervals
 ├── serial/

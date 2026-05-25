@@ -48,8 +48,8 @@ void OBDDisplay::begin()
     // After setup, wait for explicit user confirmation to start the actual ECU connect.
     phase_ = Phase::WaitingForConnect;
     display_.clear();
-    display_.print(0, 0, F("->   ENTER   <-"));
-    display_.print(0, 1, F("Press SELECT"));
+    display_.print(0, 0, F("< ENTER >"));
+    display_.print(0, 1, F("< SELECT >"));
 
     connectTimeStart_ = millis();
     displayFrameTimestamp_ = millis();
@@ -60,7 +60,7 @@ void OBDDisplay::startupAnimation_()
 {
     display_.clear();
     display_.print(0, 0, F("O B D"));
-    display_.print(1, 1, F("D I S P L A Y"));
+    display_.print(2, 1, F("DISPLAY"));
 
     uint32_t start = millis();
     while (millis() - start < 777)
@@ -105,9 +105,9 @@ void OBDDisplay::runSetupFlow_()
     {
         // 1) Connect mode: ECU vs SIM
         display_.clear();
-        display_.print(0, 0, F("Connect mode"));
-        display_.print(0, 1, F("<- ECU"));
-        display_.print(9, 1, F("SIM ->"));
+        display_.print(0, 0, F("Mode:"));
+        display_.print(0, 1, F("< ECU"));
+        display_.print(0, 2, F("SIM >"));
 
         while (userSimMode == -1)
         {
@@ -125,8 +125,8 @@ void OBDDisplay::runSetupFlow_()
         uint16_t userBaud = supportedBaudRates[baudPtr];
 
         display_.clear();
-        display_.print(0, 0, F("<--   Baud:  -->"));
-        display_.print(2, 1, String("-> ") + String(userBaud), 10);
+        display_.print(0, 0, F("< Baud: >"));
+        display_.print(0, 1, String(userBaud), 8);
 
         bool pressedEnter = false;
         while (!pressedEnter)
@@ -135,14 +135,14 @@ void OBDDisplay::runSetupFlow_()
             {
                 baudPtr = (baudPtr >= 4) ? 0 : static_cast<uint8_t>(baudPtr + 1);
                 userBaud = supportedBaudRates[baudPtr];
-                display_.print(2, 1, String("-> ") + String(userBaud), 10);
+                display_.print(0, 1, String(userBaud), 8);
                 delay(333);
             }
             else if (digitalRead(BTN_PIN_LEFT) == LOW)
             {
                 baudPtr = (baudPtr == 0) ? 4 : static_cast<uint8_t>(baudPtr - 1);
                 userBaud = supportedBaudRates[baudPtr];
-                display_.print(2, 1, String("-> ") + String(userBaud), 10);
+                display_.print(0, 1, String(userBaud), 8);
                 delay(333);
             }
             else if (digitalRead(BTN_PIN_MID) == LOW)
@@ -158,9 +158,9 @@ void OBDDisplay::runSetupFlow_()
         // 3) ECU address selection: 0x01 or 0x17
         int8_t userAddr = -1; // 0 -> 0x01, 1 -> 0x17
         display_.clear();
-        display_.print(0, 0, F("ECU address:"));
-        display_.print(0, 1, F("<-- 01"));
-        display_.print(9, 1, F("17 -->"));
+        display_.print(0, 0, F("ECU addr:"));
+        display_.print(0, 1, F("< 0x01"));
+        display_.print(0, 2, F("0x17 >"));
 
         while (userAddr == -1)
         {
@@ -195,8 +195,8 @@ void OBDDisplay::update()
         // prompt.
         phase_ = Phase::WaitingForConnect;
         display_.clear();
-        display_.print(0, 0, F("->   ENTER   <-"));
-        display_.print(0, 1, F("Press SELECT"));
+        display_.print(0, 0, F("< ENTER >"));
+        display_.print(0, 1, F("< SELECT >"));
 
         connectTimeStart_ = millis();
         displayFrameTimestamp_ = millis();
@@ -278,8 +278,8 @@ bool OBDDisplay::ensureConnected_()
         if (!simulationModeActive_)
         {
             display_.clear();
-            display_.print(0, 0, F("ECU connect ERR"));
-            display_.print(0, 1, F("Retrying..."));
+            display_.print(0, 0, F("Conn. ERR"));
+            display_.print(0, 1, F("Retry..."));
 
             // After a short timeout, go back to the explicit
             // press-to-connect prompt and reset state so we do
@@ -469,8 +469,8 @@ void OBDDisplay::handleInput_()
                 // Communication error while reading DTCs: show error,
                 // disconnect and go back to press-to-connect.
                 display_.clear();
-                display_.print(0, 0, F("DTC read error"));
-                display_.print(0, 1, F("Disconnecting..."));
+                display_.print(0, 0, F("DTC error"));
+                display_.print(0, 1, F("Disconn."));
                 delay(1222);
                 kwp_.disconnect();
                 connected_ = false;
@@ -482,7 +482,7 @@ void OBDDisplay::handleInput_()
             else
             {
                 // Success: briefly show success on second line like old code.
-                display_.print(3, 1, F("<Success>"));
+                display_.print(0, 1, F("<Success>"));
                 delay(500);
             }
         }
@@ -502,13 +502,13 @@ void OBDDisplay::handleInput_()
                 // but stay in current session (like old sketch).
                 display_.clear();
                 display_.print(0, 0, F("DTC delete"));
-                display_.print(0, 1, F("Not supported"));
+                display_.print(0, 1, F("No supp."));
                 delay(1222);
             }
             else
             {
                 dtcStore_.reset();
-                display_.print(3, 1, F("<Success>"));
+                display_.print(0, 1, F("<Success>"));
                 delay(500);
             }
         }
