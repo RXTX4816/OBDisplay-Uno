@@ -10,19 +10,23 @@ constexpr uint8_t OLED_I2C_ADDR = 0x3C; // try 0x3D if unresponsive
 //   - multiplex 0x7F (128 COM lines), not 0x3F (64) -> no clipping
 //   - start line via 0xDC (SH1107 command), not the SSD1306 0x40
 //   - addressing mode 0x20 (page) explicitly set
+// This is the OLD proven init that lit this exact panel, with ONE change:
+// multiplex 0x3F (64) -> 0x7F (128) so all 128 rows are driven (fixes the
+// "out of bounds" half-screen). No SH1107-only commands (0x20/0xDC) that an
+// SSD1306/SSD1312-class controller would choke on.
 const uint8_t PROGMEM kInit[] = {
     0xAE,       // display off
-    0xDC, 0x00, // display start line = 0
-    0x81, 0x2F, // contrast
-    0x20,       // memory addressing mode: page
-    0xA0,       // segment remap   (flip to 0xA1 if text is mirrored)
-    0xC0,       // COM scan dir     (flip to 0xC8 if text is upside down)
-    0xA8, 0x7F, // multiplex ratio = 128
+    0xD5, 0x80, // clock divide / osc
+    0xA8, 0x7F, // multiplex ratio = 128 (was 0x3F; drives all 128 rows)
     0xD3, 0x00, // display offset = 0
-    0xD5, 0x51, // clock divide / osc frequency
-    0xD9, 0x22, // pre-charge period
-    0xDB, 0x35, // VCOMH deselect level
+    0x40,       // display start line = 0
+    0xAD, 0x8B, // charge pump ON
+    0xA1,       // segment remap   (flip to 0xA0 if text is mirrored)
+    0xC8,       // COM scan dir    (flip to 0xC0 if text is upside down)
     0xDA, 0x12, // COM pins config
+    0x81, 0x80, // contrast
+    0xD9, 0x1F, // pre-charge period
+    0xDB, 0x40, // VCOMH deselect level
     0xA4,       // output follows RAM
     0xA6,       // normal (non-inverted)
     0xAF,       // display on
@@ -127,18 +131,35 @@ const uint8_t PROGMEM kFont[] = {
     0x08, 0x04, 0x08, 0x10, 0x08, // ~
     0x00, 0x00, 0x00, 0x00, 0x00, // 0x7F
 };
+
+// Send a single command in its own I2C transaction. Cheap SSD1312/SH1107
+// clones often only honor one command per transaction (this matches the
+// SSD1306Ascii library that worked on this panel).
+void writeCmd(uint8_t c)
+{
+    Wire.beginTransmission(OLED_I2C_ADDR);
+    Wire.write(0x00); // control: command
+    Wire.write(c);
+    Wire.endTransmission();
+}
 } // namespace
 
 void Display::begin()
 {
     Wire.begin();
-    Wire.setClock(400000);
+    Wire.setClock(100000); // 100kHz: reliable on long/breadboard wiring
 
-    Wire.beginTransmission(OLED_I2C_ADDR);
-    Wire.write(0x00); // control: command stream
     for (uint8_t i = 0; i < sizeof(kInit); ++i)
-        Wire.write(pgm_read_byte(&kInit[i]));
-    Wire.endTransmission();
+        writeCmd(pgm_read_byte(&kInit[i]));
+
+    // TEMP DIAGNOSTIC: fill the whole panel white for ~1.5s.
+    //  - If you see white -> panel + I2C + flush all work; problem is in drawing.
+    //  - If it stays dark  -> init/I2C/power problem (try addr 0x3D).
+    // Remove this block once the display works.
+    memset(buf_, 0xFF, sizeof(buf_));
+    dirty_ = true;
+    flush();
+    delay(1500);
 
     clear();
 }
@@ -238,12 +259,9 @@ void Display::flush()
         return;
     for (uint8_t page = 0; page < 16; ++page)
     {
-        Wire.beginTransmission(OLED_I2C_ADDR);
-        Wire.write(0x00);                   // command stream
-        Wire.write((uint8_t)(0xB0 | page)); // set page address
-        Wire.write(0x00);                   // column low nibble = 0
-        Wire.write(0x10);                   // column high nibble = 0
-        Wire.endTransmission();
+        writeCmd((uint8_t)(0xB0 | page)); // set page address
+        writeCmd(0x00);                   // column low nibble = 0
+        writeCmd(0x10);                   // column high nibble = 0
 
         const uint8_t* pbuf = &buf_[(uint16_t)page * 64];
         uint8_t col = 0;
