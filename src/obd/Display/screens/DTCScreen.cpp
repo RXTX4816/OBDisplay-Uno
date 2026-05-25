@@ -53,13 +53,13 @@ void renderDtcScreen(DisplayManager& dm, uint8_t screen, const Model::DTCStore& 
     // Row layout: #(1) index(2) E:(2) code(5) S:(2) status(3) = cols 0,1-2,3-4,5-9,11-12,13-15
     printField(dm, 1, 0, (uint8_t)(dtcPointer * 2 + 1), 2, upd, forceUpdate);
     upd = true;
-    printFieldStr(dm, 5, 0, String(e0), 5, upd, forceUpdate);
+    printField(dm, 5, 0, (int32_t)e0, 5, upd, forceUpdate);
     upd = true;
     printField(dm, 13, 0, (int32_t)s0, 3, upd, forceUpdate);
     upd = true;
     printField(dm, 1, 1, (uint8_t)(dtcPointer * 2 + 2), 2, upd, forceUpdate);
     upd = true;
-    printFieldStr(dm, 5, 1, String(e1), 5, upd, forceUpdate);
+    printField(dm, 5, 1, (int32_t)e1, 5, upd, forceUpdate);
     upd = true;
     printField(dm, 13, 1, (int32_t)s1, 3, upd, forceUpdate);
 }

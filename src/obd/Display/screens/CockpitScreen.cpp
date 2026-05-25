@@ -72,17 +72,25 @@ void initCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelected)
                     dm.print(0, 3, F("bits:"));
                     break;
                 default:
+                {
+                    char buf[8];
                     dm.print(0, 0, F("Screen"));
-                    dm.print(7, 0, String(screen));
+                    ltoa((long)screen, buf, 10);
+                    dm.print(7, 0, buf);
                     dm.print(0, 1, F("no data"));
                     break;
+                }
             }
             break;
         default:
+        {
+            char buf[8];
             dm.print(0, 0, F("Addr 0x"));
-            dm.print(7, 0, String(addrSelected, HEX));
+            ltoa((long)addrSelected, buf, 16);
+            dm.print(7, 0, buf);
             dm.print(0, 1, F("no data"));
             break;
+        }
     }
 }
 

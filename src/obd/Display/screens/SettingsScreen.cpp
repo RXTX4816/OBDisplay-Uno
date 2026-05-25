@@ -19,10 +19,14 @@ void initSettingsScreen(DisplayManager& dm, uint8_t screen)
             dm.print(20, 1, F(">"));
             break;
         default:
+        {
+            char buf[8];
             dm.print(0, 0, F("Screen"));
-            dm.print(7, 0, String(screen));
+            ltoa((long)screen, buf, 10);
+            dm.print(7, 0, buf);
             dm.print(0, 1, F("no data"));
             break;
+        }
     }
 }
 

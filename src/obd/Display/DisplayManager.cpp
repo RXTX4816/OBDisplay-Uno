@@ -22,24 +22,31 @@ void DisplayManager::clear()
     display_.clear();
 }
 
+void DisplayManager::beginBatch()
+{
+    display_.beginBatch();
+}
+
+void DisplayManager::endBatch()
+{
+    display_.endBatch();
+}
+
+void DisplayManager::flush()
+{
+    display_.flush();
+}
+
 void DisplayManager::print(uint8_t x, uint8_t y, const __FlashStringHelper* s)
 {
     display_.setCursor(x, y);
     display_.print(s);
 }
 
-void DisplayManager::print(uint8_t x, uint8_t y, const String& s)
+void DisplayManager::print(uint8_t x, uint8_t y, const char* s)
 {
     display_.setCursor(x, y);
-    display_.print(s.c_str());
-}
-
-void DisplayManager::print(uint8_t x, uint8_t y, const String& s, uint8_t width)
-{
-    String tmp = s;
-    while (tmp.length() < width)
-        tmp += " ";
-    print(x, y, tmp);
+    display_.print(s);
 }
 
 void DisplayManager::print(uint8_t x, uint8_t y, int32_t value)
@@ -50,26 +57,52 @@ void DisplayManager::print(uint8_t x, uint8_t y, int32_t value)
 
 void DisplayManager::print(uint8_t x, uint8_t y, const char* s, uint8_t width)
 {
-    String tmp(s);
-    while (tmp.length() < width)
-        tmp += " ";
-    print(x, y, tmp);
+    if (width > 21)
+        width = 21;
+    char buf[22];
+    uint8_t i = 0;
+    while (i < width && s[i] != '\0')
+    {
+        buf[i] = s[i];
+        ++i;
+    }
+    while (i < width)
+        buf[i++] = ' ';
+    buf[i] = '\0';
+    display_.setCursor(x, y);
+    display_.print(buf);
+}
+
+// Format a float to one decimal place without pulling in dtostrf/dtoa
+// (saves ~1KB flash). Values here are small (temps, voltages, fuel).
+static void fmtFixed1(float value, char* out)
+{
+    bool neg = value < 0.0f;
+    if (neg)
+        value = -value;
+    uint32_t scaled = (uint32_t)(value * 10.0f + 0.5f);
+    char* p = out;
+    if (neg)
+        *p++ = '-';
+    utoa((uint16_t)(scaled / 10), p, 10);
+    while (*p != '\0')
+        ++p;
+    *p++ = '.';
+    *p++ = (char)('0' + (scaled % 10));
+    *p = '\0';
 }
 
 void DisplayManager::print(uint8_t x, uint8_t y, float value, uint8_t width)
 {
-    display_.setCursor(x, y);
-    String s = String(value, 1);
-    if (width > 0 && s.length() > width)
+    char tmp[12];
+    fmtFixed1(value, tmp);
+    if (width == 0)
     {
-        display_.print(s.c_str());
+        display_.setCursor(x, y);
+        display_.print(tmp);
         return;
     }
-    while (width > 0 && s.length() < width)
-    {
-        s += " ";
-    }
-    display_.print(s.c_str());
+    print(x, y, tmp, width);
 }
 
 void DisplayManager::clearRegion(uint8_t x, uint8_t y, uint8_t width)

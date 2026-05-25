@@ -20,6 +20,11 @@ class DisplayManager
     void begin();
     void clear();
 
+    // Batch a full frame into a single I2C transfer (see Display::beginBatch).
+    void beginBatch();
+    void endBatch();
+    void flush();
+
     void initMenu(const Input::MenuState& menuState, uint8_t addrSelected, int kwpModeInt);
 
     void render(const Input::MenuState& menuState, const Model::OBDSignals& signals,
@@ -27,8 +32,7 @@ class DisplayManager
                 bool forceUpdate);
 
     void print(uint8_t x, uint8_t y, const __FlashStringHelper* s);
-    void print(uint8_t x, uint8_t y, const String& s);
-    void print(uint8_t x, uint8_t y, const String& s, uint8_t width);
+    void print(uint8_t x, uint8_t y, const char* s);
     void print(uint8_t x, uint8_t y, const char* s, uint8_t width);
     void print(uint8_t x, uint8_t y, int32_t value);
     void print(uint8_t x, uint8_t y, float value, uint8_t width = 0);

@@ -4,6 +4,8 @@
 // These operate on DisplayManager (for clearRegion/print) and take
 // an updated flag + forceUpdate to skip unchanged fields.
 
+#include <stdlib.h>
+#include <string.h>
 #include "../DisplayManager.h"
 
 namespace obd
@@ -18,9 +20,10 @@ static inline void printField(DisplayManager& dm, uint8_t x, uint8_t y, T value,
     if (!(updated || forceUpdate))
         return;
     dm.clearRegion(x, y, width);
-    String s = String(value);
-    if (s.length() <= width)
-        dm.print(x, y, s);
+    char buf[12];
+    ltoa((long)value, buf, 10);
+    if (strlen(buf) <= width)
+        dm.print(x, y, buf);
     updated = false;
 }
 
@@ -30,13 +33,11 @@ static inline void printFieldFloat(DisplayManager& dm, uint8_t x, uint8_t y, flo
     if (!(updated || forceUpdate))
         return;
     dm.clearRegion(x, y, width);
-    String s = String(value, 1);
-    if (s.length() <= width)
-        dm.print(x, y, s);
+    dm.print(x, y, value, width);
     updated = false;
 }
 
-static inline void printFieldStr(DisplayManager& dm, uint8_t x, uint8_t y, const String& text,
+static inline void printFieldStr(DisplayManager& dm, uint8_t x, uint8_t y, const char* text,
                                  uint8_t width, bool& updated, bool forceUpdate)
 {
     if (!(updated || forceUpdate))

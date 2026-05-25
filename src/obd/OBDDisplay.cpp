@@ -126,7 +126,9 @@ void OBDDisplay::runSetupFlow_()
 
         display_.clear();
         display_.print(0, 0, F("< Baud: >"));
-        display_.print(0, 1, String(userBaud), 8);
+        char baudStr[8];
+        ltoa((long)userBaud, baudStr, 10);
+        display_.print(0, 1, baudStr, 8);
 
         bool pressedEnter = false;
         while (!pressedEnter)
@@ -135,14 +137,16 @@ void OBDDisplay::runSetupFlow_()
             {
                 baudPtr = (baudPtr >= 4) ? 0 : static_cast<uint8_t>(baudPtr + 1);
                 userBaud = supportedBaudRates[baudPtr];
-                display_.print(0, 1, String(userBaud), 8);
+                ltoa((long)userBaud, baudStr, 10);
+                display_.print(0, 1, baudStr, 8);
                 delay(333);
             }
             else if (digitalRead(BTN_PIN_LEFT) == LOW)
             {
                 baudPtr = (baudPtr == 0) ? 4 : static_cast<uint8_t>(baudPtr - 1);
                 userBaud = supportedBaudRates[baudPtr];
-                display_.print(0, 1, String(userBaud), 8);
+                ltoa((long)userBaud, baudStr, 10);
+                display_.print(0, 1, baudStr, 8);
                 delay(333);
             }
             else if (digitalRead(BTN_PIN_MID) == LOW)
@@ -519,6 +523,9 @@ void OBDDisplay::updateDisplay_()
 {
     uint32_t now = millis();
 
+    // Batch the whole frame (clear + labels + values) into one I2C transfer.
+    display_.beginBatch();
+
     // If menu or screen changed, re-init and force a full render once
     if (menuState_.consumeMenuChanged() || menuState_.consumeScreenChanged())
     {
@@ -535,6 +542,8 @@ void OBDDisplay::updateDisplay_()
                         false);
         displayFrameTimestamp_ = now + DISPLAY_FRAME_LENGTH_MS;
     }
+
+    display_.endBatch();
 }
 
 void OBDDisplay::incrementExperimentalGroup_()
