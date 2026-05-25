@@ -5,30 +5,32 @@ namespace obd
 namespace Input
 {
 
-ButtonInput::ButtonInput(uint8_t analogPin) : analogPin_(analogPin) {}
-
-int ButtonInput::readRaw() const
+ButtonInput::ButtonInput(uint8_t pinUp, uint8_t pinDown, uint8_t pinLeft, uint8_t pinRight,
+                         uint8_t pinMid)
+    : pinUp_(pinUp), pinDown_(pinDown), pinLeft_(pinLeft), pinRight_(pinRight), pinMid_(pinMid)
 {
-    return analogRead(analogPin_);
+    pinMode(pinUp_, INPUT_PULLUP);
+    pinMode(pinDown_, INPUT_PULLUP);
+    pinMode(pinLeft_, INPUT_PULLUP);
+    pinMode(pinRight_, INPUT_PULLUP);
+    pinMode(pinMid_, INPUT_PULLUP);
 }
 
 bool ButtonInput::isSelectPressed() const
 {
-    int v = readRaw();
-    return isSelect(v);
+    return readMid();
 }
 
 bool ButtonInput::update(MenuState& menuState, InputActions& actions)
 {
-    int v = readRaw();
     bool any = false;
 
-    if (isRight(v))
+    if (readRight())
     {
         menuState.nextMenu();
         any = true;
     }
-    else if (isLeft(v))
+    else if (readLeft())
     {
         menuState.prevMenu();
         any = true;
@@ -39,58 +41,58 @@ bool ButtonInput::update(MenuState& menuState, InputActions& actions)
         switch (menuState.currentMenu())
         {
             case MenuId::Cockpit:
-                if (isUp(v))
+                if (readUp())
                 {
                     menuState.nextCockpitScreen();
                     any = true;
                 }
-                else if (isDown(v))
+                else if (readDown())
                 {
                     menuState.prevCockpitScreen();
                     any = true;
                 }
                 break;
             case MenuId::Experimental:
-                if (isUp(v))
+                if (readUp())
                 {
                     menuState.nextExperimentalScreen();
                     any = true;
                 }
-                else if (isDown(v))
+                else if (readDown())
                 {
                     menuState.prevExperimentalScreen();
                     any = true;
                 }
-                else if (isSelect(v))
+                else if (readMid())
                 {
                     actions.invertGroupSide = true;
                     any = true;
                 }
                 break;
             case MenuId::Debug:
-                if (isUp(v))
+                if (readUp())
                 {
                     menuState.nextDebugScreen();
                     any = true;
                 }
-                else if (isDown(v))
+                else if (readDown())
                 {
                     menuState.prevDebugScreen();
                     any = true;
                 }
                 break;
             case MenuId::Dtc:
-                if (isUp(v))
+                if (readUp())
                 {
                     menuState.nextDtcScreen();
                     any = true;
                 }
-                else if (isDown(v))
+                else if (readDown())
                 {
                     menuState.prevDtcScreen();
                     any = true;
                 }
-                else if (isSelect(v))
+                else if (readMid())
                 {
                     if (menuState.dtcScreen() == 0)
                     {
@@ -105,20 +107,18 @@ bool ButtonInput::update(MenuState& menuState, InputActions& actions)
                 }
                 break;
             case MenuId::Settings:
-                if (isUp(v))
+                if (readUp())
                 {
                     menuState.nextSettingsScreen();
                     any = true;
                 }
-                else if (isDown(v))
+                else if (readDown())
                 {
                     menuState.prevSettingsScreen();
                     any = true;
                 }
-                else if (isSelect(v))
+                else if (readMid())
                 {
-                    // Map settings actions to match old behaviour: screen 0 = Exit,
-                    // screen 1 = KWP mode cycling.
                     if (menuState.settingsScreen() == 0)
                     {
                         actions.requestExit = true;

@@ -12,9 +12,17 @@ static constexpr uint16_t ECU_TIMEOUT_MS = 1300;
 static constexpr uint16_t DISPLAY_FRAME_LENGTH_MS = 177;
 static constexpr uint16_t BUTTON_TIMEOUT_MS = 222;
 
+// 5-way navigation switch pins (active LOW, INPUT_PULLUP)
+static constexpr uint8_t BTN_PIN_UP    = 4;
+static constexpr uint8_t BTN_PIN_DOWN  = 5;
+static constexpr uint8_t BTN_PIN_LEFT  = 6;
+static constexpr uint8_t BTN_PIN_RIGHT = 7;
+static constexpr uint8_t BTN_PIN_MID   = 8;
+
 OBDDisplay::OBDDisplay(uint8_t rxPin, uint8_t txPin, ::Display& display)
     : obdSerial_(rxPin, txPin, false), display_(display), kwp_(obdSerial_, txPin), signals_(),
-      dtcStore_(), menuState_(), buttons_(A0) // analog pin for buttons, same as old code
+      dtcStore_(), menuState_(),
+      buttons_(BTN_PIN_UP, BTN_PIN_DOWN, BTN_PIN_LEFT, BTN_PIN_RIGHT, BTN_PIN_MID)
       ,
       simulationModeActive_(false), autoSetup_(false), baudRate_(0), addrSelected_(0x00),
       kwpMode_(Mode::ReadSensors), kwpModeLast_(Mode::ReadSensors), kwpGroup_(1), connected_(false),
@@ -103,17 +111,10 @@ void OBDDisplay::runSetupFlow_()
 
         while (userSimMode == -1)
         {
-            int v = analogRead(A0);
-            if (v < 60)
-            {
-                // RIGHT = SIM
-                userSimMode = 1;
-            }
-            else if (v >= 400 && v < 600)
-            {
-                // LEFT = ECU
-                userSimMode = 0;
-            }
+            if (digitalRead(BTN_PIN_RIGHT) == LOW)
+                userSimMode = 1; // RIGHT = SIM
+            else if (digitalRead(BTN_PIN_LEFT) == LOW)
+                userSimMode = 0; // LEFT = ECU
         }
 
         simulationModeActive_ = (userSimMode == 1);
@@ -130,26 +131,22 @@ void OBDDisplay::runSetupFlow_()
         bool pressedEnter = false;
         while (!pressedEnter)
         {
-            int v = analogRead(A0);
-            if (v < 60)
+            if (digitalRead(BTN_PIN_RIGHT) == LOW)
             {
-                // RIGHT
                 baudPtr = (baudPtr >= 4) ? 0 : static_cast<uint8_t>(baudPtr + 1);
                 userBaud = supportedBaudRates[baudPtr];
                 display_.print(2, 1, String("-> ") + String(userBaud), 10);
                 delay(333);
             }
-            else if (v >= 400 && v < 600)
+            else if (digitalRead(BTN_PIN_LEFT) == LOW)
             {
-                // LEFT
                 baudPtr = (baudPtr == 0) ? 4 : static_cast<uint8_t>(baudPtr - 1);
                 userBaud = supportedBaudRates[baudPtr];
                 display_.print(2, 1, String("-> ") + String(userBaud), 10);
                 delay(333);
             }
-            else if (v >= 600 && v < 800)
+            else if (digitalRead(BTN_PIN_MID) == LOW)
             {
-                // SELECT = enter
                 pressedEnter = true;
             }
             delay(10);
@@ -167,17 +164,10 @@ void OBDDisplay::runSetupFlow_()
 
         while (userAddr == -1)
         {
-            int v = analogRead(A0);
-            if (v < 60)
-            {
-                // RIGHT
+            if (digitalRead(BTN_PIN_RIGHT) == LOW)
                 userAddr = 1;
-            }
-            else if (v >= 400 && v < 600)
-            {
-                // LEFT
+            else if (digitalRead(BTN_PIN_LEFT) == LOW)
                 userAddr = 0;
-            }
         }
 
         addrSelected_ = (userAddr == 0) ? 0x01 : 0x17;

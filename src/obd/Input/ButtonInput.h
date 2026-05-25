@@ -29,7 +29,7 @@ struct InputActions
 class ButtonInput
 {
   public:
-    explicit ButtonInput(uint8_t analogPin);
+    ButtonInput(uint8_t pinUp, uint8_t pinDown, uint8_t pinLeft, uint8_t pinRight, uint8_t pinMid);
 
     // Returns true if any action occurred
     bool update(MenuState& menuState, InputActions& actions);
@@ -37,15 +37,13 @@ class ButtonInput
     bool isSelectPressed() const;
 
   private:
-    uint8_t analogPin_;
+    uint8_t pinUp_, pinDown_, pinLeft_, pinRight_, pinMid_;
 
-    int readRaw() const;
-
-    static bool isRight(int v) { return v < 60; }
-    static bool isUp(int v) { return v >= 60 && v < 200; }
-    static bool isDown(int v) { return v >= 200 && v < 400; }
-    static bool isLeft(int v) { return v >= 400 && v < 600; }
-    static bool isSelect(int v) { return v >= 600 && v < 800; }
+    bool readUp() const    { return digitalRead(pinUp_) == LOW; }
+    bool readDown() const  { return digitalRead(pinDown_) == LOW; }
+    bool readLeft() const  { return digitalRead(pinLeft_) == LOW; }
+    bool readRight() const { return digitalRead(pinRight_) == LOW; }
+    bool readMid() const   { return digitalRead(pinMid_) == LOW; }
 };
 
 } // namespace Input
