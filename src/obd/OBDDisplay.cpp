@@ -13,17 +13,16 @@ static constexpr uint16_t DISPLAY_FRAME_LENGTH_MS = 177;
 static constexpr uint16_t BUTTON_TIMEOUT_MS = 222;
 
 // 5-way navigation switch pins (active LOW, INPUT_PULLUP)
-static constexpr uint8_t BTN_PIN_UP    = 4;
-static constexpr uint8_t BTN_PIN_DOWN  = 5;
-static constexpr uint8_t BTN_PIN_LEFT  = 6;
+static constexpr uint8_t BTN_PIN_UP = 4;
+static constexpr uint8_t BTN_PIN_DOWN = 5;
+static constexpr uint8_t BTN_PIN_LEFT = 6;
 static constexpr uint8_t BTN_PIN_RIGHT = 7;
-static constexpr uint8_t BTN_PIN_MID   = 8;
+static constexpr uint8_t BTN_PIN_MID = 8;
 
 OBDDisplay::OBDDisplay(uint8_t rxPin, uint8_t txPin, ::Display& display)
     : obdSerial_(rxPin, txPin, false), display_(display), kwp_(obdSerial_, txPin), signals_(),
       dtcStore_(), menuState_(),
-      buttons_(BTN_PIN_UP, BTN_PIN_DOWN, BTN_PIN_LEFT, BTN_PIN_RIGHT, BTN_PIN_MID)
-      ,
+      buttons_(BTN_PIN_UP, BTN_PIN_DOWN, BTN_PIN_LEFT, BTN_PIN_RIGHT, BTN_PIN_MID),
       simulationModeActive_(false), autoSetup_(false), baudRate_(0), addrSelected_(0x00),
       kwpMode_(Mode::ReadSensors), kwpModeLast_(Mode::ReadSensors), kwpGroup_(1), connected_(false),
       connectTimeStart_(0), displayFrameTimestamp_(0), buttonTimeoutUntil_(0)
@@ -138,6 +137,8 @@ void OBDDisplay::runSetupFlow_()
                 baudPtr = (baudPtr >= 4) ? 0 : static_cast<uint8_t>(baudPtr + 1);
                 userBaud = supportedBaudRates[baudPtr];
                 ltoa((long)userBaud, baudStr, 10);
+                display_.clear();
+                display_.print(0, 0, F("< Baud: >"));
                 display_.print(0, 1, baudStr, 8);
                 delay(333);
             }
@@ -146,6 +147,8 @@ void OBDDisplay::runSetupFlow_()
                 baudPtr = (baudPtr == 0) ? 4 : static_cast<uint8_t>(baudPtr - 1);
                 userBaud = supportedBaudRates[baudPtr];
                 ltoa((long)userBaud, baudStr, 10);
+                display_.clear();
+                display_.print(0, 0, F("< Baud: >"));
                 display_.print(0, 1, baudStr, 8);
                 delay(333);
             }
@@ -293,8 +296,8 @@ bool OBDDisplay::ensureConnected_()
             connected_ = false;
             menuState_ = Input::MenuState();
             display_.clear();
-            display_.print(0, 0, F("->   ENTER   <-"));
-            display_.print(0, 1, F("Press SELECT"));
+            display_.print(0, 0, F("< ENTER >"));
+            display_.print(0, 1, F("Prs SELECT"));
         }
 
         return false;
@@ -387,8 +390,8 @@ void OBDDisplay::handleInput_()
             connected_ = false;
             phase_ = Phase::WaitingForConnect;
             display_.clear();
-            display_.print(0, 0, F("->   ENTER   <-"));
-            display_.print(0, 1, F("Press SELECT"));
+            display_.print(0, 0, F("< ENTER >"));
+            display_.print(0, 1, F("Prs SELECT"));
         }
         return;
     }
@@ -480,8 +483,8 @@ void OBDDisplay::handleInput_()
                 connected_ = false;
                 phase_ = Phase::WaitingForConnect;
                 display_.clear();
-                display_.print(0, 0, F("->   ENTER   <-"));
-                display_.print(0, 1, F("Press SELECT"));
+                display_.print(0, 0, F("< ENTER >"));
+                display_.print(0, 1, F("Prs SELECT"));
             }
             else
             {
@@ -526,21 +529,26 @@ void OBDDisplay::updateDisplay_()
     // Batch the whole frame (clear + labels + values) into one I2C transfer.
     display_.beginBatch();
 
-    // If menu or screen changed, re-init and force a full render once
-    if (menuState_.consumeMenuChanged() || menuState_.consumeScreenChanged())
+    // Only render the menu when actively connected/running. In other phases,
+    // the display is managed directly (e.g., WaitingForConnect shows "Press SELECT").
+    if (phase_ == Phase::Running)
     {
-        display_.clear();
-        display_.initMenu(menuState_, addrSelected_, static_cast<int>(kwpMode_));
-        display_.render(menuState_, signals_, dtcStore_, addrSelected_, static_cast<int>(kwpMode_),
-                        true);
-    }
+        // With text-only rendering, always rebuild the entire frame. Entries are cleared
+        // at the start, so we always repopulate with all text (forced render).
+        bool menuChanged = menuState_.consumeMenuChanged() || menuState_.consumeScreenChanged();
+        bool timeToUpdate = now >= displayFrameTimestamp_;
 
-    // Periodic refresh like DISPLAY_FRAME_LENGTH in old sketch
-    if (now >= displayFrameTimestamp_)
-    {
-        display_.render(menuState_, signals_, dtcStore_, addrSelected_, static_cast<int>(kwpMode_),
-                        false);
-        displayFrameTimestamp_ = now + DISPLAY_FRAME_LENGTH_MS;
+        if (menuChanged || timeToUpdate)
+        {
+            display_.clear();
+            display_.initMenu(menuState_, addrSelected_, static_cast<int>(kwpMode_));
+            // Always forceUpdate=true since entries are always cleared first
+            display_.render(menuState_, signals_, dtcStore_, addrSelected_,
+                            static_cast<int>(kwpMode_), true);
+
+            if (timeToUpdate)
+                displayFrameTimestamp_ = now + DISPLAY_FRAME_LENGTH_MS;
+        }
     }
 
     display_.endBatch();

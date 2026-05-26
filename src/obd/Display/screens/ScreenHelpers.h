@@ -19,7 +19,8 @@ static inline void printField(DisplayManager& dm, uint8_t x, uint8_t y, T value,
 {
     if (!(updated || forceUpdate))
         return;
-    dm.clearRegion(x, y, width);
+    // With text-only rendering, entries are always cleared before render, so no
+    // need to explicitly clear individual regions. Just format and print.
     char buf[12];
     ltoa((long)value, buf, 10);
     if (strlen(buf) <= width)
@@ -32,7 +33,7 @@ static inline void printFieldFloat(DisplayManager& dm, uint8_t x, uint8_t y, flo
 {
     if (!(updated || forceUpdate))
         return;
-    dm.clearRegion(x, y, width);
+    // With text-only rendering, entries are always cleared before render.
     dm.print(x, y, value, width);
     updated = false;
 }
@@ -42,7 +43,7 @@ static inline void printFieldStr(DisplayManager& dm, uint8_t x, uint8_t y, const
 {
     if (!(updated || forceUpdate))
         return;
-    dm.clearRegion(x, y, width);
+    // With text-only rendering, entries are always cleared before render.
     dm.print(x, y, text);
     updated = false;
 }

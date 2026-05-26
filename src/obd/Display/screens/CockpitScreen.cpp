@@ -1,79 +1,265 @@
 #include "CockpitScreen.h"
 #include "ScreenHelpers.h"
 
-// Landscape layout: 128x64, System5x7 font -> 21 cols x 8 rows.
-// Max safe: col + width <= 21.
+// Portrait layout (10 cols x 16 rows):
 //
-// ADDR_INSTRUMENTS (0x17) -- all 15 signals, screen 0 only:
-//   Row 0: SPD:XXX    RPM:XXXX        col 0/4(3)  col 9/13(4)
-//   Row 1: CLT:XXX    OIL:XXX         col 0/4(3)  col 9/13(3)
-//   Row 2: AMB:XXX    OLV:X  OPR:X    col 0/4(3)  col 9/13(1)  col 15/19(1)
-//   Row 3: ODO:XXXXXX                 col 0/4(6)
-//   Row 4: FUL:XX     FSR:XXXXX       col 0/4(2)  col 9/13(5)
-//   Row 5: TM:XXXXXXX                 col 0/3(7)
-//   Row 6: L100:X.X   L/h:X.X         col 0/5(5f) col 11/15(4f)
-//   Row 7: km:XXXXX   L:X.X           col 0/3(5)  col 9/11(5f)
+// ADDR_INSTRUMENTS (0x17), screen 0 — all 15 signals:
+//   Row 0:  SPD:XXX     Row 7:  FUL:XX
+//   Row 1:  RPM:XXXX    Row 8:  FSR:XXXXX
+//   Row 2:  CLT:XXX     Row 9:  TM:XXXXXXX
+//   Row 3:  OIL:XXX     Row 10: L100:X.X
+//   Row 4:  AMB:XXX     Row 11: L/h:X.X
+//   Row 5:  OL:X OP:X   Row 12: km:XXXXX
+//   Row 6:  ODO:XXXXXX  Row 13: L:X.X
 //
-// ADDR_ENGINE (0x01) -- screen 0: core signals, screen 1: extended:
-//   Screen 0 row 0: RPM:XXXX           col 0/4(4)
-//   Screen 0 row 1: V:X.X              col 0/2(5f)
-//   Screen 0 row 2: T1:XXX T2:XXX T3:XXX  col 0/3(3) col 7/10(3) col 14/17(3)
-//   Screen 0 row 3: LAM:XXX  LAM2:XXX  col 0/4(3)  col 9/14(3)
-//   Screen 0 row 4: LOAD:XXX           col 0/5(3)
-//   Screen 1 row 0: TBa:X.X            col 0/4(5f)
-//   Screen 1 row 1: STa:X.X            col 0/4(5f)
-//   Screen 1 row 2: mb:XXXX            col 0/3(4)
-//   Screen 1 row 3: bits:
-//   Screen 1 row 4: XXXXXXXX
+// ADDR_ENGINE (0x01):
+//   Screen 0: 8 signals stacked vertically
+//   Screen 1: 4 signals + 8-bit error string
 
 namespace obd
 {
 namespace Display
 {
 
-void initCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelected)
+void initCockpitScreen(DisplayManager& /*dm*/, uint8_t /*screen*/, uint8_t /*addrSelected*/)
 {
+    // No-op: all rendering (labels + values) is done in renderCockpitScreen.
+}
+
+void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelected,
+                         const Model::OBDSignals& signals, bool forceUpdate)
+{
+    using namespace Model;
+
+    char buf[11]; // Buffer for formatted strings (max 10 chars + null)
+
     switch (addrSelected)
     {
         case 0x17:
-            dm.print(0,  0, F("SPD:"));
-            dm.print(9,  0, F("RPM:"));
-            dm.print(0,  1, F("CLT:"));
-            dm.print(9,  1, F("OIL:"));
-            dm.print(0,  2, F("AMB:"));
-            dm.print(9,  2, F("OLV:"));
-            dm.print(15, 2, F("OPR:"));
-            dm.print(0,  3, F("ODO:"));
-            dm.print(0,  4, F("FUL:"));
-            dm.print(9,  4, F("FSR:"));
-            dm.print(0,  5, F("TM:"));
-            dm.print(0,  6, F("L100:"));
-            dm.print(11, 6, F("L/h:"));
-            dm.print(0,  7, F("km:"));
-            dm.print(9,  7, F("L:"));
+        {
+            // Instruments cluster (address 0x17)
+            const InstrumentSignals& ins = signals.instruments;
+            const ComputedStats& c = signals.computed;
+            (void)screen;
+
+            // Row 0: SPD:XXX
+            buf[0] = 'S';
+            buf[1] = 'P';
+            buf[2] = 'D';
+            buf[3] = ':';
+            ltoa(ins.vehicleSpeed, buf + 4, 10);
+            dm.print(0, 0, buf);
+
+            // Row 1: RPM:XXXX
+            buf[0] = 'R';
+            buf[1] = 'P';
+            buf[2] = 'M';
+            buf[3] = ':';
+            ltoa(ins.engineRpm, buf + 4, 10);
+            dm.print(0, 1, buf);
+
+            // Row 2: CLT:XXX
+            buf[0] = 'C';
+            buf[1] = 'L';
+            buf[2] = 'T';
+            buf[3] = ':';
+            ltoa(ins.coolantTemp, buf + 4, 10);
+            dm.print(0, 2, buf);
+
+            // Row 3: OIL:XXX
+            buf[0] = 'O';
+            buf[1] = 'I';
+            buf[2] = 'L';
+            buf[3] = ':';
+            ltoa(ins.oilTemp, buf + 4, 10);
+            dm.print(0, 3, buf);
+
+            // Row 4: AMB:XXX
+            buf[0] = 'A';
+            buf[1] = 'M';
+            buf[2] = 'B';
+            buf[3] = ':';
+            ltoa(ins.ambientTemp, buf + 4, 10);
+            dm.print(0, 4, buf);
+
+            // Row 5: OL:X OP:X (abbreviated oil level + oil pressure)
+            buf[0] = 'O';
+            buf[1] = 'L';
+            buf[2] = ':';
+            buf[3] = '0' + ins.oilLevelOk;
+            buf[4] = ' ';
+            buf[5] = 'O';
+            buf[6] = 'P';
+            buf[7] = ':';
+            buf[8] = '0' + ins.oilPressureMin;
+            buf[9] = '\0';
+            dm.print(0, 5, buf);
+
+            // Row 6: ODO:XXXXXX
+            buf[0] = 'O';
+            buf[1] = 'D';
+            buf[2] = 'O';
+            buf[3] = ':';
+            ltoa(ins.odometer, buf + 4, 10);
+            dm.print(0, 6, buf);
+
+            // Row 7: FUL:XX
+            buf[0] = 'F';
+            buf[1] = 'U';
+            buf[2] = 'L';
+            buf[3] = ':';
+            ltoa(ins.fuelLevel, buf + 4, 10);
+            dm.print(0, 7, buf);
+
+            // Row 8: FSR:XXXXX
+            buf[0] = 'F';
+            buf[1] = 'S';
+            buf[2] = 'R';
+            buf[3] = ':';
+            ltoa(ins.fuelSensorResistance, buf + 4, 10);
+            dm.print(0, 8, buf);
+
+            // Row 9: TM:XXXXXXX
+            buf[0] = 'T';
+            buf[1] = 'M';
+            buf[2] = ':';
+            ltoa(ins.timeEcu, buf + 3, 10);
+            dm.print(0, 9, buf);
+
+            // Row 10: L100:X.X (fuel consumption per 100km)
+            dm.print(0, 10, F("L100:"));
+            dm.print(5, 10, c.fuelPer100km, 5);
+
+            // Row 11: L/h:X.X (fuel consumption per hour)
+            dm.print(0, 11, F("L/h:"));
+            dm.print(4, 11, c.fuelPerHour, 4);
+
+            // Row 12: km:XXXXX (distance since start)
+            buf[0] = 'k';
+            buf[1] = 'm';
+            buf[2] = ':';
+            ltoa(c.elapsedKmSinceStart, buf + 3, 10);
+            dm.print(0, 12, buf);
+
+            // Row 13: L:X.X (fuel burned since start)
+            dm.print(0, 13, F("L:"));
+            dm.print(2, 13, c.fuelBurnedSinceStart, 5);
+
             break;
+        }
+
         case 0x01:
+        {
+            // Engine controller (address 0x01)
+            const EngineSignals& e = signals.engine;
+            const InstrumentSignals& ins = signals.instruments;
+
             switch (screen)
             {
                 case 0:
-                    dm.print(0,  0, F("RPM:"));
-                    dm.print(0,  1, F("V:"));
-                    dm.print(0,  2, F("T1:"));
-                    dm.print(7,  2, F("T2:"));
-                    dm.print(14, 2, F("T3:"));
-                    dm.print(0,  3, F("LAM:"));
-                    dm.print(9,  3, F("LAM2:"));
-                    dm.print(0,  4, F("LOAD:"));
+                {
+                    // Row 0: RPM:XXXX
+                    buf[0] = 'R';
+                    buf[1] = 'P';
+                    buf[2] = 'M';
+                    buf[3] = ':';
+                    ltoa(ins.engineRpm, buf + 4, 10);
+                    dm.print(0, 0, buf);
+
+                    // Row 1: V:X.XXX
+                    dm.print(0, 1, F("V:"));
+                    dm.print(2, 1, e.voltage, 5);
+
+                    // Row 2: T1:XXX
+                    buf[0] = 'T';
+                    buf[1] = '1';
+                    buf[2] = ':';
+                    ltoa(e.tempUnknown1, buf + 3, 10);
+                    dm.print(0, 2, buf);
+
+                    // Row 3: T2:XXX
+                    buf[0] = 'T';
+                    buf[1] = '2';
+                    buf[2] = ':';
+                    ltoa(e.tempUnknown2, buf + 3, 10);
+                    dm.print(0, 3, buf);
+
+                    // Row 4: T3:XXX
+                    buf[0] = 'T';
+                    buf[1] = '3';
+                    buf[2] = ':';
+                    ltoa(e.tempUnknown3, buf + 3, 10);
+                    dm.print(0, 4, buf);
+
+                    // Row 5: LAM:XXX
+                    buf[0] = 'L';
+                    buf[1] = 'A';
+                    buf[2] = 'M';
+                    buf[3] = ':';
+                    ltoa(e.lambda, buf + 4, 10);
+                    dm.print(0, 5, buf);
+
+                    // Row 6: LAM2:XXX
+                    buf[0] = 'L';
+                    buf[1] = 'A';
+                    buf[2] = 'M';
+                    buf[3] = '2';
+                    buf[4] = ':';
+                    ltoa(e.lambda2, buf + 5, 10);
+                    dm.print(0, 6, buf);
+
+                    // Row 7: LD:XXX (LOAD)
+                    buf[0] = 'L';
+                    buf[1] = 'D';
+                    buf[2] = ':';
+                    ltoa(e.engineLoad, buf + 3, 10);
+                    dm.print(0, 7, buf);
+
                     break;
+                }
+
                 case 1:
+                {
+                    // Row 0: TBa:X.X
                     dm.print(0, 0, F("TBa:"));
+                    dm.print(4, 0, e.tbAngle, 5);
+
+                    // Row 1: STa:X.X
                     dm.print(0, 1, F("STa:"));
-                    dm.print(0, 2, F("mb:"));
+                    dm.print(4, 1, e.steeringAngle, 5);
+
+                    // Row 2: mb:XXXX
+                    buf[0] = 'm';
+                    buf[1] = 'b';
+                    buf[2] = ':';
+                    ltoa(e.pressure, buf + 3, 10);
+                    dm.print(0, 2, buf);
+
+                    // Row 3: bits: (label)
                     dm.print(0, 3, F("bits:"));
+
+                    // Row 4: error bit string (8 bits)
+                    EngineSignals& em = const_cast<EngineSignals&>(e);
+                    if (em.errorBitsUpdated || forceUpdate)
+                    {
+                        em.bitsAsString[0] = em.exhaustGasRecirculationError ? '1' : '0';
+                        em.bitsAsString[1] = em.oxygenSensorHeatingError ? '1' : '0';
+                        em.bitsAsString[2] = em.oxygenSensorError ? '1' : '0';
+                        em.bitsAsString[3] = em.airConditioningError ? '1' : '0';
+                        em.bitsAsString[4] = em.secondaryAirInjectionError ? '1' : '0';
+                        em.bitsAsString[5] = em.evaporativeEmissionsError ? '1' : '0';
+                        em.bitsAsString[6] = em.catalystHeatingError ? '1' : '0';
+                        em.bitsAsString[7] = em.catalyticConverter ? '1' : '0';
+                        em.bitsAsString[8] = '\0';
+                    }
+                    dm.print(0, 4, em.bitsAsString);
+
                     break;
+                }
+
                 default:
                 {
-                    char buf[8];
+                    // Unknown screen fallback
                     dm.print(0, 0, F("Screen"));
                     ltoa((long)screen, buf, 10);
                     dm.print(7, 0, buf);
@@ -82,91 +268,17 @@ void initCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelected)
                 }
             }
             break;
+        }
+
         default:
         {
-            char buf[8];
+            // Unknown address fallback
             dm.print(0, 0, F("Addr 0x"));
             ltoa((long)addrSelected, buf, 16);
             dm.print(7, 0, buf);
             dm.print(0, 1, F("no data"));
             break;
         }
-    }
-}
-
-void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelected,
-                         const Model::OBDSignals& signals, bool forceUpdate)
-{
-    using namespace Model;
-
-    switch (addrSelected)
-    {
-        case 0x17:
-        {
-            const InstrumentSignals& ins = signals.instruments;
-            const ComputedStats& c = signals.computed;
-            (void)screen;
-            printField(dm, 4,  0, ins.vehicleSpeed,          3, const_cast<bool&>(ins.vehicleSpeedUpdated),         forceUpdate);
-            printField(dm, 13, 0, ins.engineRpm,              4, const_cast<bool&>(ins.engineRpmUpdated),            forceUpdate);
-            printField(dm, 4,  1, ins.coolantTemp,            3, const_cast<bool&>(ins.coolantTempUpdated),          forceUpdate);
-            printField(dm, 13, 1, ins.oilTemp,                3, const_cast<bool&>(ins.oilTempUpdated),              forceUpdate);
-            printField(dm, 4,  2, ins.ambientTemp,            3, const_cast<bool&>(ins.ambientTempUpdated),          forceUpdate);
-            printField(dm, 13, 2, ins.oilLevelOk,             1, const_cast<bool&>(ins.oilLevelOkUpdated),           forceUpdate);
-            printField(dm, 19, 2, ins.oilPressureMin,         1, const_cast<bool&>(ins.oilPressureMinUpdated),       forceUpdate);
-            printField(dm, 4,  3, ins.odometer,               6, const_cast<bool&>(ins.odometerUpdated),             forceUpdate);
-            printField(dm, 4,  4, ins.fuelLevel,              2, const_cast<bool&>(ins.fuelLevelUpdated),            forceUpdate);
-            printField(dm, 13, 4, ins.fuelSensorResistance,   5, const_cast<bool&>(ins.fuelSensorResistanceUpdated), forceUpdate);
-            printField(dm, 3,  5, ins.timeEcu,                7, const_cast<bool&>(ins.timeEcuUpdated),              forceUpdate);
-            printFieldFloat(dm, 5,  6, c.fuelPer100km,        5, const_cast<bool&>(c.fuelPer100kmUpdated),           forceUpdate);
-            printFieldFloat(dm, 15, 6, c.fuelPerHour,         4, const_cast<bool&>(c.fuelPerHourUpdated),            forceUpdate);
-            printField(dm, 3,  7, c.elapsedKmSinceStart,      5, const_cast<bool&>(c.elapsedKmSinceStartUpdated),    forceUpdate);
-            printFieldFloat(dm, 11, 7, c.fuelBurnedSinceStart,5, const_cast<bool&>(c.fuelBurnedSinceStartUpdated),   forceUpdate);
-            break;
-        }
-        case 0x01:
-        {
-            const EngineSignals& e = signals.engine;
-            const InstrumentSignals& ins = signals.instruments;
-            switch (screen)
-            {
-                case 0:
-                    printField(dm, 4,  0, ins.engineRpm,    4, const_cast<bool&>(ins.engineRpmUpdated),    forceUpdate);
-                    printFieldFloat(dm, 2, 1, e.voltage,    5, const_cast<bool&>(e.voltageUpdated),         forceUpdate);
-                    printField(dm, 3,  2, e.tempUnknown1,   3, const_cast<bool&>(e.tempUnknown1Updated),   forceUpdate);
-                    printField(dm, 10, 2, e.tempUnknown2,   3, const_cast<bool&>(e.tempUnknown2Updated),   forceUpdate);
-                    printField(dm, 17, 2, e.tempUnknown3,   3, const_cast<bool&>(e.tempUnknown3Updated),   forceUpdate);
-                    printField(dm, 4,  3, e.lambda,         3, const_cast<bool&>(e.lambdaUpdated),         forceUpdate);
-                    printField(dm, 14, 3, e.lambda2,        3, const_cast<bool&>(e.lambda2Updated),        forceUpdate);
-                    printField(dm, 5,  4, e.engineLoad,     3, const_cast<bool&>(e.engineLoadUpdated),     forceUpdate);
-                    break;
-                case 1:
-                {
-                    printFieldFloat(dm, 4, 0, e.tbAngle,       5, const_cast<bool&>(e.tbAngleUpdated),      forceUpdate);
-                    printFieldFloat(dm, 4, 1, e.steeringAngle, 5, const_cast<bool&>(e.steeringAngleUpdated),forceUpdate);
-                    printField(dm, 3, 2, e.pressure,           4, const_cast<bool&>(e.pressureUpdated),     forceUpdate);
-                    EngineSignals& em = const_cast<EngineSignals&>(e);
-                    if (em.errorBitsUpdated || forceUpdate)
-                    {
-                        em.bitsAsString[0] = em.exhaustGasRecirculationError   ? '1' : '0';
-                        em.bitsAsString[1] = em.oxygenSensorHeatingError       ? '1' : '0';
-                        em.bitsAsString[2] = em.oxygenSensorError              ? '1' : '0';
-                        em.bitsAsString[3] = em.airConditioningError           ? '1' : '0';
-                        em.bitsAsString[4] = em.secondaryAirInjectionError     ? '1' : '0';
-                        em.bitsAsString[5] = em.evaporativeEmissionsError      ? '1' : '0';
-                        em.bitsAsString[6] = em.catalystHeatingError           ? '1' : '0';
-                        em.bitsAsString[7] = em.catalyticConverter             ? '1' : '0';
-                        em.bitsAsString[8] = '\0';
-                    }
-                    printFieldStr(dm, 0, 4, em.bitsAsString, 8, const_cast<bool&>(em.errorBitsUpdated), forceUpdate);
-                    break;
-                }
-                default:
-                    break;
-            }
-            break;
-        }
-        default:
-            break;
     }
 }
 

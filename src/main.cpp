@@ -13,7 +13,25 @@ static Scheduler runner;
 
 void setup()
 {
+    pinMode(13, OUTPUT);
+    digitalWrite(13, HIGH);
+    delay(500);
+    digitalWrite(13, LOW);
+
+    Serial.begin(115200);
+    delay(500);
+
+    Serial.write(0x0A); // newline
+    Serial.write(0x0A);
+    Serial.print(F("START"));
+
+    digitalWrite(13, HIGH);
+    delay(100);
+    digitalWrite(13, LOW);
+
+    Serial.println(F("Calling controller.setup()..."));
     controller.setup();
+    Serial.println(F("controller.setup() returned OK"));
 
     runner.init();
     runner.addTask(tKwp);

@@ -39,11 +39,11 @@ class ButtonInput
   private:
     uint8_t pinUp_, pinDown_, pinLeft_, pinRight_, pinMid_;
 
-    bool readUp() const    { return digitalRead(pinUp_) == LOW; }
-    bool readDown() const  { return digitalRead(pinDown_) == LOW; }
-    bool readLeft() const  { return digitalRead(pinLeft_) == LOW; }
+    bool readUp() const { return digitalRead(pinUp_) == LOW; }
+    bool readDown() const { return digitalRead(pinDown_) == LOW; }
+    bool readLeft() const { return digitalRead(pinLeft_) == LOW; }
     bool readRight() const { return digitalRead(pinRight_) == LOW; }
-    bool readMid() const   { return digitalRead(pinMid_) == LOW; }
+    bool readMid() const { return digitalRead(pinMid_) == LOW; }
 };
 
 } // namespace Input

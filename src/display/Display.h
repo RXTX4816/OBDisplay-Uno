@@ -4,15 +4,15 @@
 
 // SH1107 64x128 OLED, I2C address 0x3C.
 //
-// The panel is portrait-native (64 wide x 128 tall). We drive it in LANDSCAPE
-// (128 wide x 64 tall) by holding a 1KB framebuffer and rotating every pixel
-// 90 degrees in setPixel(). This is the only way to get upright landscape text
-// on this controller: SH1107 segment-remap/COM-scan can only mirror, not rotate.
+// Portrait-native (64 wide × 128 tall). Text-only rendering: no framebuffer.
+// 10 cols × 16 rows grid (6px wide chars, 8px tall). Store text entries and
+// render on-the-fly during flush (page-by-page) to save ~920 bytes of SRAM.
 //
-// Drawing model: text on a 21-col x 8-row grid (6x8 cells, 5x7 glyphs).
-// Flushing: outside a batch, every draw call auto-sends the buffer over I2C.
-// Inside beginBatch()/endBatch() nothing is sent until the outermost endBatch(),
-// so a full frame (many fields) becomes a single I2C transfer. See Display.cpp.
+// Drawing model: accumulate text entries in a small table (20 max), then render
+// all at once during flush. Each entry stores position, text string.
+// Flushing: outside a batch, every draw call auto-sends all entries to I2C.
+// Inside beginBatch()/endBatch() nothing is sent until endBatch(), allowing a
+// full frame to become a single I2C transfer.
 class Display
 {
   public:
@@ -48,14 +48,24 @@ class Display
         print(n);
     }
 
-    static constexpr uint8_t WIDTH = 128; // landscape pixels
-    static constexpr uint8_t HEIGHT = 64;
-    static constexpr uint8_t COLS = 21; // 6px text cells across 128
-    static constexpr uint8_t ROWS = 8;  // 8px rows down 64
+    static constexpr uint8_t WIDTH = 64; // portrait pixels
+    static constexpr uint8_t HEIGHT = 128;
+    static constexpr uint8_t COLS = 10; // 64 / 6 ≈ 10 text columns
+    static constexpr uint8_t ROWS = 16; // 128 / 8 = 16 text rows
 
   private:
-    void drawChar(uint8_t col, uint8_t row, char c);
-    void setPixel(uint8_t lx, uint8_t ly, bool on);
+    static constexpr uint8_t kMaxEntries = 20;
+    static constexpr uint8_t kTextLen = 11; // 10 chars + null terminator
+
+    struct TextEntry
+    {
+        uint8_t x = 0;            // pixel column (0-63), computed from cursorCol * 6
+        uint8_t line = 0;         // page line (0-15), same as cursorRow
+        char text[kTextLen] = {}; // text content, always copied here
+    };
+
+    void drawCharToPage(uint8_t x, uint8_t y, char c, uint8_t page, uint8_t* pageBuf);
+    void addTextEntry(uint8_t x, uint8_t line, const char* text);
     void markDirty()
     {
         dirty_ = true;
@@ -63,7 +73,8 @@ class Display
             flush();
     }
 
-    uint8_t buf_[1024] = {}; // native layout: 64 columns x 16 pages
+    TextEntry entries_[kMaxEntries];
+    uint8_t entryCount_ = 0;
     uint8_t cursorCol_ = 0;
     uint8_t cursorRow_ = 0;
     uint8_t batchDepth_ = 0;

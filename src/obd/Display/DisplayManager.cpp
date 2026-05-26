@@ -57,9 +57,9 @@ void DisplayManager::print(uint8_t x, uint8_t y, int32_t value)
 
 void DisplayManager::print(uint8_t x, uint8_t y, const char* s, uint8_t width)
 {
-    if (width > 21)
-        width = 21;
-    char buf[22];
+    if (width > ::Display::COLS)
+        width = ::Display::COLS;
+    char buf[11]; // COLS (10) + null
     uint8_t i = 0;
     while (i < width && s[i] != '\0')
     {
@@ -105,13 +105,13 @@ void DisplayManager::print(uint8_t x, uint8_t y, float value, uint8_t width)
     print(x, y, tmp, width);
 }
 
+// cppcheck-suppress functionStatic
 void DisplayManager::clearRegion(uint8_t x, uint8_t y, uint8_t width)
 {
-    display_.setCursor(x, y);
-    for (uint8_t i = 0; i < width; ++i)
-    {
-        display_.print(" ");
-    }
+    // No-op in text-only rendering: entries are always cleared before render.
+    (void)x;
+    (void)y;
+    (void)width;
 }
 
 void DisplayManager::initMenu(const Input::MenuState& menuState, uint8_t addrSelected,

@@ -1,32 +1,49 @@
-#include "Display.h"
+// Minimal display test - no KWP/OBD bloat
+#include <Arduino.h>
 #include <Wire.h>
 
-namespace
-{
-constexpr uint8_t OLED_I2C_ADDR = 0x3C;
+const uint8_t OLED_I2C_ADDR = 0x3C;
 
-// SH1107 initialization sequence (from U8g2 driver, proven working).
-// Each command is sent individually with delays for stability.
+// Compile-time text length validation
+#define ADD_TEXT_SAFE(x, line, s, scale) \
+    do { \
+        static_assert((sizeof(s) - 1) * (6 * (scale)) + (x) <= 64, \
+                      "Text too long for display width"); \
+        addText((x), (line), (s), (scale)); \
+    } while(0)
+
+// U8g2 SH1107 64x128 init sequence (from u8x8_d_sh1107.c)
 const uint8_t PROGMEM kInit[] = {
     0xAE,       // display off
-    0xDC, 0x00, // display start line = 0 (SH1107 specific)
-    0x81, 0x2F, // contrast = 0x2F (reasonable brightness)
+    0xDC, 0x00, // display start line = 0 (SH1107 command, not SSD1306)
+    0x81, 0x2F, // contrast
     0x20,       // memory addressing mode: page
     0xA1,       // segment remap
-    0xC8,       // COM output scan direction
-    0xA8, 0x7F, // multiplex ratio = 128 (full height)
+    0xC8,       // COM scan dir
+    0xA8, 0x7F, // multiplex ratio = 128
     0xD3, 0x00, // display offset = 0
-    0xD5, 0x51, // clock divide ratio / oscillator frequency
+    0xD5, 0x51, // clock divide / osc frequency
     0xD9, 0x22, // pre-charge period
     0xDB, 0x35, // VCOMH deselect level
-    0xDA, 0x12, // COM pins configuration
-    0xA4,       // output follows RAM (not forced all-on)
-    0xA6,       // normal display (non-inverted)
+    0xDA, 0x12, // COM pins config
+    0xA4,       // output follows RAM
+    0xA6,       // normal (non-inverted)
     0xAF,       // display on
 };
 
-// 5x7 font: one byte per column, 5 columns per character, 1-pixel gap.
-// ASCII 0x20 (space) through 0x7F.
+// Text entry: position, content, scale
+struct TextEntry {
+    uint8_t x;
+    uint8_t line;
+    const char* text;
+    uint8_t scale;
+};
+
+TextEntry texts[20];
+uint8_t textCount = 0;
+
+// 5x7 font: one byte per column, 5 columns per character
+// ASCII 0x20 (space) through 0x7F
 const uint8_t PROGMEM kFont[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, // 0x20 space
     0x00, 0x00, 0x5F, 0x00, 0x00, // !
@@ -129,7 +146,7 @@ const uint8_t PROGMEM kFont[] = {
 void writeCmd(uint8_t c)
 {
     Wire.beginTransmission(OLED_I2C_ADDR);
-    Wire.write(0x00); // control byte: command
+    Wire.write(0x00);
     Wire.write(c);
     Wire.endTransmission();
 }
@@ -139,204 +156,105 @@ void sendInit()
     for (uint8_t i = 0; i < sizeof(kInit); ++i)
     {
         writeCmd(pgm_read_byte(&kInit[i]));
-        delay(5); // Per-command delay for stability
+        delay(5);  // Add delay between commands for stability
     }
-    delay(200); // Post-init stabilization
+    delay(200);  // Wait for display to stabilize after init
 }
 
-} // namespace
-
-// cppcheck-suppress functionStatic
-void Display::begin()
-{
-    Serial.println(F("Display::begin() - Initializing SH1107"));
-    Wire.begin();
-    Wire.setClock(100000);
-    Serial.println(F("Wire initialized at 100kHz"));
-
-    // Send display OFF first to reset state
-    Serial.println(F("Sending display OFF..."));
-    writeCmd(0xAE);
-    delay(100);
-
-    // Send initialization sequence
-    Serial.println(F("Sending init sequence..."));
-    sendInit();
-    Serial.println(F("Init complete"));
-
-    delay(500); // Extra stabilization time
-
-    // Clear the display by sending 16 empty pages
-    Serial.println(F("Clearing display..."));
-    for (uint8_t page = 0; page < 16; ++page)
-    {
-        writeCmd((uint8_t)(0xB0 | page));
-        writeCmd(0x00);
-        writeCmd(0x12); // CRITICAL: column high nibble = 0x12
-
-        Wire.beginTransmission(OLED_I2C_ADDR);
-        Wire.write(0x40); // control byte: data stream
-        for (uint8_t col = 0; col < 64; ++col)
-            Wire.write(0x00);
-        Wire.endTransmission();
-    }
-    Serial.println(F("Display cleared and ready"));
-}
-
-void Display::clear()
-{
-    entryCount_ = 0;
-    cursorCol_ = 0;
-    cursorRow_ = 0;
-    markDirty();
-}
-
-void Display::beginBatch()
-{
-    ++batchDepth_;
-}
-
-void Display::endBatch()
-{
-    if (batchDepth_ > 0 && --batchDepth_ == 0)
-        flush();
-}
-
-void Display::setCursor(uint8_t col, uint8_t row)
-{
-    cursorCol_ = col;
-    cursorRow_ = row;
-}
-
-void Display::addTextEntry(uint8_t x, uint8_t line, const char* text)
-{
-    if (entryCount_ < kMaxEntries)
-    {
-        TextEntry& e = entries_[entryCount_++];
-        e.x = x;
-        e.line = line;
-        strncpy(e.text, text, kTextLen - 1);
-        e.text[kTextLen - 1] = '\0';
-    }
-}
-
-void Display::print(const char* s)
-{
-    if (s == nullptr || entryCount_ >= kMaxEntries)
-        return;
-
-    // Convert column to pixel x
-    uint8_t px = (uint8_t)(cursorCol_ * 6);
-    addTextEntry(px, cursorRow_, s);
-
-    // Advance cursor by length of string
-    cursorCol_ += (uint8_t)strlen(s);
-
-    markDirty();
-}
-
-void Display::print(const __FlashStringHelper* s)
-{
-    if (s == nullptr || entryCount_ >= kMaxEntries)
-        return;
-
-    // Copy from PROGMEM into local buffer first
-    const char* p = reinterpret_cast<const char*>(s);
-    char buf[kTextLen];
-    uint8_t i = 0;
-    char c;
-    while (i < kTextLen - 1 && (c = pgm_read_byte(p++)) != '\0')
-        buf[i++] = c;
-    buf[i] = '\0';
-
-    // Convert column to pixel x
-    uint8_t px = (uint8_t)(cursorCol_ * 6);
-    addTextEntry(px, cursorRow_, buf);
-
-    // Advance cursor by length of string
-    cursorCol_ += i;
-
-    markDirty();
-}
-
-void Display::print(int32_t n)
-{
-    if (entryCount_ >= kMaxEntries)
-        return;
-
-    char buf[12];
-    ltoa(n, buf, 10);
-    print(buf);
-}
-
-// cppcheck-suppress functionStatic
-void Display::drawCharToPage(uint8_t x, uint8_t y, char c, uint8_t page, uint8_t* pageBuf)
+void setPixel(uint8_t x, uint8_t y, uint8_t* pageBuf, bool on)
 {
     if (x >= 64 || y >= 128)
         return;
+    uint8_t page = y / 8;
+    uint8_t bit = y % 8;
+    uint8_t idx = x;
+    if (on)
+        pageBuf[idx] |= (1u << bit);
+    else
+        pageBuf[idx] &= ~(1u << bit);
+}
 
+void drawCharToPage(uint8_t x, uint8_t y, char c, uint8_t scale, uint8_t page, uint8_t* pageBuf)
+{
+    if (x >= 64 || y >= 128)
+        return;
     uint8_t glyph = ((uint8_t)c < 0x20 || (uint8_t)c > 0x7F) ? 0 : (uint8_t)(c - 0x20);
     const uint8_t* g = &kFont[(uint16_t)glyph * 5];
 
-    // Draw 5 columns + 1 gap = 6 pixels wide per character
     for (uint8_t cx = 0; cx < 6; ++cx)
     {
         uint8_t bits = (cx < 5) ? pgm_read_byte(g + cx) : 0x00;
-
         for (uint8_t by = 0; by < 8; ++by)
         {
             bool pixel = (by < 7) && (bits & (1u << by));
-            uint8_t py = y + by;
-
-            // Check if this pixel is in the current page
-            if ((py >> 3) == page)
+            if (scale == 1)
             {
-                uint8_t bit = py & 7;
-                uint8_t idx = x + cx;
-
-                if (pixel)
-                    pageBuf[idx] |= (1u << bit);
-                else
-                    pageBuf[idx] &= ~(1u << bit);
+                uint8_t py = y + by;
+                if (py / 8 == page)
+                    setPixel(x + cx, py, pageBuf, pixel);
+            }
+            else if (scale == 2)
+            {
+                for (uint8_t sy = 0; sy < 2; ++sy)
+                {
+                    uint8_t py = y + by * 2 + sy;
+                    if (py / 8 == page)
+                    {
+                        setPixel(x + cx * 2, py, pageBuf, pixel);
+                        setPixel(x + cx * 2 + 1, py, pageBuf, pixel);
+                    }
+                }
             }
         }
     }
 }
 
-void Display::flush()
+void addText(uint8_t x, uint8_t line, const char* s, uint8_t scale)
 {
-    if (!dirty_)
-        return;
+    if (textCount < 20)
+    {
+        texts[textCount].x = x;
+        texts[textCount].line = line;
+        texts[textCount].text = s;
+        texts[textCount].scale = scale;
+        textCount++;
+    }
+}
 
-    // Render page-by-page
+void clearText()
+{
+    textCount = 0;
+}
+
+void flushDisplay()
+{
     for (uint8_t page = 0; page < 16; ++page)
     {
         uint8_t pageBuf[64] = {0};
 
-        // Render all entries into this page
-        for (uint8_t t = 0; t < entryCount_; ++t)
+        for (uint8_t t = 0; t < textCount; ++t)
         {
-            uint8_t y = entries_[t].line * 8; // line to pixel y
-            uint8_t x = entries_[t].x;        // already in pixels
-            const char* s = entries_[t].text;
+            uint8_t y = texts[t].line * (8 * texts[t].scale);
+            const char* s = texts[t].text;
+            uint8_t x = texts[t].x;
+            uint8_t scale = texts[t].scale;
 
             while (*s && x < 64)
             {
-                drawCharToPage(x, y, *s++, page, pageBuf);
-                x += 6;
+                drawCharToPage(x, y, *s++, scale, page, pageBuf);
+                x += 6 * scale;
             }
         }
 
-        // Send this page over I2C
-        writeCmd((uint8_t)(0xB0 | page)); // page address
-        writeCmd(0x00);                   // column low = 0
-        writeCmd(0x12);                   // column high = 0x12 ← CRITICAL!
+        writeCmd((uint8_t)(0xB0 | page));
+        writeCmd(0x00);
+        writeCmd(0x12);
 
         uint8_t col = 0;
         while (col < 64)
         {
             Wire.beginTransmission(OLED_I2C_ADDR);
-            Wire.write(0x40); // data stream control byte
+            Wire.write(0x40);
             uint8_t n = 0;
             while (col < 64 && n < 16)
             {
@@ -347,6 +265,85 @@ void Display::flush()
             Wire.endTransmission();
         }
     }
+}
 
-    dirty_ = false;
+void setup()
+{
+    Serial.begin(115200);
+    delay(500);
+    Serial.println(F("\n\nDisplay Test - Minimal"));
+
+    Wire.begin();
+    Wire.setClock(100000);
+    Serial.println(F("Wire initialized at 100kHz"));
+
+    // Send display OFF command first to reset state
+    Serial.println(F("Sending display OFF..."));
+    writeCmd(0xAE);
+    delay(100);
+
+    Serial.println(F("Sending init..."));
+    sendInit();
+    Serial.println(F("Init sent"));
+
+    delay(500);  // Extra stabilization time
+
+    Serial.println(F("Clearing display..."));
+
+    for (uint8_t page = 0; page < 16; ++page)
+    {
+        writeCmd((uint8_t)(0xB0 | page));
+        writeCmd(0x00);
+        writeCmd(0x10);
+
+        Wire.beginTransmission(OLED_I2C_ADDR);
+        Wire.write(0x40);
+        for (uint8_t col = 0; col < 64; ++col)
+            Wire.write(0x00);
+        Wire.endTransmission();
+    }
+    Serial.println(F("Display cleared"));
+
+    delay(500);
+
+    Serial.println(F("Adding text..."));
+    clearText();
+
+    ADD_TEXT_SAFE(2, 0, "Small", 1);
+    ADD_TEXT_SAFE(2, 1, "Line", 1);
+    ADD_TEXT_SAFE(2, 2, "Text", 1);
+
+    ADD_TEXT_SAFE(2, 4, "BIG", 2);
+
+    ADD_TEXT_SAFE(2, 10, "More", 1);
+    ADD_TEXT_SAFE(2, 12, "End", 1);
+
+    Serial.println(F("Flushing display..."));
+    flushDisplay();
+    Serial.println(F("Text sent!"));
+
+    delay(3000);
+
+    Serial.println(F("Clearing..."));
+    clearText();
+
+    for (uint8_t page = 0; page < 16; ++page)
+    {
+        writeCmd((uint8_t)(0xB0 | page));
+        writeCmd(0x02);  // Column offset: same as above
+        writeCmd(0x10);
+
+        Wire.beginTransmission(OLED_I2C_ADDR);
+        Wire.write(0x40);
+        for (uint8_t col = 0; col < 64; ++col)
+            Wire.write(0x00);
+        Wire.endTransmission();
+    }
+    Serial.println(F("Display cleared"));
+}
+
+void loop()
+{
+    delay(1000);
+    Serial.println(F("Alive"));
 }

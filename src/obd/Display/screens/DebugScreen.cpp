@@ -6,34 +6,47 @@ namespace obd
 namespace Display
 {
 
-// Landscape layout (21 cols x 8 rows):
-//   Row 0: C:X  A:XXX  BC:XXX
-//   Row 1: KWP:X  FPS:XXX
+// Portrait layout (10 cols x 16 rows):
+//   Row 0: C:X
+//   Row 1: A:XXX
+//   Row 2: BC:XXX
+//   Row 3: KWP:X
+//   Row 4: FPS:XXX
 
-void initDebugScreen(DisplayManager& dm)
+void initDebugScreen(DisplayManager& /*dm*/)
 {
-    dm.print(0,  0, F("C:"));
-    dm.print(5,  0, F("A:"));
-    dm.print(11, 0, F("BC:"));
-    dm.print(0,  1, F("KWP:"));
-    dm.print(7,  1, F("FPS:"));
+    // No-op: all rendering is done in renderDebugScreen
 }
 
-void renderDebugScreen(DisplayManager& dm, uint8_t /*screen*/, const Model::OBDSignals& signals,
+void renderDebugScreen(DisplayManager& dm, uint8_t /*screen*/, const Model::OBDSignals& /*signals*/,
                        int kwpModeInt, bool /*forceUpdate*/)
 {
-    (void)signals;
+    char buf[11];
 
-    bool upd = true;
-    printField(dm, 2,  0, (int32_t)0,             1, upd, true);
-    upd = true;
-    printField(dm, 7,  0, (int32_t)0,             3, upd, true);
-    upd = true;
-    printField(dm, 14, 0, (int32_t)0,             3, upd, true);
-    upd = true;
-    printField(dm, 4,  1, (int32_t)kwpModeInt,    1, upd, true);
-    upd = true;
-    printField(dm, 11, 1, (int32_t)(1000 / 177),  3, upd, true);
+    // Row 0: C:0 (placeholder)
+    dm.print(0, 0, F("C:0"));
+
+    // Row 1: A:0 (placeholder)
+    dm.print(0, 1, F("A:0"));
+
+    // Row 2: BC:0 (placeholder)
+    dm.print(0, 2, F("BC:0"));
+
+    // Row 3: KWP:X (KWP mode)
+    buf[0] = 'K';
+    buf[1] = 'W';
+    buf[2] = 'P';
+    buf[3] = ':';
+    ltoa((long)kwpModeInt, buf + 4, 10);
+    dm.print(0, 3, buf);
+
+    // Row 4: FPS:X (frames per second, approx 1000/177 = 5-6)
+    buf[0] = 'F';
+    buf[1] = 'P';
+    buf[2] = 'S';
+    buf[3] = ':';
+    ltoa((long)(1000 / 177), buf + 4, 10);
+    dm.print(0, 4, buf);
 }
 
 } // namespace Display
