@@ -10,6 +10,8 @@ KWP1281Session::KWP1281Session(NewSoftwareSerial& serial, uint8_t txPin)
     : obd_(serial), txPin_(txPin), baudRate_(0), ecuAddr_(0), blockCounter_(0), connected_(false),
       comError_(false), timeoutMs_(1100)
 {
+    pinMode(txPin_, OUTPUT);
+    digitalWrite(txPin_, HIGH);
 }
 
 void KWP1281Session::setConfig(uint16_t baudRate, uint8_t ecuAddr)
@@ -355,20 +357,9 @@ bool KWP1281Session::connectToEcu(bool simulationMode, bool autoSetup, uint16_t&
         baudRate = baudRate_;
     }
 
-    // End any previous serial session so the library releases the TX pin.
-    // The 5-baud init bit-bangs TX directly via GPIO; the serial library must
-    // not be running during that window or it may reassert the idle-high state.
     obd_.end();
-
-    // K-line idle = HIGH. Hold for at least one bit period before sending.
-    pinMode(txPin_, OUTPUT);
-    digitalWrite(txPin_, HIGH);
-    delay(300);
-
-    perform5BaudInit_();
-
-    // Now start the serial at the negotiated baud to receive the handshake bytes.
     obd_.begin(baudRate_);
+    perform5BaudInit_();
 
     // Handshake: expect 0x55, 0x01, 0x8A
     uint8_t response[3] = {0, 0, 0};
