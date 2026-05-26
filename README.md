@@ -2,7 +2,7 @@
 
 KWP-1281 K-Line trip computer for Arduino Uno with SH1107 OLED display (64×128, landscape mode work in progress).
 
-Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta, ~1998–2006) that use the K-Line OBD interface and the KWP-1281 protocol.
+Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta, ~1998–2006) that use the K-Line OBD interface and the KWP-1281 protocol. 
 
 ## Features
 
