@@ -12,7 +12,7 @@ Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta,
 - Three KWP modes: ACK (keepalive only), group read, full sensor read
 - 56-case sensor decode table (full VW/Audi KWP-1281 measurement type table)
 - Read and clear DTC fault codes
-- SH1107 64×128 OLED display (GME64128-02) — full dashboard on a single 8-row screen, no paging needed (landscape orientation currently work in progress)
+- SH1107 64×128 OLED display (GME64128-02) — text-only rendering with batch I2C transfers (optimized for responsiveness)
 - Simulation mode for testing without a car
 - Cooperative task scheduler (TaskScheduler) to prevent ECU timeouts
 - Auto-setup shortcut: hold SELECT during splash to skip the setup menu
@@ -21,36 +21,86 @@ Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta,
 
 | Component | Details |
 |---|---|
-| Microcontroller | Arduino Uno (ATmega328P) |
-| Display | SH1107 64×128 OLED (GME64128-02), I2C (SDA=A4, SCL=A5), I2C address 0x3C |
-| Buttons | Standard LCD shield analog keypad on A0 |
-| K-Line interface | Autodia K409 or similar KKL OBD-to-USB cable, wired to pins 2 (RX) and 3 (TX) |
+| Microcontroller | Arduino Uno (ATmega328P, 16 MHz) |
+| Display | SH1107 64×128 OLED (GME64128-02), I2C address 0x3C |
+| Buttons | 5-way navigation switch (UP/DOWN/LEFT/RIGHT/SELECT) on pins 4–8 |
+| K-Line interface | Modified KKL OBD-to-USB cable with FT232 MCU, wired to pins 2 (RX) and 3 (TX) |
 
-### OLED wiring
+### Complete pinout
+
+```
+Arduino Uno         Function
+────────────────────────────────
+GND                 Ground (K-Line and display)
+5V                  Power (OLED and FT232)
+A4 (SDA)            OLED I2C data
+A5 (SCL)            OLED I2C clock
+Pin 2 (SoftTX)      K-Line TX → to FT232 RXD (Software Serial)
+Pin 3 (SoftRX)      K-Line RX ← from FT232 TXD (Software Serial)
+Pin 4 (UP)          UP button (active LOW)
+Pin 5 (DOWN)        DOWN button (active LOW)
+Pin 6 (LEFT)        LEFT button (active LOW)
+Pin 7 (RIGHT)       RIGHT button (active LOW)
+Pin 8 (SELECT)      SELECT button (active LOW)
+```
+
+**Button Configuration:**
+- All 5-way buttons use `INPUT_PULLUP` (active LOW)
+- 50ms debounce via button timeout mechanism
+- SELECT button timeout prevents accidental re-triggers (222 ms)
+
+### OLED wiring (SH1107 I2C)
 
 ```
 SH1107 module     Arduino Uno
 ──────────────────────────────
-VCC           →   3.3V or 5V (check your module label)
+VCC           →   5V
 GND           →   GND
-SDA           →   A4
-SCL           →   A5
+SDA           →   A4 (pin 27)
+SCL           →   A5 (pin 28)
 ```
 
-I2C address is `0x3C` by default. If the display is unresponsive try `0x3D` (update `OLED_I2C_ADDR` in [src/display/Display.h](src/display/Display.h)).
+**I2C Configuration:**
+- I2C address: `0x3C` (default for SH1107)
+- Clock speed: 100 kHz
+- If unresponsive, try `0x3D` (update `OLED_I2C_ADDR` in [src/display/Display.h](src/display/Display.h))
 
-**Note:** The SH1107 display orientation (landscape mode) is currently work in progress. The display hardware is initialized but the rendering orientation needs further investigation.
+**Display Specifications:**
+- Resolution: 64×128 pixels (landscape orientation)
+- 10 columns × 16 rows text grid (6px wide × 8px tall characters)
+- Text-only rendering with on-demand page updates (no framebuffer)
+- Batch I2C transfers for reduced latency and MCU overhead
 
-### K-Line cable wiring
+### K-Line cable wiring (KKL OBD-to-USB)
 
-Open the KKL OBD cable, locate the FT232R(Q) MCU, and identify its RXD and TXD pins from the datasheet. Solder a wire from each pin to the Arduino:
+The K-Line interface uses a modified KKL OBD-to-USB cable (Autodia K409 or compatible). The FT232R MCU is repurposed as a level shifter for the K-Line protocol.
 
-- FT232 TXD → Arduino pin 2 (RX)
-- FT232 RXD → Arduino pin 3 (TX)
+**Cable modification steps:**
 
-Cut both traces on the KKL PCB after the solder point so the USB chip no longer drives the lines. Power the FT232 board from the Arduino's 5V and GND. You'll need a separate power source for the Arduino itself when the car is running (a USB power bank works).
+1. Open the KKL cable connector and locate the FT232R(Q) USB MCU
+2. Identify TXD and RXD pins from the FT232 datasheet
+3. Solder connections to Arduino (Software Serial — **NOT** hardware UART pins 0/1):
+   - FT232 TXD → Arduino pin 3 (software serial RX)
+   - FT232 RXD → Arduino pin 2 (software serial TX)
+4. **Cut both traces** on the KKL PCB immediately after the solder points to isolate the USB chip from the OBD lines
+5. Power the FT232 board from Arduino 5V and GND
+6. Connect the original K-Line and GND lines from the OBD-9 connector to the FT232 board
 
-See [assets/](assets/) for photos of the cable modification. Also see [mkirbst's project](https://github.com/mkirbst/lupo-gti-tripcomputer-kw1281) for additional wiring photos.
+**Power supply:**
+- Arduino + display: USB power or external 5V
+- When connected to car: **separate power source recommended** (e.g., USB power bank or car 12V buck converter) to avoid ground loop issues
+- The FT232 board draws ~50 mA, Arduino + OLED ~150 mA total
+
+**Why Software Serial?**
+- Hardware UART (pins 0/1) reserved for USB serial monitor and programming
+- Software serial (NewSoftwareSerial) on pins 2/3 avoids conflicts with debug output
+
+**Protocol notes:**
+- K-Line operates at 5 baud initially (7 bits, no parity, 1 stop bit)
+- 5-baud initialization: GPIO pulse (~200 ms LOW, then HIGH) on pin 3 before standard serial communication
+- Standard baud rates (1200–10400) handled after 5-baud init
+- See [assets/](assets/) for photos of cable modification and [mkirbst's project](https://github.com/mkirbst/lupo-gti-tripcomputer-kw1281) for detailed wiring examples
+
 
 ## Software setup
 
@@ -108,25 +158,35 @@ Power on normally → interactive setup:
 
 ### Cockpit screen layout (ADDR_INSTRUMENTS 0x17)
 
-The full 128×64 OLED shows all data at once — no screen paging needed:
+Displays full vehicle status on a single 64×128 screen (10 columns × 16 rows). All data updates simultaneously — no paging or scrolling needed.
 
 ```
-SPD:xxx  RPM:xxxx
-CLT:xxx  OIL:xxx
-OLV:x OPR:x AMB:xx
-ODO:xxxxxxxxxx
-FUL:xx  FSR:xxxxx
-TIME:xxxxxxxxx
-L/100:xxxxx L/h:xxxx
-km:xxxxx  L:xxxxx
+Row  0: SPD:xxx  RPM:xxxx
+Row  1: CLT:xxx  OIL:xxx
+Row  2: OLV:x OPR:x AMB:xx
+Row  3: ODO:xxxxxxxxxx
+Row  4: FUL:xx  FSR:xxxxx
+Row  5: TIME:xxxxxxxxx
+Row  6: L/100:xxxxx L/h:xxxx
+Row  7: km:xxxxx  L:xxxxx
 ```
 
-- `SPD` km/h, `RPM` engine speed, `CLT` coolant °C, `OIL` oil temp °C
-- `OLV` oil level OK (0/1), `OPR` min oil pressure, `AMB` ambient temp °C
-- `ODO` odometer km, `FUL` fuel level L, `FSR` fuel sender resistance Ω
-- `TIME` ECU uptime seconds
-- `L/100` fuel consumption per 100 km (since connect), `L/h` fuel per hour
-- `km` trip distance since connect, `L` fuel burned since connect
+**Data fields:**
+- `SPD` vehicle speed (km/h)
+- `RPM` engine speed (rev/min)
+- `CLT` coolant temperature (°C)
+- `OIL` oil temperature (°C)
+- `OLV` oil level OK (1=OK, 0=low)
+- `OPR` minimum oil pressure (bar)
+- `AMB` ambient temperature (°C)
+- `ODO` odometer reading (km)
+- `FUL` fuel level (L)
+- `FSR` fuel sender resistance (Ω)
+- `TIME` ECU uptime (seconds)
+- `L/100` consumption rate (L/100km) since connection
+- `L/h` hourly fuel consumption (L/h)
+- `km` trip distance (km) since connection
+- `L` fuel burned (L) since connection
 
 ### Cockpit screen layout (ADDR_ENGINE 0x01)
 
@@ -191,6 +251,30 @@ src/
     └── Input/
         ├── ButtonInput.h/cpp     # Analog keypad reader
         └── MenuState.h/cpp       # Menu/screen navigation state
+```
+
+## Display rendering optimization
+
+The SH1107 driver uses a **text-only, on-demand rendering strategy** optimized for the 2 KB RAM limit:
+
+### Memory layout
+- **No framebuffer** — renders directly to I2C on-the-fly (saves ~920 bytes)
+- **Entry buffer** — stores up to 20 text entries (position, string) per frame
+- **Page-by-page rendering** — 128 pixels tall = 16 pages, rendered individually during flush
+- **Batch I2C** — all writes to display are grouped into single transfers (reduces MCU overhead)
+
+### Update strategy
+- Display only re-renders when **menu state changes** (user navigation) OR on a **fixed 177 ms timer**
+- Debug output **never triggers a refresh** — no serial spam in the display loop
+- Failed ECU connections properly transition back to setup screens (not stale data)
+
+### I2C communication
+```
+Port: I2C (Wire library)
+Speed: 100 kHz (stable for 5V operation)
+Chunking: 16 bytes per transmission packet
+Total per frame: ~16 transactions (one per page)
+Typical latency: <50 ms for full screen update
 ```
 
 ## CI / Releases
