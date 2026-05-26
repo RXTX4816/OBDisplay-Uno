@@ -97,20 +97,121 @@ void test_dtc_store_set_out_of_range_is_ignored()
     }
 }
 
+void test_dtc_store_overwrite_existing()
+{
+    DTCStore store;
+    store.reset();
+
+    // Set initial values
+    store.set(0, 0x1111, 0x11);
+    TEST_ASSERT_EQUAL_HEX16(0x1111, store.errorAt(0));
+    TEST_ASSERT_EQUAL_HEX8(0x11, store.statusAt(0));
+
+    // Overwrite with new values
+    store.set(0, 0x2222, 0x22);
+    TEST_ASSERT_EQUAL_HEX16(0x2222, store.errorAt(0));
+    TEST_ASSERT_EQUAL_HEX8(0x22, store.statusAt(0));
+}
+
+void test_dtc_store_all_slots_fillable()
+{
+    DTCStore store;
+    store.reset();
+
+    // Fill all slots with unique values
+    for (uint8_t i = 0; i < DTCStore::MaxCount; ++i) {
+        uint16_t error = (uint16_t)(0x1000 + i);
+        uint8_t status = (uint8_t)(0x10 + i);
+        store.set(i, error, status);
+    }
+
+    // Verify all were set correctly
+    for (uint8_t i = 0; i < DTCStore::MaxCount; ++i) {
+        TEST_ASSERT_EQUAL_HEX16(0x1000 + i, store.errorAt(i));
+        TEST_ASSERT_EQUAL_HEX8(0x10 + i, store.statusAt(i));
+    }
+}
+
+void test_signals_reset_clears_all_values()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    // After reset, all updated flags should be false
+    TEST_ASSERT_FALSE(signals.instruments.vehicleSpeedUpdated);
+    TEST_ASSERT_FALSE(signals.instruments.engineRpmUpdated);
+    TEST_ASSERT_FALSE(signals.instruments.coolantTempUpdated);
+
+    // Core values should be zero
+    TEST_ASSERT_EQUAL_UINT16(0, signals.instruments.vehicleSpeed);
+    TEST_ASSERT_EQUAL_UINT16(0, signals.instruments.engineRpm);
+    TEST_ASSERT_EQUAL_INT8(0, signals.instruments.coolantTemp);
+}
+
+void test_signals_zero_time_elapsed()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    signals.instruments.odometerStart = 100;
+    signals.instruments.odometer = 150;
+    signals.instruments.fuelLevelStart = 80;
+    signals.instruments.fuelLevel = 75;
+
+    // Call compute with zero elapsed time
+    signals.compute(0, 0);
+
+    TEST_ASSERT_EQUAL_UINT32(0, signals.computed.elapsedSecondsSinceStart);
+    TEST_ASSERT_EQUAL_UINT16(50, signals.computed.elapsedKmSinceStart);
+    TEST_ASSERT_EQUAL_UINT8(5, signals.computed.fuelBurnedSinceStart);
+}
+
+void test_signals_fuel_consumption_calculation()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    // Set up a 100km trip over 2 hours using 10 liters
+    signals.instruments.odometerStart = 0;
+    signals.instruments.odometer = 100;
+    signals.instruments.fuelLevelStart = 50;
+    signals.instruments.fuelLevel = 40;
+
+    const uint32_t twoHoursMs = 2 * 3600UL * 1000UL;
+    signals.compute(twoHoursMs, 0);
+
+    // Verify basic calculations
+    TEST_ASSERT_EQUAL_UINT32(2 * 3600, signals.computed.elapsedSecondsSinceStart);
+    TEST_ASSERT_EQUAL_UINT16(100, signals.computed.elapsedKmSinceStart);
+    TEST_ASSERT_EQUAL_UINT8(10, signals.computed.fuelBurnedSinceStart);
+
+    // Fuel consumption should be: 10L / 100km = 0.1L/km = 10L/100km
+    // fuelPer100km should be approximately 10.0
+    TEST_ASSERT_TRUE(signals.computed.fuelPer100km >= 9.0f && signals.computed.fuelPer100km <= 11.0f);
+
+    // fuelPerHour should be approximately 5.0 (10L / 2h)
+    TEST_ASSERT_TRUE(signals.computed.fuelPerHour >= 4.0f && signals.computed.fuelPerHour <= 6.0f);
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
     UNITY_BEGIN();
 
-    // OBDSignals
+    // OBDSignals tests
+    RUN_TEST(test_signals_reset_clears_all_values);
+    RUN_TEST(test_signals_zero_time_elapsed);
     RUN_TEST(test_compute_realistic_trip);
+    RUN_TEST(test_signals_fuel_consumption_calculation);
     RUN_TEST(test_update_simulation_changes_values);
 
-    // DTCStore
+    // DTCStore tests
     RUN_TEST(test_dtc_store_reset);
     RUN_TEST(test_dtc_store_set_and_read_back);
     RUN_TEST(test_dtc_store_set_out_of_range_is_ignored);
+    RUN_TEST(test_dtc_store_overwrite_existing);
+    RUN_TEST(test_dtc_store_all_slots_fillable);
 
     return UNITY_END();
 }
