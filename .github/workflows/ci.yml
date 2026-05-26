@@ -51,51 +51,8 @@ jobs:
       - name: Build
         run: pio run -e uno
 
-      - name: Extract and update memory badges
-        run: |
-          # Extract memory usage
-          MEMORY=$(pio run -e uno 2>&1)
-          RAM_LINE=$(echo "$MEMORY" | grep "RAM:")
-          FLASH_LINE=$(echo "$MEMORY" | grep "Flash:")
-
-          # Parse RAM percentage and bytes
-          RAM_PERCENT=$(echo "$RAM_LINE" | sed -n 's/.*\[\([^%]*\)%\).*/\1/p' | head -1)
-          RAM_USED=$(echo "$RAM_LINE" | sed -n 's/.*(\([0-9]*\) bytes from [0-9]* bytes).*/\1/p')
-          RAM_TOTAL=$(echo "$RAM_LINE" | sed -n 's/.*(.*from \([0-9]*\) bytes).*/\1/p')
-
-          # Parse Flash percentage and bytes
-          FLASH_PERCENT=$(echo "$FLASH_LINE" | sed -n 's/.*\[\([^%]*\)%\).*/\1/p' | head -1)
-          FLASH_USED=$(echo "$FLASH_LINE" | sed -n 's/.*(\([0-9]*\) bytes from [0-9]* bytes).*/\1/p')
-          FLASH_TOTAL=$(echo "$FLASH_LINE" | sed -n 's/.*(.*from \([0-9]*\) bytes).*/\1/p')
-
-          # Determine colors based on usage
-          if (( $(echo "$FLASH_PERCENT > 95" | bc -l) )); then
-            FLASH_COLOR="red"
-          elif (( $(echo "$FLASH_PERCENT > 85" | bc -l) )); then
-            FLASH_COLOR="orange"
-          else
-            FLASH_COLOR="green"
-          fi
-
-          if (( $(echo "$RAM_PERCENT > 80" | bc -l) )); then
-            RAM_COLOR="red"
-          elif (( $(echo "$RAM_PERCENT > 60" | bc -l) )); then
-            RAM_COLOR="orange"
-          else
-            RAM_COLOR="green"
-          fi
-
-          # Update README with new badges
-          sed -i "s|!\[Flash:.*\].*|[![Flash: ${FLASH_PERCENT}%](https://img.shields.io/badge/flash-${FLASH_PERCENT}%25_of_${FLASH_TOTAL}B-${FLASH_COLOR})](https://github.com/RXTX4816/OBDisplay-Uno)|" README.md
-          sed -i "s|!\[RAM:.*\].*|[![RAM: ${RAM_PERCENT}%](https://img.shields.io/badge/RAM-${RAM_PERCENT}%25_of_${RAM_TOTAL}B-${RAM_COLOR})](https://github.com/RXTX4816/OBDisplay-Uno)|" README.md
-
-      - name: Commit badge updates
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add README.md
-          git diff --quiet && git diff --staged --quiet || (git commit -m "docs: update memory usage badges [skip ci]" && git push)
-        continue-on-error: true
+      - name: Report memory usage
+        run: pio run -e uno 2>&1 | grep -E "RAM|Flash" || true
 
   test:
     needs: build
