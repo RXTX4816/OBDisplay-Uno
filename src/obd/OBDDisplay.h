@@ -41,6 +41,8 @@ class OBDDisplay
     uint8_t kwpGroup_;
 
     bool connected_;
+    bool wasConnected_ = false;
+    bool lastConnectionFailed_ = false;
     uint16_t connectionAttempts_ = 0;
     uint32_t connectTimeStart_;
     uint32_t displayFrameTimestamp_;

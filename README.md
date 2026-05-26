@@ -1,5 +1,10 @@
 # OBDisplay-Uno
 
+[![CI/CD](https://github.com/RXTX4816/OBDisplay-Uno/actions/workflows/ci.yml/badge.svg)](https://github.com/RXTX4816/OBDisplay-Uno/actions)
+[![Flash: 99.3%](https://img.shields.io/badge/flash-99.3%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![RAM: 48.6%](https://img.shields.io/badge/RAM-48.6%25_of_2048B-green)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![MCU: ATmega328P](https://img.shields.io/badge/MCU-ATmega328P-blue)](https://www.microchip.com/en-us/product/atmega328p)
+
 KWP-1281 K-Line trip computer for Arduino Uno with SH1107 OLED display (64×128, landscape mode work in progress).
 
 Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta, ~1998–2006) that use the K-Line OBD interface and the KWP-1281 protocol. 

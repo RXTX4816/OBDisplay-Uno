@@ -268,10 +268,42 @@ bool OBDDisplay::ensureConnected_()
         return true;
     }
 
+    // If connection was lost after being established, skip retry and go to press-select screen
+    if (wasConnected_)
+    {
+        display_.clear();
+        display_.print(0, 0, F("Conn. ERR"));
+        display_.print(0, 1, F("Lost"));
+        delay(1000);
+
+        phase_ = Phase::WaitingForConnect;
+        display_.clear();
+        display_.print(0, 0, F("< ENTER >"));
+        display_.print(0, 1, F("< SELECT >"));
+        buttonTimeoutUntil_ = 0;
+        lastConnectionFailed_ = false;
+        wasConnected_ = false;
+        return false;
+    }
+
     // If we have no valid configuration yet, don't block the UI; behave like
     // the original sketch where menus were shown before any connection.
     if (baudRate_ == 0 || addrSelected_ == 0x00)
     {
+        lastConnectionFailed_ = false;
+        return false;
+    }
+
+    // Skip retry attempt after initial failed connection (go to press-select screen with same
+    // settings)
+    if (lastConnectionFailed_)
+    {
+        lastConnectionFailed_ = false;
+        phase_ = Phase::WaitingForConnect;
+        display_.clear();
+        display_.print(0, 0, F("< ENTER >"));
+        display_.print(0, 1, F("< SELECT >"));
+        buttonTimeoutUntil_ = 0;
         return false;
     }
 
@@ -288,22 +320,17 @@ bool OBDDisplay::ensureConnected_()
             display_.print(0, 0, F("Conn. ERR"));
             display_.print(0, 1, F("Retry..."));
 
-            // After a short timeout, go back to the explicit
-            // press-to-connect prompt and reset state so we do
-            // not fall through into the tripcomputer.
-            delay(ECU_TIMEOUT_MS);
-            phase_ = Phase::WaitingForConnect;
-            connected_ = false;
-            menuState_ = Input::MenuState();
-            display_.clear();
-            display_.print(0, 0, F("< ENTER >"));
-            display_.print(0, 1, F("Prs SELECT"));
+            delay(3000);
+
+            // Set flag to skip immediate retry attempt on next frame
+            lastConnectionFailed_ = true;
         }
 
         return false;
     }
 
     connected_ = true;
+    wasConnected_ = true;
     connectTimeStart_ = millis();
     // After a successful connect, always start in the cockpit menu (tripcomputer)
     // like the original sketch did.

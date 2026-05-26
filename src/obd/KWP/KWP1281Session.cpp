@@ -86,6 +86,12 @@ bool KWP1281Session::sendBlock_(const uint8_t* s, int size)
             }
             if (complement != (data ^ 0xFF))
             {
+                Serial.print(F("KWP: complement mismatch byte "));
+                Serial.print(i);
+                Serial.print(F(" expected 0x"));
+                Serial.print(data ^ 0xFF, HEX);
+                Serial.print(F(" got 0x"));
+                Serial.println(complement, HEX);
                 return false;
             }
         }
@@ -221,10 +227,11 @@ bool KWP1281Session::receiveBlock_(uint8_t s[], int maxsize, int& size, int sour
 
         if (millis() >= timeout)
         {
-            if (recvCount == 0)
-            {
-                // Nothing received; wiring or ECU issue
-            }
+            Serial.print(F("KWP: Timeout in receiveBlock_, received "));
+            Serial.print(recvCount);
+            Serial.print(F(" of "));
+            Serial.print(size);
+            Serial.println(F(" bytes"));
             return false;
         }
         ++tempIterationCounter;
@@ -357,24 +364,44 @@ bool KWP1281Session::connectToEcu(bool simulationMode, bool autoSetup, uint16_t&
         baudRate = baudRate_;
     }
 
+    Serial.print(F("KWP: Connecting at baud "));
+    Serial.print(baudRate_);
+    Serial.print(F(" addr 0x"));
+    Serial.println(ecuAddr_, HEX);
+
     obd_.end();
     obd_.begin(baudRate_);
+
+    Serial.println(F("KWP: Performing 5-baud init..."));
     perform5BaudInit_();
+    Serial.println(F("KWP: 5-baud init done"));
 
     // Handshake: expect 0x55, 0x01, 0x8A
     uint8_t response[3] = {0, 0, 0};
     int responseSize = 3;
+    Serial.println(F("KWP: Waiting for sync bytes..."));
     if (!receiveBlock_(response, 3, responseSize, -1, true))
     {
+        Serial.println(F("KWP: Sync bytes receive failed"));
         return false;
     }
+    Serial.print(F("KWP: Received sync: 0x"));
+    Serial.print(response[0], HEX);
+    Serial.print(F(" 0x"));
+    Serial.print(response[1], HEX);
+    Serial.print(F(" 0x"));
+    Serial.println(response[2], HEX);
+
     if (response[0] != 0x55 || response[1] != 0x01 || response[2] != 0x8A)
     {
+        Serial.println(F("KWP: Sync bytes mismatch"));
         return false;
     }
 
+    Serial.println(F("KWP: Reading device data blocks..."));
     if (!readConnectBlocks_(false))
     {
+        Serial.println(F("KWP: Device data read failed"));
         return false;
     }
 
@@ -394,8 +421,16 @@ void KWP1281Session::disconnect()
 bool KWP1281Session::keepAlive()
 {
     if (!sendAckBlock_())
+    {
+        Serial.println(F("KWP: Keep-alive send ACK failed"));
         return false;
-    return receiveAckBlock_();
+    }
+    if (!receiveAckBlock_())
+    {
+        Serial.println(F("KWP: Keep-alive receive ACK failed"));
+        return false;
+    }
+    return true;
 }
 
 bool KWP1281Session::readSensorsGroup(uint8_t group, Model::OBDSignals& signals)
@@ -422,14 +457,13 @@ bool KWP1281Session::readSensorsGroup(uint8_t group, Model::OBDSignals& signals)
     s[2] = 0x29;
     s[3] = group;
     s[4] = 0x03;
+
     if (!sendBlock_(s, 5))
         return false;
 
     int size = 0;
     if (!receiveBlock_(s, 64, size, 1))
-    {
         return false;
-    }
 
     if (comError_)
     {
