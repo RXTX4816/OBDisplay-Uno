@@ -181,15 +181,8 @@ void DisplayManager::initMenuDebug()
     initDebugScreen(*this);
 }
 
-void DisplayManager::initMenuDtc(uint8_t screen)
-{
-    initDtcScreen(*this, screen);
-}
-
-void DisplayManager::initMenuSettings(uint8_t screen)
-{
-    initSettingsScreen(*this, screen);
-}
+void DisplayManager::initMenuDtc(uint8_t /*screen*/) {}      // handled by renderDtcMenu()
+void DisplayManager::initMenuSettings(uint8_t /*screen*/) {} // handled by renderSettings()
 
 void DisplayManager::displayMenuCockpit(uint8_t screen, uint8_t addrSelected,
                                         const Model::OBDSignals& signals, bool forceUpdate)
@@ -203,21 +196,39 @@ void DisplayManager::displayMenuExperimental(uint8_t screen, const Model::OBDSig
     renderExperimentalScreen(*this, screen, signals, forceUpdate);
 }
 
-void DisplayManager::displayMenuDebug(uint8_t screen, const Model::OBDSignals& signals,
-                                      int kwpModeInt, bool forceUpdate)
+// Debug, DTC, and Settings are now rendered via the public overrides below;
+// the old private paths are kept as no-ops so render() compiles cleanly.
+void DisplayManager::displayMenuDebug(uint8_t /*screen*/, const Model::OBDSignals& /*signals*/,
+                                      int /*kwpModeInt*/, bool /*forceUpdate*/)
 {
-    renderDebugScreen(*this, screen, signals, kwpModeInt, forceUpdate);
 }
 
-void DisplayManager::displayMenuDtc(uint8_t screen, const Model::DTCStore& dtcStore,
-                                    bool forceUpdate)
+void DisplayManager::displayMenuDtc(uint8_t /*screen*/, const Model::DTCStore& /*dtcStore*/,
+                                    bool /*forceUpdate*/)
 {
-    renderDtcScreen(*this, screen, dtcStore, forceUpdate);
 }
 
-void DisplayManager::displayMenuSettings(uint8_t screen, int kwpModeInt, bool forceUpdate)
+void DisplayManager::displayMenuSettings(uint8_t /*screen*/, int /*kwpModeInt*/,
+                                         bool /*forceUpdate*/)
 {
-    renderSettingsScreen(*this, screen, kwpModeInt, forceUpdate);
+}
+
+// ── Public menu-specific render overrides ───────────────────────────────────
+
+void DisplayManager::renderDtcMenu(uint8_t cursor, bool showActive, uint8_t showPage,
+                                   int8_t dtcCount, const Model::DTCStore& dtcStore)
+{
+    renderDtcScreen(*this, cursor, showActive, showPage, dtcCount, dtcStore);
+}
+
+void DisplayManager::renderSettings(uint8_t cursor, int kwpModeInt)
+{
+    renderSettingsScreen(*this, cursor, kwpModeInt);
+}
+
+void DisplayManager::renderDebug(const DebugInfo& di, int kwpModeInt)
+{
+    renderDebugScreen(*this, di, kwpModeInt);
 }
 
 } // namespace Display

@@ -9,7 +9,7 @@ namespace Input
 MenuState::MenuState()
     : currentMenu_(Display::MenuId::Cockpit), cockpitScreen_(0), cockpitScreenMax_(1),
       experimentalScreen_(0), experimentalScreenMax_(64), debugScreen_(0), debugScreenMax_(4),
-      dtcScreen_(0), dtcScreenMax_(9), settingsScreen_(0), settingsScreenMax_(10),
+      dtcScreen_(0), dtcScreenMax_(0), settingsScreen_(0), settingsScreenMax_(0),
       menuChanged_(false), screenChanged_(false)
 {
 }
@@ -78,38 +78,6 @@ void MenuState::prevDebugScreen()
         debugScreen_ = debugScreenMax_;
     else
         --debugScreen_;
-    screenChanged_ = true;
-}
-
-void MenuState::nextDtcScreen()
-{
-    if (++dtcScreen_ > dtcScreenMax_)
-        dtcScreen_ = 0;
-    screenChanged_ = true;
-}
-
-void MenuState::prevDtcScreen()
-{
-    if (dtcScreen_ == 0)
-        dtcScreen_ = dtcScreenMax_;
-    else
-        --dtcScreen_;
-    screenChanged_ = true;
-}
-
-void MenuState::nextSettingsScreen()
-{
-    if (++settingsScreen_ > settingsScreenMax_)
-        settingsScreen_ = 0;
-    screenChanged_ = true;
-}
-
-void MenuState::prevSettingsScreen()
-{
-    if (settingsScreen_ == 0)
-        settingsScreen_ = settingsScreenMax_;
-    else
-        --settingsScreen_;
     screenChanged_ = true;
 }
 

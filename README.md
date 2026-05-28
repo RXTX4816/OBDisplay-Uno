@@ -1,13 +1,35 @@
 # OBDisplay-Uno
 
 [![CI/CD](https://github.com/RXTX4816/OBDisplay-Uno/actions/workflows/ci.yml/badge.svg)](https://github.com/RXTX4816/OBDisplay-Uno/actions)
-[![Flash: 99.3%](https://img.shields.io/badge/flash-99.3%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
-[![RAM: 48.6%](https://img.shields.io/badge/RAM-48.6%25_of_2048B-green)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![Flash: 96.2%](https://img.shields.io/badge/flash-96.2%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![RAM: 56.5%](https://img.shields.io/badge/RAM-56.5%25_of_2048B-green)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![Flash (debug): 100%](https://img.shields.io/badge/flash_(debug)-100%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![RAM (debug): 65.0%](https://img.shields.io/badge/RAM_(debug)-65.0%25_of_2048B-yellow)](https://github.com/RXTX4816/OBDisplay-Uno)
 [![MCU: ATmega328P](https://img.shields.io/badge/MCU-ATmega328P-blue)](https://www.microchip.com/en-us/product/atmega328p)
 
 KWP-1281 K-Line trip computer for Arduino Uno with SH1107 OLED display (64×128, landscape mode work in progress).
 
-Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta, ~1998–2006) that use the K-Line OBD interface and the KWP-1281 protocol. 
+Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta, ~1998–2006) that use the K-Line OBD interface and the KWP-1281 protocol.
+
+## Installation
+
+Pre-built firmware is available on the [Releases](https://github.com/RXTX4816/OBDisplay-Uno/releases) page — no toolchain required.
+
+### Download and flash
+
+1. Download `OBDisplay-Uno-<version>.hex` from the latest release.
+2. Flash with `avrdude` (included with the Arduino IDE or install separately):
+   ```bash
+   avrdude -c arduino -p atmega328p -P /dev/ttyUSB0 -b 115200 \
+     -U flash:w:OBDisplay-Uno-<version>.hex:i
+   ```
+   Replace `/dev/ttyUSB0` with your port (`COM3` on Windows, `/dev/cu.usbmodem*` on macOS).
+3. Or upload directly via PlatformIO if you have the repo cloned:
+   ```bash
+   pio run --target upload
+   ```
+
+The release also includes `OBDisplay-Uno-<version>.elf` — this is for developers only (symbol-level debugging with `avr-gdb`, flash analysis with `avr-nm`). You cannot flash it directly.
 
 ## Features
 
@@ -284,12 +306,17 @@ Typical latency: <50 ms for full screen update
 
 ## CI / Releases
 
-Every push to `main` runs:
+Every push to `main` runs the **CI** workflow:
 
 1. **Lint** — `clang-format` style check + `cppcheck` static analysis
-2. **Build** — `pio run -e uno`, memory usage reported
+2. **Build** — `pio run -e uno`, flash/RAM usage reported
 3. **Test** — `pio test -e native` (model layer unit tests)
-4. **Release** — semantic-release creates a GitHub release with the compiled `firmware.hex` attached (conventional commits: `feat:` → minor, `fix:` → patch, `BREAKING CHANGE:` → major)
+
+Releases are created manually via the **Semantic Release** workflow (Actions → Semantic Release → Run workflow). It inspects commits since the last tag and bumps the version accordingly (conventional commits: `feat:` → minor, `fix:` → patch, `BREAKING CHANGE:` → major), then tags the commit.
+
+The **Release** workflow fires automatically on each new tag and uploads `firmware.hex` + `firmware.elf` to the GitHub release, with a build report showing flash/RAM usage.
+
+Wiki pages under `docs/wiki/` are automatically synced to the GitHub Wiki on each push to `main`.
 
 ## ECU emulator
 
@@ -302,6 +329,75 @@ If you don't have a car available, [OBDisplay-Emu](https://github.com/RXTX4816/O
 Do not use address `0x15` (airbag) to clear DTCs — on some affected ECUs this can deploy the airbag if an electrical fault is present in the airbag circuit.
 
 Turn ignition ON (engine does not need to be running) before connecting.
+
+## Development
+
+### Build macros
+
+These `#define` flags gate optional functionality. Add them to `build_flags` in `platformio.ini` or use the pre-configured environments below.
+
+| Macro | Environment | Effect |
+|---|---|---|
+| `OBD_DEBUG` | `uno_debug` | Enable binary serial debug logging (see below) |
+| `OBD_EXPERIMENTAL_SCREENS` | `uno_debug` | Include ExperimentalScreen and DebugScreen render content |
+
+### Environments
+
+```bash
+# Production (default) — smallest binary, no serial output
+pio run -e uno
+
+# Debug build — includes binary frame logging over USB serial
+pio run -e uno_debug && pio run -e uno_debug --target upload
+
+# Host-side model unit tests (no Arduino needed)
+pio test -e native
+```
+
+### Binary debug logging (OBD_DEBUG)
+
+When built with `-D OBD_DEBUG`, the firmware emits compact 5-byte binary frames over the hardware serial port (USB, 115200 baud):
+
+```
+0xAA  <code>  <val_hi>  <val_lo>  0x55
+```
+
+Decode in real time with the included Python script (requires `pyserial`):
+
+```bash
+pip install pyserial
+python tools/dbg_monitor.py --port /dev/ttyUSB0
+# Windows:
+python tools/dbg_monitor.py --port COM3
+```
+
+#### Event code table
+
+| Code | Name | Description |
+|---|---|---|
+| `0x01` | `KWP_CONNECT` | Connecting; baud = val × 100 |
+| `0x02` | `KWP_5BAUD_START` | 5-baud init started |
+| `0x03` | `KWP_5BAUD_DONE` | 5-baud init done |
+| `0x04` | `KWP_SYNC_WAIT` | Waiting for ECU sync bytes |
+| `0x05` | `KWP_SYNC_FAIL` | Sync bytes receive failed |
+| `0x06` | `KWP_SYNC_MISMATCH` | Sync bytes mismatch; val = first byte received |
+| `0x07` | `KWP_SYNC_OK` | Sync OK; val = first byte (expect 0x55) |
+| `0x08` | `KWP_BLOCKS_READ` | Reading device data blocks |
+| `0x09` | `KWP_BLOCKS_FAIL` | Device data read failed |
+| `0x0A` | `KWP_TIMEOUT` | `receiveBlock_` timeout; val = bytes received |
+| `0x0B` | `KWP_COMPLEMENT` | Complement mismatch; val = byte index |
+| `0x0C` | `KWP_KEEPALIVE_TX` | Keep-alive send ACK failed |
+| `0x0D` | `KWP_KEEPALIVE_RX` | Keep-alive receive ACK failed |
+| `0x10` | `DISP_INIT` | Display::begin() starting |
+| `0x11` | `DISP_WIRE_OK` | I2C initialized at 100 kHz |
+| `0x12` | `DISP_OFF` | Sending display OFF command |
+| `0x13` | `DISP_SEQ` | Sending init sequence |
+| `0x14` | `DISP_INIT_DONE` | Init complete |
+| `0x15` | `DISP_CLEAR` | Clearing display |
+| `0x16` | `DISP_READY` | Display cleared and ready |
+| `0x20` | `CTRL_STEP` | Startup step; val = step number (1–3) |
+
+In production (`uno` env), all `DBG()` / `DBGV()` macros expand to nothing — zero flash cost.
 
 ## Credits
 

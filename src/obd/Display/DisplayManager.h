@@ -13,6 +13,20 @@ namespace obd
 namespace Display
 {
 
+// Low-level debug data populated by OBDDisplay and passed to renderDebugScreen.
+struct DebugInfo
+{
+    uint8_t serialCon; // NewSoftwareSerial::isListening()
+    uint8_t serialAva; // NewSoftwareSerial::available()
+    uint8_t blockCtr;  // KWP block counter
+    uint8_t attempts;  // connection attempts (capped at 255)
+    uint8_t addr;      // ECU address selected
+    uint16_t baud;     // baud rate selected
+    uint8_t group;     // current KWP group
+    bool sim;          // simulation mode active
+    int16_t freeRam;   // estimated free RAM (bytes)
+};
+
 class DisplayManager
 {
   public:
@@ -32,6 +46,12 @@ class DisplayManager
                 const Model::DTCStore& dtcStore, uint8_t addrSelected, int kwpModeInt,
                 bool forceUpdate);
 
+    // Menu-specific render overrides that bypass the generic render() path.
+    void renderDtcMenu(uint8_t cursor, bool showActive, uint8_t showPage, int8_t dtcCount,
+                       const Model::DTCStore& dtcStore);
+    void renderSettings(uint8_t cursor, int kwpModeInt);
+    void renderDebug(const DebugInfo& di, int kwpModeInt);
+
     void print(uint8_t x, uint8_t y, const __FlashStringHelper* s);
     void print(uint8_t x, uint8_t y, const char* s);
     void print(uint8_t x, uint8_t y, const char* s, uint8_t width);
@@ -45,17 +65,17 @@ class DisplayManager
     void initMenuCockpit(uint8_t screen, uint8_t addrSelected);
     void initMenuExperimental();
     void initMenuDebug();
-    void initMenuDtc(uint8_t screen);
-    void initMenuSettings(uint8_t screen);
+    static void initMenuDtc(uint8_t screen);
+    static void initMenuSettings(uint8_t screen);
 
     void displayMenuCockpit(uint8_t screen, uint8_t addrSelected, const Model::OBDSignals& signals,
                             bool forceUpdate);
     void displayMenuExperimental(uint8_t screen, const Model::OBDSignals& signals,
                                  bool forceUpdate);
-    void displayMenuDebug(uint8_t screen, const Model::OBDSignals& signals, int kwpModeInt,
-                          bool forceUpdate);
-    void displayMenuDtc(uint8_t screen, const Model::DTCStore& dtcStore, bool forceUpdate);
-    void displayMenuSettings(uint8_t screen, int kwpModeInt, bool forceUpdate);
+    static void displayMenuDebug(uint8_t screen, const Model::OBDSignals& signals, int kwpModeInt,
+                                 bool forceUpdate);
+    static void displayMenuDtc(uint8_t screen, const Model::DTCStore& dtcStore, bool forceUpdate);
+    static void displayMenuSettings(uint8_t screen, int kwpModeInt, bool forceUpdate);
 };
 
 } // namespace Display

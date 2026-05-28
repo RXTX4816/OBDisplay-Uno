@@ -30,6 +30,8 @@ jobs:
             --suppress=missingIncludeSystem \
             --suppress=unusedFunction \
             --inline-suppr \
+            -DPROGMEM= \
+            -DF_CPU=16000000 \
             --error-exitcode=1 \
             src/
 

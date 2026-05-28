@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.2.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Upload Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        run: |
+          VERSION="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "VERSION_CLEAN=${VERSION#v}" >> "$GITHUB_ENV"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pipx install platformio
+
+      - name: Build firmware
+        id: build
+        run: |
+          BUILD_OUTPUT=$(pio run -e uno 2>&1)
+          echo "$BUILD_OUTPUT"
+
+          RAM_LINE=$(echo "$BUILD_OUTPUT"  | grep -E "^RAM:")
+          FLASH_LINE=$(echo "$BUILD_OUTPUT" | grep -E "^Flash:")
+
+          RAM_PCT=$(echo   "$RAM_LINE"   | grep -oP '\d+\.\d+(?=%)' | head -1)
+          FLASH_PCT=$(echo "$FLASH_LINE" | grep -oP '\d+\.\d+(?=%)' | head -1)
+          RAM_USED=$(echo   "$RAM_LINE"   | grep -oP 'used \K\d+')
+          RAM_TOTAL=$(echo  "$RAM_LINE"   | grep -oP 'from \K\d+')
+          FLASH_USED=$(echo "$FLASH_LINE" | grep -oP 'used \K\d+')
+          FLASH_TOTAL=$(echo "$FLASH_LINE" | grep -oP 'from \K\d+')
+
+          echo "ram_pct=${RAM_PCT}"       >> "$GITHUB_OUTPUT"
+          echo "flash_pct=${FLASH_PCT}"   >> "$GITHUB_OUTPUT"
+          echo "ram_used=${RAM_USED}"     >> "$GITHUB_OUTPUT"
+          echo "ram_total=${RAM_TOTAL}"   >> "$GITHUB_OUTPUT"
+          echo "flash_used=${FLASH_USED}" >> "$GITHUB_OUTPUT"
+          echo "flash_total=${FLASH_TOTAL}" >> "$GITHUB_OUTPUT"
+
+      - name: Collect artifacts
+        run: |
+          cp .pio/build/uno/firmware.hex "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.hex"
+          cp .pio/build/uno/firmware.elf "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.elf"
+
+      - name: Generate release notes
+        run: |
+          SHA=$(git rev-parse HEAD)
+          DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+          cat > release-notes.md <<EOF
+          ## OBDisplay-Uno ${{ env.VERSION }}
+
+          ### Build info
+
+          | | |
+          |---|---|
+          | Version | ${{ env.VERSION }} |
+          | Commit | \`${SHA}\` |
+          | Built | ${DATE} |
+          | Target | Arduino Uno (ATmega328P, 16 MHz) |
+          | Flash | ${{ steps.build.outputs.flash_used }} / ${{ steps.build.outputs.flash_total }} bytes (${{ steps.build.outputs.flash_pct }}%) |
+          | RAM | ${{ steps.build.outputs.ram_used }} / ${{ steps.build.outputs.ram_total }} bytes (${{ steps.build.outputs.ram_pct }}%) |
+
+          ### Flashing
+
+          Download \`OBDisplay-Uno-${{ env.VERSION_CLEAN }}.hex\` and flash with avrdude:
+
+          \`\`\`bash
+          avrdude -c arduino -p atmega328p -P /dev/ttyUSB0 -b 115200 \\
+            -U flash:w:OBDisplay-Uno-${{ env.VERSION_CLEAN }}.hex:i
+          \`\`\`
+
+          Replace \`/dev/ttyUSB0\` with your port (\`COM3\` on Windows).
+
+          The \`.elf\` file is a developer artifact (debug symbols, flash analysis). It cannot be flashed directly — use the \`.hex\` above.
+
+          EOF
+
+      - name: Create or update GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ env.VERSION }}" \
+            --title "${{ env.VERSION }}" \
+            --notes-file release-notes.md \
+            "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.hex" \
+            "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.elf" \
+          || gh release upload "${{ env.VERSION }}" \
+            "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.hex" \
+            "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.elf" \
+            --clobber

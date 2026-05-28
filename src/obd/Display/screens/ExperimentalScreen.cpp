@@ -8,11 +8,19 @@ namespace Display
 {
 
 // Portrait layout (10 cols x 16 rows):
-//   Row 0: G:XX S:X    (combined group number and side)
-//   Row 1: V1:XXXXXXX  (first channel value)
-//   Row 2: U1:UUUUUU   (first channel unit)
-//   Row 3: V2:XXXXXXX  (second channel value)
-//   Row 4: U2:UUUUUU   (second channel unit)
+//   Row  0: Grp: XX
+//   Row  1: (empty)
+//   Row  2: V1: XXXXXXX
+//   Row  3: U1: UUUUUU
+//   Row  4: (empty)
+//   Row  5: V2: XXXXXXX
+//   Row  6: U2: UUUUUU
+//   Row  7: (empty)
+//   Row  8: V3: XXXXXXX
+//   Row  9: U3: UUUUUU
+//   Row 10: (empty)
+//   Row 11: V4: XXXXXXX
+//   Row 12: U4: UUUUUU
 
 void initExperimentalScreen(DisplayManager& /*dm*/)
 {
@@ -22,43 +30,46 @@ void initExperimentalScreen(DisplayManager& /*dm*/)
 void renderExperimentalScreen(DisplayManager& dm, uint8_t /*screen*/,
                               const Model::OBDSignals& signals, bool forceUpdate)
 {
-    using namespace Model;
-    ExperimentalGroup& eg = const_cast<ExperimentalGroup&>(signals.experimental);
+#ifdef OBD_EXPERIMENTAL_SCREENS
+    const Model::ExperimentalGroup& eg = signals.experimental;
 
     char buf[11];
 
-    // Row 0: G:XX S:X (group number + side)
-    buf[0] = 'G';
-    buf[1] = ':';
-    ltoa((long)eg.groupCurrent, buf + 2, 10);
-    buf[4] = ' ';
-    buf[5] = 'S';
-    buf[6] = ':';
-    buf[7] = '0' + (eg.groupSide ? 1 : 0);
-    buf[8] = '\0';
-    dm.print(0, 0, buf);
+    // Row 0: Grp: XX
+    dm.print(0, 0, F("Grp:"));
+    ltoa((long)eg.groupCurrent, buf, 10);
+    dm.print(5, 0, buf);
 
-    // Determine which two values to show (based on group side)
-    uint8_t first = eg.groupSide ? 2 : 0;
-    uint8_t second = eg.groupSide ? 3 : 1;
+    // Slot 1 (rows 2-3)
+    dm.print(0, 2, F("V1:"));
+    dm.print(3, 2, eg.v[0], 7);
+    dm.print(0, 3, F("U1:"));
+    dm.print(3, 3, eg.unit[0]);
 
-    // Row 1: V1:XXXXXXX (first value)
-    dm.print(0, 1, F("V1:"));
-    dm.print(3, 1, eg.v[first], 7);
+    // Slot 2 (rows 5-6)
+    dm.print(0, 5, F("V2:"));
+    dm.print(3, 5, eg.v[1], 7);
+    dm.print(0, 6, F("U2:"));
+    dm.print(3, 6, eg.unit[1]);
 
-    // Row 2: U1:UUUUUU (first unit)
-    dm.print(0, 2, F("U1:"));
-    dm.print(3, 2, eg.unit[first]);
+    // Slot 3 (rows 8-9)
+    dm.print(0, 8, F("V3:"));
+    dm.print(3, 8, eg.v[2], 7);
+    dm.print(0, 9, F("U3:"));
+    dm.print(3, 9, eg.unit[2]);
 
-    // Row 3: V2:XXXXXXX (second value)
-    dm.print(0, 3, F("V2:"));
-    dm.print(3, 3, eg.v[second], 7);
+    // Slot 4 (rows 11-12)
+    dm.print(0, 11, F("V4:"));
+    dm.print(3, 11, eg.v[3], 7);
+    dm.print(0, 12, F("U4:"));
+    dm.print(3, 12, eg.unit[3]);
 
-    // Row 4: U2:UUUUUU (second unit)
-    dm.print(0, 4, F("U2:"));
-    dm.print(3, 4, eg.unit[second]);
-
-    (void)forceUpdate; // Satisfy unused parameter warning
+    (void)forceUpdate;
+#else
+    (void)dm;
+    (void)signals;
+    (void)forceUpdate;
+#endif
 }
 
 } // namespace Display

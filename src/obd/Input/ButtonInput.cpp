@@ -22,7 +22,7 @@ bool ButtonInput::isSelectPressed() const
     return readMid();
 }
 
-bool ButtonInput::update(MenuState& menuState, InputActions& actions)
+bool ButtonInput::update(MenuState& menuState, const InputActions& actions)
 {
     bool any = false;
 
@@ -64,11 +64,6 @@ bool ButtonInput::update(MenuState& menuState, InputActions& actions)
                     menuState.prevExperimentalScreen();
                     any = true;
                 }
-                else if (readMid())
-                {
-                    actions.invertGroupSide = true;
-                    any = true;
-                }
                 break;
             case MenuId::Debug:
                 if (readUp())
@@ -83,54 +78,9 @@ bool ButtonInput::update(MenuState& menuState, InputActions& actions)
                 }
                 break;
             case MenuId::Dtc:
-                if (readUp())
-                {
-                    menuState.nextDtcScreen();
-                    any = true;
-                }
-                else if (readDown())
-                {
-                    menuState.prevDtcScreen();
-                    any = true;
-                }
-                else if (readMid())
-                {
-                    if (menuState.dtcScreen() == 0)
-                    {
-                        actions.readDtc = true;
-                        any = true;
-                    }
-                    else if (menuState.dtcScreen() == 1)
-                    {
-                        actions.clearDtc = true;
-                        any = true;
-                    }
-                }
-                break;
             case MenuId::Settings:
-                if (readUp())
-                {
-                    menuState.nextSettingsScreen();
-                    any = true;
-                }
-                else if (readDown())
-                {
-                    menuState.prevSettingsScreen();
-                    any = true;
-                }
-                else if (readMid())
-                {
-                    if (menuState.settingsScreen() == 0)
-                    {
-                        actions.requestExit = true;
-                        any = true;
-                    }
-                    else if (menuState.settingsScreen() == 1)
-                    {
-                        actions.toggleKwpMode = true;
-                        any = true;
-                    }
-                }
+                // DTC and Settings navigation is handled entirely by
+                // OBDDisplay::handleInput_() using cursor-based state.
                 break;
         }
     }

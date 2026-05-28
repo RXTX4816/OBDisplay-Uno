@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "Display.h"
+#include "../debug.h"
 #include <Wire.h>
 
 namespace
@@ -150,25 +151,22 @@ void sendInit()
 // cppcheck-suppress functionStatic
 void Display::begin()
 {
-    Serial.println(F("Display::begin() - Initializing SH1107"));
+    DBG(DBG_DISP_INIT);
     Wire.begin();
     Wire.setClock(100000);
-    Serial.println(F("Wire initialized at 100kHz"));
+    DBG(DBG_DISP_WIRE_OK);
 
-    // Send display OFF first to reset state
-    Serial.println(F("Sending display OFF..."));
+    DBG(DBG_DISP_OFF);
     writeCmd(0xAE);
     delay(100);
 
-    // Send initialization sequence
-    Serial.println(F("Sending init sequence..."));
+    DBG(DBG_DISP_SEQ);
     sendInit();
-    Serial.println(F("Init complete"));
+    DBG(DBG_DISP_INIT_DONE);
 
     delay(500); // Extra stabilization time
 
-    // Clear the display by sending 16 empty pages
-    Serial.println(F("Clearing display..."));
+    DBG(DBG_DISP_CLEAR);
     for (uint8_t page = 0; page < 16; ++page)
     {
         writeCmd((uint8_t)(0xB0 | page));
@@ -181,7 +179,7 @@ void Display::begin()
             Wire.write(0x00);
         Wire.endTransmission();
     }
-    Serial.println(F("Display cleared and ready"));
+    DBG(DBG_DISP_READY);
 }
 
 void Display::clear()

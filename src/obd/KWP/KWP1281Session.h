@@ -36,6 +36,9 @@ class KWP1281Session
     bool deleteDtcCodes();
     bool exitSession();
 
+    uint8_t getBlockCounter() const { return blockCounter_; }
+    uint8_t lastConnectError() const { return lastConnectError_; }
+
   private:
     NewSoftwareSerial& obd_;
     uint8_t txPin_;
@@ -45,6 +48,7 @@ class KWP1281Session
     bool connected_;
     bool comError_;
     uint16_t timeoutMs_;
+    uint8_t lastConnectError_;
 
     void incrementBlockCounter_();
     void writeByte_(uint8_t data);

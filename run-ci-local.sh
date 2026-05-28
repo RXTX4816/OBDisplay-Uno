@@ -40,6 +40,8 @@ if cppcheck \
     --suppress=missingIncludeSystem \
     --suppress=unusedFunction \
     --inline-suppr \
+    -DPROGMEM= \
+    -DF_CPU=16000000 \
     --error-exitcode=1 \
     src/; then
     echo -e "${GREEN}✓ Static analysis passed${NC}"

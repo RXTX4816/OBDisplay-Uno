@@ -32,11 +32,6 @@ class MenuState
     void prevExperimentalScreen();
     void nextDebugScreen();
     void prevDebugScreen();
-    void nextDtcScreen();
-    void prevDtcScreen();
-    void nextSettingsScreen();
-    void prevSettingsScreen();
-
     bool consumeMenuChanged();
     bool consumeScreenChanged();
 

@@ -2,7 +2,6 @@
 #pragma once
 
 #include "../DisplayManager.h"
-#include "../../Model/OBDSignals.h"
 
 namespace obd
 {
@@ -10,8 +9,7 @@ namespace Display
 {
 
 void initDebugScreen(DisplayManager& dm);
-void renderDebugScreen(DisplayManager& dm, uint8_t screen, const Model::OBDSignals& signals,
-                       int kwpModeInt, bool forceUpdate);
+void renderDebugScreen(DisplayManager& dm, const DebugInfo& di, int kwpModeInt);
 
 } // namespace Display
 } // namespace obd

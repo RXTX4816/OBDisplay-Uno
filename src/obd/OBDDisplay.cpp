@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "OBDDisplay.h"
+#include "../debug.h"
+
+// AVR linker-defined heap bounds; must be at global scope for freeRam_().
+extern int __heap_start;
+extern int* __brkval;
 
 namespace obd
 {
@@ -12,6 +17,8 @@ using namespace Input;
 static constexpr uint16_t ECU_TIMEOUT_MS = 1300;
 static constexpr uint16_t DISPLAY_FRAME_LENGTH_MS = 177;
 static constexpr uint16_t BUTTON_TIMEOUT_MS = 222;
+static constexpr uint16_t BUTTON_REPEAT_INITIAL_MS = 400; // delay before first auto-repeat
+static constexpr uint16_t BUTTON_REPEAT_PERIOD_MS = 120;  // interval between repeats
 
 // 5-way navigation switch pins (active LOW, INPUT_PULLUP)
 static constexpr uint8_t BTN_PIN_UP = 4;
@@ -19,6 +26,13 @@ static constexpr uint8_t BTN_PIN_DOWN = 5;
 static constexpr uint8_t BTN_PIN_LEFT = 6;
 static constexpr uint8_t BTN_PIN_RIGHT = 7;
 static constexpr uint8_t BTN_PIN_MID = 8;
+
+// Bitmask values for pendingBtns_ latch
+static constexpr uint8_t BTN_MASK_RIGHT = 0x01;
+static constexpr uint8_t BTN_MASK_LEFT = 0x02;
+static constexpr uint8_t BTN_MASK_UP = 0x04;
+static constexpr uint8_t BTN_MASK_DOWN = 0x08;
+static constexpr uint8_t BTN_MASK_MID = 0x10;
 
 OBDDisplay::OBDDisplay(uint8_t rxPin, uint8_t txPin, ::Display& display)
     : obdSerial_(rxPin, txPin, false), display_(display), kwp_(obdSerial_, txPin), signals_(),
@@ -47,9 +61,7 @@ void OBDDisplay::begin()
 
     // After setup, wait for explicit user confirmation to start the actual ECU connect.
     phase_ = Phase::WaitingForConnect;
-    display_.clear();
-    display_.print(0, 0, F("< ENTER >"));
-    display_.print(0, 1, F("< SELECT >"));
+    showWaitingScreen_();
 
     connectTimeStart_ = millis();
     displayFrameTimestamp_ = millis();
@@ -59,8 +71,8 @@ void OBDDisplay::begin()
 void OBDDisplay::startupAnimation_()
 {
     display_.clear();
-    display_.print(0, 0, F("O B D"));
-    display_.print(2, 1, F("DISPLAY"));
+    display_.print(0, 6, F("O B D"));
+    display_.print(2, 8, F("DISPLAY"));
 
     uint32_t start = millis();
     while (millis() - start < 777)
@@ -85,50 +97,68 @@ void OBDDisplay::startupAnimation_()
     dtcStore_.reset();
 }
 
+void OBDDisplay::showWaitingScreen_()
+{
+    display_.clear();
+    // Show confirmed configuration as a summary at the top.
+    display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
+    display_.print(0, 1, F("Baud:"));
+    display_.print(5, 1, (int32_t)baudRate_);
+    display_.print(0, 2, addrSelected_ == 0x17 ? F("Addr: 0x17") : F("Addr: 0x01"));
+    display_.print(0, 4, F("--------"));
+    display_.print(0, 6, F("< ENTER >"));
+    display_.print(0, 8, F("< SELECT>"));
+}
+
 void OBDDisplay::runSetupFlow_()
 {
-    // Mirror the old connect() setup phase: choose SIM/ECU, baud, and address.
+    // Progressive single-screen setup: each confirmed choice is pinned to
+    // the top, then the next choice appears below it.
 
-    // For retries, pre-fill SIM/ECU from previous state.
     int8_t userSimMode = -1; // 0 = ECU, 1 = SIM
     if (connectionAttempts_ > 0)
-    {
         userSimMode = simulationModeActive_ ? 1 : 0;
-    }
 
-    // Always clear any previous signal / DTC state so we don't
-    // carry over simulation values into a real ECU session.
     signals_.reset();
     dtcStore_.reset();
 
     if (!autoSetup_)
     {
-        // 1) Connect mode: ECU vs SIM
+        // Stage 1: Mode selection (centered on blank screen)
+        display_.beginBatch();
         display_.clear();
-        display_.print(0, 0, F("Mode:"));
-        display_.print(0, 1, F("< ECU"));
-        display_.print(0, 2, F("SIM >"));
+        display_.print(0, 5, F("Mode:"));
+        display_.print(0, 7, F("< ECU"));
+        display_.print(0, 8, F("  SIM >"));
+        display_.endBatch();
 
         while (userSimMode == -1)
         {
             if (digitalRead(BTN_PIN_RIGHT) == LOW)
-                userSimMode = 1; // RIGHT = SIM
+                userSimMode = 1;
             else if (digitalRead(BTN_PIN_LEFT) == LOW)
-                userSimMode = 0; // LEFT = ECU
+                userSimMode = 0;
         }
-
         simulationModeActive_ = (userSimMode == 1);
 
-        // 2) Baud rate selection
+        // Stage 2: Baud rate — confirmed mode pinned at row 0
         const uint16_t supportedBaudRates[5] = {1200, 2400, 4800, 9600, 10400};
         uint8_t baudPtr = 3; // default 9600
         uint16_t userBaud = supportedBaudRates[baudPtr];
-
-        display_.clear();
-        display_.print(0, 0, F("< Baud: >"));
         char baudStr[8];
-        ltoa((long)userBaud, baudStr, 10);
-        display_.print(0, 1, baudStr, 8);
+
+        auto drawBaudScreen = [&]()
+        {
+            display_.beginBatch();
+            display_.clear();
+            display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
+            display_.print(0, 2, F("Baud:"));
+            ltoa((long)userBaud, baudStr, 10);
+            display_.print(0, 3, F("< Sel >"));
+            display_.print(0, 4, baudStr, 8);
+            display_.endBatch();
+        };
+        drawBaudScreen();
 
         bool pressedEnter = false;
         while (!pressedEnter)
@@ -137,20 +167,14 @@ void OBDDisplay::runSetupFlow_()
             {
                 baudPtr = (baudPtr >= 4) ? 0 : static_cast<uint8_t>(baudPtr + 1);
                 userBaud = supportedBaudRates[baudPtr];
-                ltoa((long)userBaud, baudStr, 10);
-                display_.clear();
-                display_.print(0, 0, F("< Baud: >"));
-                display_.print(0, 1, baudStr, 8);
+                drawBaudScreen();
                 delay(333);
             }
             else if (digitalRead(BTN_PIN_LEFT) == LOW)
             {
                 baudPtr = (baudPtr == 0) ? 4 : static_cast<uint8_t>(baudPtr - 1);
                 userBaud = supportedBaudRates[baudPtr];
-                ltoa((long)userBaud, baudStr, 10);
-                display_.clear();
-                display_.print(0, 0, F("< Baud: >"));
-                display_.print(0, 1, baudStr, 8);
+                drawBaudScreen();
                 delay(333);
             }
             else if (digitalRead(BTN_PIN_MID) == LOW)
@@ -159,16 +183,20 @@ void OBDDisplay::runSetupFlow_()
             }
             delay(10);
         }
-
         baudRate_ = userBaud;
         delay(333);
 
-        // 3) ECU address selection: 0x01 or 0x17
-        int8_t userAddr = -1; // 0 -> 0x01, 1 -> 0x17
+        // Stage 3: ECU address — mode and baud pinned at rows 0-1
+        int8_t userAddr = -1;
+        display_.beginBatch();
         display_.clear();
-        display_.print(0, 0, F("ECU addr:"));
-        display_.print(0, 1, F("< 0x01"));
-        display_.print(0, 2, F("0x17 >"));
+        display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
+        display_.print(0, 1, F("Baud:"));
+        display_.print(5, 1, (int32_t)baudRate_);
+        display_.print(0, 3, F("Addr:"));
+        display_.print(0, 4, F("< 0x01"));
+        display_.print(0, 5, F("  0x17 >"));
+        display_.endBatch();
 
         while (userAddr == -1)
         {
@@ -177,13 +205,7 @@ void OBDDisplay::runSetupFlow_()
             else if (digitalRead(BTN_PIN_LEFT) == LOW)
                 userAddr = 0;
         }
-
         addrSelected_ = (userAddr == 0) ? 0x01 : 0x17;
-    }
-    else
-    {
-        // Auto-setup path already populated simulationModeActive_, baudRate_, addrSelected_
-        // in startupAnimation_(). Nothing extra needed here.
     }
 
     kwp_.setConfig(baudRate_, addrSelected_);
@@ -202,9 +224,7 @@ void OBDDisplay::update()
         // After setup, go back to the explicit press-to-connect
         // prompt.
         phase_ = Phase::WaitingForConnect;
-        display_.clear();
-        display_.print(0, 0, F("< ENTER >"));
-        display_.print(0, 1, F("< SELECT >"));
+        showWaitingScreen_();
 
         connectTimeStart_ = millis();
         displayFrameTimestamp_ = millis();
@@ -273,14 +293,12 @@ bool OBDDisplay::ensureConnected_()
     if (wasConnected_)
     {
         display_.clear();
-        display_.print(0, 0, F("Conn. ERR"));
-        display_.print(0, 1, F("Lost"));
+        display_.print(0, 6, F("Conn. ERR"));
+        display_.print(0, 8, F("Lost"));
         delay(1000);
 
         phase_ = Phase::WaitingForConnect;
-        display_.clear();
-        display_.print(0, 0, F("< ENTER >"));
-        display_.print(0, 1, F("< SELECT >"));
+        showWaitingScreen_();
         buttonTimeoutUntil_ = 0;
         lastConnectionFailed_ = false;
         wasConnected_ = false;
@@ -301,9 +319,7 @@ bool OBDDisplay::ensureConnected_()
     {
         lastConnectionFailed_ = false;
         phase_ = Phase::WaitingForConnect;
-        display_.clear();
-        display_.print(0, 0, F("< ENTER >"));
-        display_.print(0, 1, F("< SELECT >"));
+        showWaitingScreen_();
         buttonTimeoutUntil_ = 0;
         return false;
     }
@@ -320,6 +336,28 @@ bool OBDDisplay::ensureConnected_()
             display_.clear();
             display_.print(0, 0, F("Conn. ERR"));
             display_.print(0, 1, F("Retry..."));
+
+            const __FlashStringHelper* reason = nullptr;
+            switch (kwp_.lastConnectError())
+            {
+                case DBG_KWP_TIMEOUT:
+                    reason = F("Timeout");
+                    break;
+                case DBG_KWP_COMPLEMENT:
+                    reason = F("Compl.err");
+                    break;
+                case DBG_KWP_SYNC_MISMATCH:
+                    reason = F("Bad sync");
+                    break;
+                case DBG_KWP_SYNC_FAIL:
+                    reason = F("No sync");
+                    break;
+                case DBG_KWP_BLOCKS_FAIL:
+                    reason = F("Blk err");
+                    break;
+            }
+            if (reason)
+                display_.print(0, 2, reason);
 
             delay(3000);
 
@@ -392,62 +430,236 @@ void OBDDisplay::computeValues_()
     signals_.compute(millis(), connectTimeStart_);
 }
 
+void OBDDisplay::pollButtons()
+{
+    uint8_t current = 0;
+    if (digitalRead(BTN_PIN_RIGHT) == LOW)
+        current |= BTN_MASK_RIGHT;
+    if (digitalRead(BTN_PIN_LEFT) == LOW)
+        current |= BTN_MASK_LEFT;
+    if (digitalRead(BTN_PIN_UP) == LOW)
+        current |= BTN_MASK_UP;
+    if (digitalRead(BTN_PIN_DOWN) == LOW)
+        current |= BTN_MASK_DOWN;
+    if (digitalRead(BTN_PIN_MID) == LOW)
+        current |= BTN_MASK_MID;
+
+    // Latch only rising edges (0→1 transitions) so a held button never
+    // re-fires after the debounce timeout expires.
+    pendingBtns_ |= (current & ~lastBtns_);
+    lastBtns_ = current;
+}
+
 void OBDDisplay::handleInput_()
 {
+    // Always latch the current button state so brief presses occurring
+    // during the slow KWP read phase are captured here too.
+    pollButtons();
+
     uint32_t now = millis();
-    if (now < buttonTimeoutUntil_)
+    uint8_t btns = 0;
+
+    if (pendingBtns_ != 0 && now >= buttonTimeoutUntil_)
     {
-        return;
+        // Fresh press: consume latch and arm auto-repeat for directional buttons.
+        btns = pendingBtns_;
+        pendingBtns_ = 0;
+        buttonTimeoutUntil_ = now + BUTTON_TIMEOUT_MS;
+
+        // MID (SELECT) never auto-repeats — only directional buttons do.
+        repeatBtns_ = btns & (BTN_MASK_LEFT | BTN_MASK_RIGHT | BTN_MASK_UP | BTN_MASK_DOWN);
+        if (repeatBtns_ != 0)
+            repeatFireAt_ = now + BUTTON_REPEAT_INITIAL_MS;
+    }
+    else if (repeatBtns_ != 0)
+    {
+        if ((repeatBtns_ & lastBtns_) == 0)
+        {
+            // Button released — cancel auto-repeat.
+            repeatBtns_ = 0;
+        }
+        else if (now >= repeatFireAt_)
+        {
+            // Auto-repeat fires; only for buttons still physically held.
+            btns = repeatBtns_ & lastBtns_;
+            repeatFireAt_ = now + BUTTON_REPEAT_PERIOD_MS;
+        }
     }
 
+    if (btns == 0)
+        return;
+
+    // Navigation + action dispatch (mirrors ButtonInput::update logic,
+    // but reads from the latched bitmask rather than live digitalRead).
     InputActions actions{};
-    if (!buttons_.update(menuState_, actions))
+    bool any = false;
+
+    if (btns & BTN_MASK_RIGHT)
+    {
+        menuState_.nextMenu();
+        dtcShowActive_ = false; // leave DTC show mode when navigating away
+        any = true;
+    }
+    else if (btns & BTN_MASK_LEFT)
+    {
+        menuState_.prevMenu();
+        dtcShowActive_ = false;
+        any = true;
+    }
+    else
+    {
+        using Display::MenuId;
+        switch (menuState_.currentMenu())
+        {
+            case MenuId::Cockpit:
+                if (btns & BTN_MASK_UP)
+                {
+                    menuState_.nextCockpitScreen();
+                    any = true;
+                }
+                else if (btns & BTN_MASK_DOWN)
+                {
+                    menuState_.prevCockpitScreen();
+                    any = true;
+                }
+                break;
+            case MenuId::Experimental:
+                if (btns & BTN_MASK_UP)
+                {
+                    menuState_.nextExperimentalScreen();
+                    any = true;
+                }
+                else if (btns & BTN_MASK_DOWN)
+                {
+                    menuState_.prevExperimentalScreen();
+                    any = true;
+                }
+                break;
+            case MenuId::Debug:
+                if (btns & BTN_MASK_UP)
+                {
+                    menuState_.nextDebugScreen();
+                    any = true;
+                }
+                else if (btns & BTN_MASK_DOWN)
+                {
+                    menuState_.prevDebugScreen();
+                    any = true;
+                }
+                break;
+            case MenuId::Dtc:
+                if (dtcShowActive_)
+                {
+                    // DTC show sub-view: up/down page, MID = back
+                    uint8_t pageMax = dtcCount_ > 0 ? static_cast<uint8_t>((dtcCount_ - 1) / 4) : 0;
+                    if (btns & BTN_MASK_UP)
+                    {
+                        if (dtcShowPage_ < pageMax)
+                            dtcShowPage_++;
+                        any = true;
+                    }
+                    else if (btns & BTN_MASK_DOWN)
+                    {
+                        if (dtcShowPage_ > 0)
+                            dtcShowPage_--;
+                        any = true;
+                    }
+                    else if (btns & BTN_MASK_MID)
+                    {
+                        dtcShowActive_ = false;
+                        any = true;
+                    }
+                }
+                else
+                {
+                    // DTC main menu: up/down moves cursor, MID executes
+                    if (btns & BTN_MASK_UP)
+                    {
+                        dtcMenuCursor_ = (dtcMenuCursor_ + 2) % 3;
+                        any = true;
+                    }
+                    else if (btns & BTN_MASK_DOWN)
+                    {
+                        dtcMenuCursor_ = (dtcMenuCursor_ + 1) % 3;
+                        any = true;
+                    }
+                    else if (btns & BTN_MASK_MID)
+                    {
+                        if (dtcMenuCursor_ == 0)
+                        {
+                            actions.readDtc = true;
+                            any = true;
+                        }
+                        else if (dtcMenuCursor_ == 1)
+                        {
+                            actions.clearDtc = true;
+                            any = true;
+                        }
+                        else
+                        {
+                            dtcShowActive_ = true;
+                            dtcShowPage_ = 0;
+                            any = true;
+                        }
+                    }
+                }
+                break;
+            case MenuId::Settings:
+                // Single screen: up/down toggles between Exit (0) and KWP Mode (1)
+                if (btns & BTN_MASK_UP || btns & BTN_MASK_DOWN)
+                {
+                    settingsMenuCursor_ = (settingsMenuCursor_ + 1) % 2;
+                    any = true;
+                }
+                else if (btns & BTN_MASK_MID)
+                {
+                    if (settingsMenuCursor_ == 0)
+                    {
+                        actions.requestExit = true;
+                        any = true;
+                    }
+                    else
+                    {
+                        actions.toggleKwpMode = true;
+                        any = true;
+                    }
+                }
+                break;
+        }
+    }
+
+    if (!any)
     {
         return;
     }
-
-    buttonTimeoutUntil_ = now + BUTTON_TIMEOUT_MS;
 
     if (actions.requestReconnect)
     {
-        // Only meaningful in real ECU mode; in SIM it just
-        // resets counters but keeps us running.
         if (!simulationModeActive_)
         {
             kwp_.disconnect();
             connected_ = false;
             phase_ = Phase::WaitingForConnect;
-            display_.clear();
-            display_.print(0, 0, F("< ENTER >"));
-            display_.print(0, 1, F("Prs SELECT"));
+            showWaitingScreen_();
         }
         return;
     }
 
     if (actions.requestExit)
     {
-        // Settings screen 0: Exit ECU. Match old behaviour:
-        // send KWP end block, disconnect, and go back to
-        // "press to connect" if we are in ECU mode.
         if (connected_ && !simulationModeActive_)
         {
             kwp_.exitSession();
         }
         kwp_.disconnect();
         connected_ = false;
-
-        // After exit, go back into the setup phase so the user can
-        // change SIM/ECU, baud and address again before returning to
-        // the PRESS SELECT prompt.
         phase_ = Phase::Setup;
-        // Also debounce the SELECT used to exit so it doesn't
-        // immediately trigger actions inside the setup flow.
         buttonTimeoutUntil_ = millis() + BUTTON_TIMEOUT_MS;
         return;
     }
+
     if (actions.toggleKwpMode)
     {
-        // Cycle through KWP modes: ACK -> READGROUP -> READSENSORS -> ACK ...
         switch (kwpMode_)
         {
             case Mode::Ack:
@@ -463,15 +675,7 @@ void OBDDisplay::handleInput_()
         }
         menuState_.markScreenChanged();
     }
-    if (actions.invertGroupSide)
-    {
-        signals_.experimental.invertGroupSide();
-        menuState_.markScreenChanged();
-    }
-
-    // Mirror old experimental group_current behaviour: keep groupCurrent in
-    // sync with experimentalScreen index (1..64) and mark as updated so
-    // displayMenuExperimental() repaints the group index.
+    // Keep groupCurrent and kwpGroup_ in sync with the experimental screen index.
     if (menuState_.currentMenu() == Display::MenuId::Experimental)
     {
         if (menuState_.experimentalScreen() == 0)
@@ -479,6 +683,7 @@ void OBDDisplay::handleInput_()
             menuState_.setExperimentalScreen(1);
         }
         signals_.experimental.groupCurrent = menuState_.experimentalScreen();
+        kwpGroup_ = signals_.experimental.groupCurrent; // ReadGroup mode uses this
         signals_.experimental.kUpdated = true;
     }
 
@@ -486,39 +691,35 @@ void OBDDisplay::handleInput_()
     {
         if (simulationModeActive_)
         {
-            // In SIM mode, we mimic the old random-test helper and
-            // fill the DTC store with synthetic values so the DTC
-            // menu shows something changing.
             for (uint8_t i = 0; i < 16; ++i)
             {
                 uint16_t code = (uint16_t)(i * 1000u);
                 uint8_t status = (uint8_t)(i * 10u);
                 dtcStore_.set(i, code, status);
             }
+            dtcCount_ = 16;
         }
         else
         {
-            int8_t dtcCount = kwp_.readDtcCodes(dtcStore_);
-            if (dtcCount < 0)
+            int8_t cnt = kwp_.readDtcCodes(dtcStore_);
+            if (cnt < 0)
             {
-                // Communication error while reading DTCs: show error,
-                // disconnect and go back to press-to-connect.
                 display_.clear();
-                display_.print(0, 0, F("DTC error"));
-                display_.print(0, 1, F("Disconn."));
+                display_.print(0, 6, F("DTC error"));
+                display_.print(0, 8, F("Disconn."));
                 delay(1222);
                 kwp_.disconnect();
                 connected_ = false;
                 phase_ = Phase::WaitingForConnect;
-                display_.clear();
-                display_.print(0, 0, F("< ENTER >"));
-                display_.print(0, 1, F("Prs SELECT"));
+                showWaitingScreen_();
             }
             else
             {
-                // Success: briefly show success on second line like old code.
-                display_.print(0, 1, F("<Success>"));
-                delay(500);
+                dtcCount_ = cnt;
+                dtcStatusType_ = 1;
+                dtcStatusValue_ = cnt;
+                dtcStatusUntil_ = millis() + 1500;
+                menuState_.markScreenChanged();
             }
         }
     }
@@ -526,53 +727,106 @@ void OBDDisplay::handleInput_()
     {
         if (simulationModeActive_)
         {
-            // In SIM mode, just clear stored codes and do not touch ECU.
             dtcStore_.reset();
+            dtcCount_ = 0;
         }
         else
         {
             if (!kwp_.deleteDtcCodes())
             {
-                // Not supported or communication problem: show message
-                // but stay in current session (like old sketch).
                 display_.clear();
-                display_.print(0, 0, F("DTC delete"));
-                display_.print(0, 1, F("No supp."));
+                display_.print(0, 6, F("DTC delete"));
+                display_.print(0, 8, F("No supp."));
                 delay(1222);
             }
             else
             {
                 dtcStore_.reset();
-                display_.print(0, 1, F("<Success>"));
-                delay(500);
+                dtcCount_ = 0;
+                dtcStatusType_ = 2;
+                dtcStatusUntil_ = millis() + 1500;
+                menuState_.markScreenChanged();
             }
         }
     }
+}
+
+int16_t OBDDisplay::freeRam_()
+{
+    int v;
+    return (int16_t)((int)&v - (::__brkval == 0 ? (int)&::__heap_start : (int)::__brkval));
 }
 
 void OBDDisplay::updateDisplay_()
 {
     uint32_t now = millis();
 
-    // Batch the whole frame (clear + labels + values) into one I2C transfer.
     display_.beginBatch();
 
-    // Only render the menu when actively connected/running. In other phases,
-    // the display is managed directly (e.g., WaitingForConnect shows "Press SELECT").
     if (phase_ == Phase::Running)
     {
-        // With text-only rendering, always rebuild the entire frame. Entries are cleared
-        // at the start, so we always repopulate with all text (forced render).
         bool menuChanged = menuState_.consumeMenuChanged() || menuState_.consumeScreenChanged();
         bool timeToUpdate = now >= displayFrameTimestamp_;
 
         if (menuChanged || timeToUpdate)
         {
             display_.clear();
-            display_.initMenu(menuState_, addrSelected_, static_cast<int>(kwpMode_));
-            // Always forceUpdate=true since entries are always cleared first
-            display_.render(menuState_, signals_, dtcStore_, addrSelected_,
-                            static_cast<int>(kwpMode_), true);
+
+            using Display::MenuId;
+            switch (menuState_.currentMenu())
+            {
+                case MenuId::Dtc:
+                    display_.renderDtcMenu(dtcMenuCursor_, dtcShowActive_, dtcShowPage_, dtcCount_,
+                                           dtcStore_);
+                    if (dtcStatusUntil_ > 0 && !dtcShowActive_)
+                    {
+                        if (now < dtcStatusUntil_)
+                        {
+                            if (dtcStatusType_ == 1)
+                            {
+                                display_.print(0, 10, F("Read OK"));
+                                display_.print(0, 11, F("DTCs:"));
+                                display_.print(5, 11, (int32_t)dtcStatusValue_);
+                            }
+                            else if (dtcStatusType_ == 2)
+                            {
+                                display_.print(0, 10, F("Clear OK"));
+                            }
+                        }
+                        else
+                        {
+                            dtcStatusUntil_ = 0;
+                            dtcStatusType_ = 0;
+                        }
+                    }
+                    break;
+
+                case MenuId::Settings:
+                    display_.renderSettings(settingsMenuCursor_, static_cast<int>(kwpMode_));
+                    break;
+
+                case MenuId::Debug:
+                {
+                    Display::DebugInfo di;
+                    di.serialCon = obdSerial_.isListening() ? 1u : 0u;
+                    di.serialAva = (uint8_t)min((int)obdSerial_.available(), 255);
+                    di.blockCtr = kwp_.getBlockCounter();
+                    di.attempts = (uint8_t)min(connectionAttempts_, (uint16_t)255);
+                    di.addr = addrSelected_;
+                    di.baud = baudRate_;
+                    di.group = kwpGroup_;
+                    di.sim = simulationModeActive_;
+                    di.freeRam = freeRam_();
+                    display_.renderDebug(di, static_cast<int>(kwpMode_));
+                    break;
+                }
+
+                default:
+                    display_.initMenu(menuState_, addrSelected_, static_cast<int>(kwpMode_));
+                    display_.render(menuState_, signals_, dtcStore_, addrSelected_,
+                                    static_cast<int>(kwpMode_), true);
+                    break;
+            }
 
             if (timeToUpdate)
                 displayFrameTimestamp_ = now + DISPLAY_FRAME_LENGTH_MS;

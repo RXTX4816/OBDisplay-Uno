@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include "Controller.h"
 #include "scheduler/TaskConfig.h"
+#include "debug.h"
 
 static Controller controller;
 
@@ -19,20 +20,18 @@ void setup()
     delay(500);
     digitalWrite(13, LOW);
 
+#ifdef OBD_DEBUG
     Serial.begin(115200);
     delay(500);
-
-    Serial.write(0x0A); // newline
-    Serial.write(0x0A);
-    Serial.print(F("START"));
+    DBG(DBG_CTRL_STEP); // step 0: serial ready
+#endif
 
     digitalWrite(13, HIGH);
     delay(100);
     digitalWrite(13, LOW);
 
-    Serial.println(F("Calling controller.setup()..."));
     controller.setup();
-    Serial.println(F("controller.setup() returned OK"));
+    DBG(DBG_CTRL_STEP); // step 0 repeated here is fine; Controller.cpp sends step 1/2/3
 
     runner.init();
     runner.addTask(tKwp);

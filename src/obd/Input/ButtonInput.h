@@ -19,8 +19,6 @@ struct InputActions
     bool readDtc = false;
     bool clearDtc = false;
 
-    bool invertGroupSide = false;
-
     bool toggleKwpMode = false;
 
     // optional changes for KWP mode/group can be requested via
@@ -33,7 +31,7 @@ class ButtonInput
     ButtonInput(uint8_t pinUp, uint8_t pinDown, uint8_t pinLeft, uint8_t pinRight, uint8_t pinMid);
 
     // Returns true if any action occurred
-    bool update(MenuState& menuState, InputActions& actions);
+    bool update(MenuState& menuState, const InputActions& actions);
 
     bool isSelectPressed() const;
 

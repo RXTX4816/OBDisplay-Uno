@@ -1,0 +1,100 @@
+name: Semantic Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  semantic-release:
+    name: Create Semantic Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+      - name: Determine next version
+        id: version
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "NONE")
+          echo "Last tag: $LAST_TAG"
+
+          # Returns 0 only when tag is exactly vMAJOR.MINOR.PATCH with all-numeric parts.
+          # Rejects legacy tags like v0.01, v0.1, v0.1real (missing or non-numeric patch).
+          is_semver() {
+            local M m p
+            M=$(echo "$1" | cut -d. -f1 | sed 's/v//')
+            m=$(echo "$1" | cut -d. -f2)
+            p=$(echo "$1" | cut -d. -f3 | cut -d- -f1)
+            echo "$M" | grep -qE '^[0-9]+$' &&
+            echo "$m" | grep -qE '^[0-9]+$' &&
+            echo "$p" | grep -qE '^[0-9]+$'
+          }
+
+          if [ "$LAST_TAG" = "NONE" ] || ! is_semver "$LAST_TAG"; then
+            NEXT_VERSION="v0.2.0"
+            CHANGE_TYPE="initial"
+            echo "No valid semver tag found (last: $LAST_TAG) — bootstrapping at $NEXT_VERSION"
+          else
+            COMMITS=$(git log "${LAST_TAG}..HEAD" --format='%s')
+
+            if [ -z "$COMMITS" ]; then
+              echo "No commits since $LAST_TAG. Nothing to release."
+              exit 1
+            fi
+
+            echo "Commits since $LAST_TAG:"
+            echo "$COMMITS"
+
+            MAJOR=$(echo "$LAST_TAG" | cut -d. -f1 | sed 's/v//')
+            MINOR=$(echo "$LAST_TAG" | cut -d. -f2)
+            PATCH=$(echo "$LAST_TAG" | cut -d. -f3 | cut -d- -f1)
+
+            if echo "$COMMITS" | grep -qi "BREAKING CHANGE"; then
+              NEXT_VERSION="v$((MAJOR + 1)).0.0"
+              CHANGE_TYPE="major"
+            elif echo "$COMMITS" | grep -qi "^feat"; then
+              NEXT_VERSION="v${MAJOR}.$((MINOR + 1)).0"
+              CHANGE_TYPE="minor"
+            else
+              NEXT_VERSION="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+              CHANGE_TYPE="patch"
+            fi
+          fi
+
+          echo "Next version: $NEXT_VERSION ($CHANGE_TYPE)"
+          echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "change_type=$CHANGE_TYPE" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: tag-check
+        run: |
+          VERSION="${{ steps.version.outputs.next_version }}"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists, skipping"
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create and push tag
+        if: steps.tag-check.outputs.tag_exists == 'false'
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
+          CHANGE_TYPE: ${{ steps.version.outputs.change_type }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          gh api repos/${{ github.repository }}/git/refs \
+            --method POST \
+            -f ref="refs/tags/${NEXT_VERSION}" \
+            -f sha="${SHA}"
+          echo "Created tag $NEXT_VERSION ($CHANGE_TYPE) — release.yml will trigger automatically"

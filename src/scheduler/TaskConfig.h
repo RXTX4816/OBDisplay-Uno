@@ -8,7 +8,7 @@
 #include <TaskScheduler.h>
 
 static constexpr uint32_t INTERVAL_KWP_MS = 0;         // every loop — ECU must not time out
-static constexpr uint32_t INTERVAL_INPUT_MS = 50;      // button debounce window
+static constexpr uint32_t INTERVAL_INPUT_MS = 20;      // button latch polling interval
 static constexpr uint32_t INTERVAL_COMPUTE_MS = 50;    // fuel calc, derived stats
 static constexpr uint32_t INTERVAL_DISPLAY_MS = 177;   // ~5.6 FPS
 static constexpr uint32_t INTERVAL_KEEPALIVE_MS = 800; // KWP ACK when idle

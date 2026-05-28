@@ -22,6 +22,10 @@ class OBDDisplay
     void begin();
     void update();
 
+    // Called from the scheduler input task to latch pressed buttons at a
+    // high frequency, independently of the main update() cycle.
+    void pollButtons();
+
     bool isConnected() const { return connected_; }
 
   private:
@@ -41,6 +45,20 @@ class OBDDisplay
     KWP::Mode kwpModeLast_;
     uint8_t kwpGroup_;
 
+    // DTC menu state
+    uint8_t dtcMenuCursor_ = 0; // 0=Read, 1=Clear, 2=Show
+    bool dtcShowActive_ = false;
+    uint8_t dtcShowPage_ = 0;
+    int8_t dtcCount_ = -1; // -1=never read, 0..16=count after last read
+
+    // Non-blocking DTC status overlay (shown on DTC main menu after read/clear)
+    uint32_t dtcStatusUntil_ = 0; // millis() expiry; 0 = no overlay
+    uint8_t dtcStatusType_ = 0;   // 1=read ok, 2=clear ok
+    int8_t dtcStatusValue_ = -1;  // dtcCount for type 1
+
+    // Settings menu state
+    uint8_t settingsMenuCursor_ = 0; // 0=Exit, 1=KWP Mode
+
     bool connected_;
     bool wasConnected_ = false;
     bool lastConnectionFailed_ = false;
@@ -48,6 +66,13 @@ class OBDDisplay
     uint32_t connectTimeStart_;
     uint32_t displayFrameTimestamp_;
     uint32_t buttonTimeoutUntil_;
+
+    // Latched button state — bits set by pollButtons(), consumed by handleInput_().
+    // This decouples detection (high-frequency) from action (per update() cycle).
+    uint8_t pendingBtns_ = 0;
+    uint8_t lastBtns_ = 0;      // previous physical state for rising-edge detection
+    uint8_t repeatBtns_ = 0;    // directional buttons in auto-repeat state
+    uint32_t repeatFireAt_ = 0; // millis() when next auto-repeat fires
 
     enum class Phase : uint8_t
     {
@@ -58,6 +83,8 @@ class OBDDisplay
 
     void startupAnimation_();
     void runSetupFlow_();
+    void showWaitingScreen_();
+    static int16_t freeRam_();
     void resetState_();
     bool ensureConnected_();
     void updateKwpOrSimulation_();

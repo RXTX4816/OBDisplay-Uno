@@ -8,8 +8,8 @@ namespace obd
 namespace Display
 {
 
-void initSettingsScreen(DisplayManager& dm, uint8_t screen);
-void renderSettingsScreen(DisplayManager& dm, uint8_t screen, int kwpModeInt, bool forceUpdate);
+// Settings: single screen, up/down cursor selects Exit (0) or KWP Mode (1).
+void renderSettingsScreen(DisplayManager& dm, uint8_t cursor, int kwpModeInt);
 
 } // namespace Display
 } // namespace obd
