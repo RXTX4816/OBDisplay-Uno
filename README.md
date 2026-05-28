@@ -38,6 +38,12 @@ Needed are (estimated total cost: 10€-15€ depending on deals from chinese se
 
 See **[Hardware Setup](https://github.com/RXTX4816/OBDisplay-Uno/wiki/Hardware-Setup)** for the full pinout, OLED wiring, button configuration, and K-Line cable modification steps.
 
+[Guidance pictures](assets/) of my specific K-Line cable modifications in case you are unsure about where to cut and how the RX and TX lines traverse the AutoDia409 OBD adapter:
+
+- [FT232RQ pinout picture](assets/FT232RQ_pinout.jpg)
+- [picture](assets/InkedKKL-cable-back_edited.jpg)
+- [KKL front modifications picture](assets/InkedKKL-cable-front_edited.jpg)
+
 ## Operation
 
 See **[Operation](https://github.com/RXTX4816/OBDisplay-Uno/wiki/Operation)** for startup, navigation, and screen overviews, or **[Screen Reference](https://github.com/RXTX4816/OBDisplay-Uno/wiki/Screen-Reference)** for per-screen layouts and button actions.
