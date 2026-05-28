@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 #include <Arduino.h>
 #include "Controller.h"
 #include "scheduler/TaskConfig.h"

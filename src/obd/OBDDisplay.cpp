@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 #include "OBDDisplay.h"
 
 namespace obd
@@ -160,7 +161,7 @@ void OBDDisplay::runSetupFlow_()
         }
 
         baudRate_ = userBaud;
-        delay(555);
+        delay(333);
 
         // 3) ECU address selection: 0x01 or 0x17
         int8_t userAddr = -1; // 0 -> 0x01, 1 -> 0x17

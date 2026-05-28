@@ -1,0 +1,23 @@
+OBDisplay-Uno
+Copyright (C) 2022-2026 RXTX4816
+
+This project incorporates the following third-party software:
+
+------------------------------------------------------------------------
+NewSoftwareSerial
+------------------------------------------------------------------------
+Copyright (C) 2006 David A. Mellis
+Modified by: ladyada, Mikal Hart, Paul Stoffregen,
+             Garrett Mace, Brett Hagman
+
+Licensed under the GNU Lesser General Public License v2.1 or later.
+Source files: src/serial/NewSoftwareSerial.h
+              src/serial/NewSoftwareSerial.cpp
+
+------------------------------------------------------------------------
+TaskScheduler v3.8.5
+------------------------------------------------------------------------
+Copyright (c) 2015 Anatoli Arkhipenko
+
+BSD 3-Clause License — see .pio/libdeps/uno/TaskScheduler/LICENSE.txt
+Managed via PlatformIO library manager (not vendored).

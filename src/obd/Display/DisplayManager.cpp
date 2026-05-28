@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 #include "DisplayManager.h"
 #include "screens/CockpitScreen.h"
 #include "screens/ExperimentalScreen.h"
