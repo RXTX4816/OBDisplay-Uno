@@ -40,7 +40,7 @@ jobs:
           }
 
           if [ "$LAST_TAG" = "NONE" ] || ! is_semver "$LAST_TAG"; then
-            NEXT_VERSION="v0.2.0"
+            NEXT_VERSION="v1.0.0"
             CHANGE_TYPE="initial"
             echo "No valid semver tag found (last: $LAST_TAG) — bootstrapping at $NEXT_VERSION"
           else

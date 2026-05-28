@@ -11,6 +11,10 @@ KWP-1281 K-Line trip computer for Arduino Uno with SH1107 OLED display (64×128,
 
 Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta, ~1998–2006) that use the K-Line OBD interface and the KWP-1281 protocol.
 
+## Showcase
+
+<img src="assets/LIVE-DASHBOARD.png" width="30%"> <img src="assets/LIVE-SETUP-SCREEN.png" width="30%"> <img src="assets/LIVE-DTC-SHOW.png" width="30%">
+
 ## Installation
 
 Pre-built firmware is available on the [Releases](https://github.com/RXTX4816/OBDisplay-Uno/releases) page. See **[Getting Started](https://github.com/RXTX4816/OBDisplay-Uno/wiki/Getting-Started)** for flashing instructions and how to build from source.
