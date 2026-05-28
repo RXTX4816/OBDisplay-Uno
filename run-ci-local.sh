@@ -19,7 +19,7 @@ if ! command -v clang-format &> /dev/null; then
     exit 1
 fi
 
-if find src -name '*.cpp' -o -name '*.h' | xargs clang-format --dry-run --Werror --style=file 2>/dev/null; then
+if find src -name '*.cpp' -o -name '*.h' | xargs clang-format --dry-run --Werror --style=file; then
     echo -e "${GREEN}✓ Formatting check passed${NC}"
 else
     echo -e "${RED}✗ Formatting check failed${NC}"
@@ -57,7 +57,7 @@ if pio run -e uno; then
 
     # Extract and display memory usage
     echo -e "\n${YELLOW}Memory Usage:${NC}"
-    pio run -e uno 2>&1 | grep -E "RAM:|Flash:" || true
+    pio run -e uno 2>&1 | grep -E "RAM|Flash" || true
 else
     echo -e "${RED}✗ Build failed${NC}"
     exit 1

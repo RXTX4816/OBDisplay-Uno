@@ -10,8 +10,8 @@ namespace Display
 {
 
 void initExperimentalScreen(DisplayManager& dm);
-void renderExperimentalScreen(DisplayManager& dm, uint8_t screen, const Model::OBDSignals& signals,
-                              bool forceUpdate);
+void renderExperimentalScreen(const DisplayManager& dm, uint8_t screen,
+                              const Model::OBDSignals& signals, bool forceUpdate);
 
 } // namespace Display
 } // namespace obd

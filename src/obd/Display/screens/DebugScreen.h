@@ -9,7 +9,7 @@ namespace Display
 {
 
 void initDebugScreen(DisplayManager& dm);
-void renderDebugScreen(DisplayManager& dm, const DebugInfo& di, int kwpModeInt);
+void renderDebugScreen(const DisplayManager& dm, const DebugInfo& di, int kwpModeInt);
 
 } // namespace Display
 } // namespace obd

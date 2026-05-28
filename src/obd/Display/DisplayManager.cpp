@@ -38,25 +38,25 @@ void DisplayManager::flush()
     display_.flush();
 }
 
-void DisplayManager::print(uint8_t x, uint8_t y, const __FlashStringHelper* s)
+void DisplayManager::print(uint8_t x, uint8_t y, const __FlashStringHelper* s) const
 {
     display_.setCursor(x, y);
     display_.print(s);
 }
 
-void DisplayManager::print(uint8_t x, uint8_t y, const char* s)
+void DisplayManager::print(uint8_t x, uint8_t y, const char* s) const
 {
     display_.setCursor(x, y);
     display_.print(s);
 }
 
-void DisplayManager::print(uint8_t x, uint8_t y, int32_t value)
+void DisplayManager::print(uint8_t x, uint8_t y, int32_t value) const
 {
     display_.setCursor(x, y);
     display_.print(value);
 }
 
-void DisplayManager::print(uint8_t x, uint8_t y, const char* s, uint8_t width)
+void DisplayManager::print(uint8_t x, uint8_t y, const char* s, uint8_t width) const
 {
     if (width > ::Display::COLS)
         width = ::Display::COLS;
@@ -93,7 +93,7 @@ static void fmtFixed1(float value, char* out)
     *p = '\0';
 }
 
-void DisplayManager::print(uint8_t x, uint8_t y, float value, uint8_t width)
+void DisplayManager::print(uint8_t x, uint8_t y, float value, uint8_t width) const
 {
     char tmp[12];
     fmtFixed1(value, tmp);

@@ -27,7 +27,7 @@ void initExperimentalScreen(DisplayManager& /*dm*/)
     // No-op: all rendering is done in renderExperimentalScreen
 }
 
-void renderExperimentalScreen(DisplayManager& dm, uint8_t /*screen*/,
+void renderExperimentalScreen(const DisplayManager& dm, uint8_t /*screen*/,
                               const Model::OBDSignals& signals, bool forceUpdate)
 {
 #ifdef OBD_EXPERIMENTAL_SCREENS

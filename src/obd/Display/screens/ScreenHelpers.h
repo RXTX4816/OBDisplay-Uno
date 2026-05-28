@@ -15,8 +15,8 @@ namespace Display
 {
 
 template <typename T>
-static inline void printField(DisplayManager& dm, uint8_t x, uint8_t y, T value, uint8_t width,
-                              bool& updated, bool forceUpdate)
+static inline void printField(const DisplayManager& dm, uint8_t x, uint8_t y, T value,
+                              uint8_t width, bool& updated, bool forceUpdate)
 {
     if (!(updated || forceUpdate))
         return;
@@ -29,7 +29,7 @@ static inline void printField(DisplayManager& dm, uint8_t x, uint8_t y, T value,
     updated = false;
 }
 
-static inline void printFieldFloat(DisplayManager& dm, uint8_t x, uint8_t y, float value,
+static inline void printFieldFloat(const DisplayManager& dm, uint8_t x, uint8_t y, float value,
                                    uint8_t width, bool& updated, bool forceUpdate)
 {
     if (!(updated || forceUpdate))
@@ -39,7 +39,7 @@ static inline void printFieldFloat(DisplayManager& dm, uint8_t x, uint8_t y, flo
     updated = false;
 }
 
-static inline void printFieldStr(DisplayManager& dm, uint8_t x, uint8_t y, const char* text,
+static inline void printFieldStr(const DisplayManager& dm, uint8_t x, uint8_t y, const char* text,
                                  uint8_t width, bool& updated, bool forceUpdate)
 {
     if (!(updated || forceUpdate))

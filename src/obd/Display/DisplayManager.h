@@ -52,11 +52,11 @@ class DisplayManager
     void renderSettings(uint8_t cursor, int kwpModeInt);
     void renderDebug(const DebugInfo& di, int kwpModeInt);
 
-    void print(uint8_t x, uint8_t y, const __FlashStringHelper* s);
-    void print(uint8_t x, uint8_t y, const char* s);
-    void print(uint8_t x, uint8_t y, const char* s, uint8_t width);
-    void print(uint8_t x, uint8_t y, int32_t value);
-    void print(uint8_t x, uint8_t y, float value, uint8_t width = 0);
+    void print(uint8_t x, uint8_t y, const __FlashStringHelper* s) const;
+    void print(uint8_t x, uint8_t y, const char* s) const;
+    void print(uint8_t x, uint8_t y, const char* s, uint8_t width) const;
+    void print(uint8_t x, uint8_t y, int32_t value) const;
+    void print(uint8_t x, uint8_t y, float value, uint8_t width = 0) const;
     void clearRegion(uint8_t x, uint8_t y, uint8_t width);
 
   private:
