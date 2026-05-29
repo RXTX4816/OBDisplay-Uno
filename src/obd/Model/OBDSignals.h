@@ -11,7 +11,7 @@ namespace Model
 struct ExperimentalGroup
 {
     uint8_t k[4] = {0, 0, 0, 0};
-    float v[4] = {123.4f, 123.4f, 123.4f, 123.4f};
+    int32_t v[4] = {1234, 1234, 1234, 1234}; // ×10 fixed-point (e.g. 1234 = 123.4)
     // Fixed-size unit strings to avoid dynamic String allocations; initialized to "N/A".
     static constexpr uint8_t UnitWidth = 8; // enough for typical short unit labels
     char unit[4][UnitWidth + 1] = {
@@ -90,13 +90,13 @@ struct EngineSignals
     uint16_t pressure = 0;
     bool pressureUpdated = false;
 
-    float tbAngle = 0.0f;
+    int16_t tbAngle = 0; // ×10 fixed-point (e.g. 456 = 45.6°)
     bool tbAngleUpdated = false;
 
-    float steeringAngle = 0.0f;
+    int16_t steeringAngle = 0; // ×10 fixed-point
     bool steeringAngleUpdated = false;
 
-    float voltage = 0.0f;
+    uint16_t voltage = 0; // ×10 fixed-point (e.g. 123 = 12.3 V)
     bool voltageUpdated = false;
 
     uint8_t tempUnknown2 = 0;
@@ -123,10 +123,10 @@ struct ComputedStats
     uint8_t fuelBurnedSinceStart = 0;
     bool fuelBurnedSinceStartUpdated = false;
 
-    float fuelPer100km = 0.0f;
+    uint16_t fuelPer100km = 0; // ×10 fixed-point (e.g. 83 = 8.3 L/100km)
     bool fuelPer100kmUpdated = false;
 
-    float fuelPerHour = 0.0f;
+    uint16_t fuelPerHour = 0; // ×10 fixed-point (e.g. 45 = 4.5 L/h)
     bool fuelPerHourUpdated = false;
 };
 

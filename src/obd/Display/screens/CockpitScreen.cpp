@@ -127,13 +127,13 @@ void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelecte
             ltoa(ins.timeEcu, buf + 3, 10);
             dm.print(0, 9, buf);
 
-            // Row 10: L100:X.X (fuel consumption per 100km)
+            // Row 10: L100:X.X (fuel consumption per 100km, ×10 fixed-point)
             dm.print(0, 10, F("L100:"));
-            dm.print(5, 10, c.fuelPer100km, 5);
+            dm.print(5, 10, (int32_t)c.fuelPer100km, 1, 5);
 
-            // Row 11: L/h:X.X (fuel consumption per hour)
+            // Row 11: L/h:X.X (fuel consumption per hour, ×10 fixed-point)
             dm.print(0, 11, F("L/h:"));
-            dm.print(4, 11, c.fuelPerHour, 4);
+            dm.print(4, 11, (int32_t)c.fuelPerHour, 1, 4);
 
             // Row 12: km:XXXXX (distance since start)
             buf[0] = 'k';
@@ -142,9 +142,9 @@ void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelecte
             ltoa(c.elapsedKmSinceStart, buf + 3, 10);
             dm.print(0, 12, buf);
 
-            // Row 13: L:X.X (fuel burned since start)
+            // Row 13: L:XX (fuel burned since start, integer litres)
             dm.print(0, 13, F("L:"));
-            dm.print(2, 13, c.fuelBurnedSinceStart, 5);
+            dm.print(2, 13, (int32_t)c.fuelBurnedSinceStart);
 
             break;
         }
@@ -167,9 +167,9 @@ void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelecte
                     ltoa(ins.engineRpm, buf + 4, 10);
                     dm.print(0, 0, buf);
 
-                    // Row 1: V:X.XXX
+                    // Row 1: V:X.X (voltage ×10 fixed-point)
                     dm.print(0, 1, F("V:"));
-                    dm.print(2, 1, e.voltage, 5);
+                    dm.print(2, 1, (int32_t)e.voltage, 1, 5);
 
                     // Row 2: T1:XXX
                     buf[0] = 'T';
@@ -221,13 +221,13 @@ void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelecte
 
                 case 1:
                 {
-                    // Row 0: TBa:X.X
+                    // Row 0: TBa:X.X (×10 fixed-point)
                     dm.print(0, 0, F("TBa:"));
-                    dm.print(4, 0, e.tbAngle, 5);
+                    dm.print(4, 0, (int32_t)e.tbAngle, 1, 5);
 
-                    // Row 1: STa:X.X
+                    // Row 1: STa:X.X (×10 fixed-point)
                     dm.print(0, 1, F("STa:"));
-                    dm.print(4, 1, e.steeringAngle, 5);
+                    dm.print(4, 1, (int32_t)e.steeringAngle, 1, 5);
 
                     // Row 2: mb:XXXX
                     buf[0] = 'm';

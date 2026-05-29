@@ -29,13 +29,12 @@ static inline void printField(const DisplayManager& dm, uint8_t x, uint8_t y, T 
     updated = false;
 }
 
-static inline void printFieldFloat(const DisplayManager& dm, uint8_t x, uint8_t y, float value,
-                                   uint8_t width, bool& updated, bool forceUpdate)
+static inline void printFieldScaled(const DisplayManager& dm, uint8_t x, uint8_t y, int32_t value,
+                                    uint8_t width, bool& updated, bool forceUpdate)
 {
     if (!(updated || forceUpdate))
         return;
-    // With text-only rendering, entries are always cleared before render.
-    dm.print(x, y, value, width);
+    dm.print(x, y, value, 1, width);
     updated = false;
 }
 

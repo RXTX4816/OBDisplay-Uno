@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "KWPSensorDecode.h"
 #include <avr/pgmspace.h>
-#include <string.h> // memcpy_P
 
 namespace obd
 {
@@ -38,165 +37,257 @@ enum FormulaType : uint8_t
     F_ABS_BK_CA,
     F_B,
     F_B_A,
-    F_AK_B,
-    F_B_AK,
+    F_AK_B, // v = a*c1 + b  (F_B_AK merged here: b+a*c1 is identical)
     F_LINEAR,
     F_SPECIAL,
 };
 
+// c2_idx values (bits[7:4] of typeAndC2) → actual c2 for BK_CA formula types.
+static const uint8_t kC2[4] PROGMEM = {0, 100, 127, 128};
+
 struct __attribute__((packed)) KWPEntry
 {
-    FormulaType type;
-    float c1;
-    float c2;
-    float c3;
+    uint8_t typeAndC2; // bits[3:0]=FormulaType, bits[7:4]=c2_idx
+    int16_t c1_s;      // c1 × 1000 (e.g. 0.2 → 200, 1.421 → 1421)
 };
 
+// 57 entries × 3 bytes = 171 bytes  (was 741 bytes with 3 floats each)
+// c1_s = c1 × 1000 stored as int16_t.
+// k=20,23,31,39,41,48,51,54,56 → F_SPECIAL (non-power-of-2 or large c1, handled in switch).
+// k=25,40,42,43,53 → F_LINEAR (handled in computeFormula with hardcoded integer c2/c3).
 static const KWPEntry kwp_table[57] PROGMEM = {
-    /* 0  unused */ {F_SPECIAL, 0, 0, 0},
-    /* 1  rpm    */ {F_AB_C, 0.2f, 0, 0},
-    /* 2  %%     */ {F_AB_C, 0.002f, 0, 0},
-    /* 3  Deg    */ {F_AB_C, 0.002f, 0, 0},
-    /* 4  ATDC   */ {F_ABS_BK_CA, 0.01f, 127, 0},
-    /* 5  °C     */ {F_BK_CA, 0.1f, 100, 0},
-    /* 6  V      */ {F_AB_C, 0.001f, 0, 0},
-    /* 7  km/h   */ {F_AB_C, 0.01f, 0, 0},
-    /* 8  raw    */ {F_AB_C, 0.1f, 0, 0},
-    /* 9  Deg    */ {F_BK_CA, 0.02f, 127, 0},
-    /* 10 WARM   */ {F_SPECIAL, 0, 0, 0},
-    /* 11 lambda */ {F_SPECIAL, 0, 0, 0},
-    /* 12 Ohm    */ {F_AB_C, 0.001f, 0, 0},
-    /* 13 mm     */ {F_BK_CA, 0.001f, 127, 0},
-    /* 14 bar    */ {F_AB_C, 0.005f, 0, 0},
-    /* 15 ms     */ {F_AB_C, 0.01f, 0, 0},
-    /* 16 unused */ {F_SPECIAL, 0, 0, 0},
-    /* 17 unused */ {F_SPECIAL, 0, 0, 0},
-    /* 18 mbar   */ {F_AB_C, 0.04f, 0, 0},
-    /* 19 l      */ {F_AB_C, 0.01f, 0, 0},
-    /* 20 %%     */ {F_BK_CA, 0.0078125f, 128, 0},
-    /* 21 V      */ {F_AB_C, 0.001f, 0, 0},
-    /* 22 ms     */ {F_AB_C, 0.001f, 0, 0},
-    /* 23 %%     */ {F_AB_C, 0.00390625f, 0, 0},
-    /* 24 A      */ {F_AB_C, 0.001f, 0, 0},
-    /* 25 g/s    */ {F_LINEAR, 1.421f, 0.005494f, 0},
-    /* 26 C      */ {F_B_A, 0, 0, 0},
-    /* 27 °      */ {F_ABS_BK_CA, 0.01f, 128, 0},
-    /* 28 raw    */ {F_B_A, 0, 0, 0},
-    /* 29 unused */ {F_SPECIAL, 0, 0, 0},
-    /* 30 Dk/w   */ {F_AB_C, 0.083333f, 0, 0},
-    /* 31 °C     */ {F_AB_C, 0.000390625f, 0, 0},
-    /* 32 unused */ {F_SPECIAL, 0, 0, 0},
-    /* 33 %%     */ {F_SPECIAL, 0, 0, 0},
-    /* 34 kW     */ {F_BK_CA, 0.01f, 128, 0},
-    /* 35 l/h    */ {F_AB_C, 0.01f, 0, 0},
-    /* 36 km     */ {F_SPECIAL, 0, 0, 0},
-    /* 37 raw    */ {F_B, 0, 0, 0},
-    /* 38 Dk/w   */ {F_BK_CA, 0.001f, 128, 0},
-    /* 39 mg/h   */ {F_AB_C, 0.00390625f, 0, 0},
-    /* 40 A      */ {F_LINEAR, 0.1f, 25.5f, -400.0f},
-    /* 41 Ah     */ {F_B_AK, 255.0f, 0, 0},
-    /* 42 Kw     */ {F_LINEAR, 0.1f, 25.5f, -400.0f},
-    /* 43 V      */ {F_LINEAR, 0.1f, 25.5f, 0},
-    /* 44 unused */ {F_SPECIAL, 0, 0, 0},
-    /* 45 raw    */ {F_AB_C, 0.001f, 0, 0},
-    /* 46 Dk/w   */ {F_SPECIAL, 0, 0, 0},
-    /* 47 ms     */ {F_BK_CA, 1.0f, 128, 0},
-    /* 48 raw    */ {F_B_AK, 255.0f, 0, 0},
-    /* 49 mg/h   */ {F_AB_C, 0.025f, 0, 0},
-    /* 50 mbar   */ {F_SPECIAL, 0, 0, 0},
-    /* 51 mg/h   */ {F_BK_CA, 0.003922f, 128, 0},
-    /* 52 Nm     */ {F_SPECIAL, 0, 0, 0},
-    /* 53 g/s    */ {F_LINEAR, 1.4222f, 0.006f, -182.04f},
-    /* 54 count  */ {F_AK_B, 256.0f, 0, 0},
-    /* 55 s      */ {F_AB_C, 0.005f, 0, 0},
-    /* 56 raw    */ {F_AK_B, 256.0f, 0, 0},
+    /* 0  unused */ {F_SPECIAL, 0},
+    /* 1  rpm    */ {F_AB_C, 200},                // 0.2
+    /* 2  %%     */ {F_AB_C, 2},                  // 0.002
+    /* 3  Deg    */ {F_AB_C, 2},                  // 0.002
+    /* 4  ATDC   */ {(2 << 4) | F_ABS_BK_CA, 10}, // 0.01, c2=127
+    /* 5  °C     */ {(1 << 4) | F_BK_CA, 100},    // 0.1,  c2=100
+    /* 6  V      */ {F_AB_C, 1},                  // 0.001
+    /* 7  km/h   */ {F_AB_C, 10},                 // 0.01
+    /* 8  raw    */ {F_AB_C, 100},                // 0.1
+    /* 9  Deg    */ {(2 << 4) | F_BK_CA, 20},     // 0.02, c2=127
+    /* 10 WARM   */ {F_SPECIAL, 0},
+    /* 11 lambda */ {F_SPECIAL, 0},
+    /* 12 Ohm    */ {F_AB_C, 1},             // 0.001
+    /* 13 mm     */ {(2 << 4) | F_BK_CA, 1}, // 0.001, c2=127
+    /* 14 bar    */ {F_AB_C, 5},             // 0.005
+    /* 15 ms     */ {F_AB_C, 10},            // 0.01
+    /* 16 unused */ {F_SPECIAL, 0},
+    /* 17 unused */ {F_SPECIAL, 0},
+    /* 18 mbar   */ {F_AB_C, 40},     // 0.04
+    /* 19 l      */ {F_AB_C, 10},     // 0.01
+    /* 20 %%     */ {F_SPECIAL, 0},   // c1=1/128, handled as special
+    /* 21 V      */ {F_AB_C, 1},      // 0.001
+    /* 22 ms     */ {F_AB_C, 1},      // 0.001
+    /* 23 %%     */ {F_SPECIAL, 0},   // c1=1/256, handled as special
+    /* 24 A      */ {F_AB_C, 1},      // 0.001
+    /* 25 g/s    */ {F_LINEAR, 1421}, // 1.421, c2/c3 hardcoded in dispatch
+    /* 26 C      */ {F_B_A, 0},
+    /* 27 °      */ {(3 << 4) | F_ABS_BK_CA, 10}, // 0.01, c2=128
+    /* 28 raw    */ {F_B_A, 0},
+    /* 29 unused */ {F_SPECIAL, 0},
+    /* 30 Dk/w   */ {F_AB_C, 83},   // 0.083333 ≈ 83/1000
+    /* 31 °C     */ {F_SPECIAL, 0}, // c1=1/2560, handled as special
+    /* 32 unused */ {F_SPECIAL, 0},
+    /* 33 %%     */ {F_SPECIAL, 0},
+    /* 34 kW     */ {(3 << 4) | F_BK_CA, 10}, // 0.01, c2=128
+    /* 35 l/h    */ {F_AB_C, 10},             // 0.01
+    /* 36 km     */ {F_SPECIAL, 0},
+    /* 37 raw    */ {F_B, 0},
+    /* 38 Dk/w   */ {(3 << 4) | F_BK_CA, 1}, // 0.001, c2=128
+    /* 39 mg/h   */ {F_SPECIAL, 0},          // c1=1/256, handled as special
+    /* 40 A      */ {F_LINEAR, 100},         // 0.1, c2/c3 hardcoded
+    /* 41 Ah     */ {F_SPECIAL, 0},          // v=255*a+b, handled as special
+    /* 42 Kw     */ {F_LINEAR, 100},         // 0.1, c2/c3 hardcoded
+    /* 43 V      */ {F_LINEAR, 100},         // 0.1, c2/c3 hardcoded
+    /* 44 unused */ {F_SPECIAL, 0},
+    /* 45 raw    */ {F_AB_C, 1}, // 0.001
+    /* 46 Dk/w   */ {F_SPECIAL, 0},
+    /* 47 ms     */ {(3 << 4) | F_BK_CA, 1000}, // 1.0, c2=128
+    /* 48 raw    */ {F_SPECIAL, 0},             // v=255*a+b, handled as special
+    /* 49 mg/h   */ {F_AB_C, 25},               // 0.025
+    /* 50 mbar   */ {F_SPECIAL, 0},
+    /* 51 mg/h   */ {F_SPECIAL, 0}, // c1≈1/255, handled as special
+    /* 52 Nm     */ {F_SPECIAL, 0},
+    /* 53 g/s    */ {F_LINEAR, 1422}, // 1.4222, c2/c3 hardcoded
+    /* 54 count  */ {F_SPECIAL, 0},   // v=256*a+b, handled as special
+    /* 55 s      */ {F_AB_C, 5},      // 0.005
+    /* 56 raw    */ {F_SPECIAL, 0},   // v=256*a+b, handled as special
 };
-
-// Read a float from a packed PROGMEM address (handles unaligned access safely).
-static float pgmFloat(const float* addr)
-{
-    float f;
-    memcpy_P(&f, addr, sizeof(float));
-    return f;
-}
 
 // Apply the tabulated formula for measurement type k.
-static float computeFormula(uint8_t k, byte a, byte b)
+// Returns value ×10 as int32_t (e.g. 1230 = 123.0).
+static int32_t computeFormula(uint8_t k, byte a, byte b)
 {
     const KWPEntry* e = &kwp_table[k];
-    switch ((FormulaType)pgm_read_byte(&e->type))
+    uint8_t raw = pgm_read_byte(&e->typeAndC2);
+    FormulaType t = (FormulaType)(raw & 0x0F);
+    int16_t c1s = (int16_t)pgm_read_word(&e->c1_s);
+
+    // All formulae: v_x10 = (c1_s/1000) * formula_result * 10
+    //             = c1_s * formula_result / 100
+    switch (t)
     {
         case F_AB_C:
-            return pgmFloat(&e->c1) * (float)a * (float)b;
+            return (int32_t)c1s * a * b / 100;
 
         case F_BK_CA:
-            return ((float)b - pgmFloat(&e->c2)) * pgmFloat(&e->c1) * (float)a;
+        {
+            int16_t c2 = (int16_t)pgm_read_byte(&kC2[raw >> 4]);
+            return (int32_t)c1s * ((int16_t)b - c2) * a / 100;
+        }
 
         case F_ABS_BK_CA:
         {
-            float d = (float)b - pgmFloat(&e->c2);
+            int16_t c2 = (int16_t)pgm_read_byte(&kC2[raw >> 4]);
+            int16_t d = (int16_t)b - c2;
             if (d < 0)
                 d = -d;
-            return d * pgmFloat(&e->c1) * (float)a;
+            return (int32_t)c1s * d * a / 100;
         }
 
         case F_B:
-            return (float)b;
+            return (int32_t)b * 10;
 
         case F_B_A:
-            return (float)b - (float)a;
+            return (int32_t)((int16_t)b - (int16_t)a) * 10;
 
         case F_AK_B:
-            return (float)a * pgmFloat(&e->c1) + (float)b;
-
-        case F_B_AK:
-            return (float)b + (float)a * pgmFloat(&e->c1);
+            return (int32_t)c1s * a / 100 + (int32_t)b * 10; // (a*c1+b)×10
 
         case F_LINEAR:
-            return (float)b * pgmFloat(&e->c1) + (float)a * pgmFloat(&e->c2) + pgmFloat(&e->c3);
+        {
+            // c2 and c3 hardcoded per k, all in integer form.
+            // Formula: v×10 = c1s*b/100 + c2_x10*a/1000 + c3_x10
+            // k=25:  1.421*b + 0.005494*a        → c1s=1421, c2_x100=5494, c3=0
+            // k=40,42: 0.1*b + 25.5*a - 400      → 10*b + 255*a - 4000 (×10)
+            // k=43:  0.1*b + 25.5*a              → 10*b + 255*a
+            // k=53:  1.4222*b + 0.006*a - 182.04 → 14222*b/1000 + 6*a/1000 - 1820 (×10)
+            switch (k)
+            {
+                case 25:
+                    return (int32_t)1421 * b / 100; // c2 term (5494*a/1M) ≈ 0
+                case 40:
+                case 42:
+                    return (int32_t)b * 10 + (int32_t)255 * a - 4000L;
+                case 43:
+                    return (int32_t)b * 10 + (int32_t)255 * a;
+                case 53:
+                    return (int32_t)1422 * b / 100 + 6L * a / 100 - 1820L;
+                default:
+                    return 0;
+            }
+        }
 
         default:
             return 0;
     }
 }
 
+// Out-of-line helpers so LTO can share one function body for each type.
+// Do NOT inline — that defeats the deduplication purpose.
+static void setU8(uint8_t& f, bool& u, uint8_t v)
+{
+    if (f != v)
+    {
+        f = v;
+        u = true;
+    }
+}
+static void setU16(uint16_t& f, bool& u, uint16_t v)
+{
+    if (f != v)
+    {
+        f = v;
+        u = true;
+    }
+}
+static void setU32(uint32_t& f, bool& u, uint32_t v)
+{
+    if (f != v)
+    {
+        f = v;
+        u = true;
+    }
+}
+static void setI8(int8_t& f, bool& u, int8_t v)
+{
+    if (f != v)
+    {
+        f = v;
+        u = true;
+    }
+}
+static void setI16(int16_t& f, bool& u, int16_t v)
+{
+    if (f != v)
+    {
+        f = v;
+        u = true;
+    }
+}
+
 void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte a, byte b,
                            Model::OBDSignals& signals)
 {
-    float v = 0;
+    int32_t v = 0; // value ×10 fixed-point
     const __FlashStringHelper* units = F("");
 
     // Dispatch formula via table; F_SPECIAL cases fall through to the switch below.
-    if (k < 57 && (FormulaType)pgm_read_byte(&kwp_table[k].type) != F_SPECIAL)
+    if (k < 57 && (FormulaType)(pgm_read_byte(&kwp_table[k].typeAndC2) & 0x0F) != F_SPECIAL)
     {
         v = computeFormula(k, a, b);
     }
     else
     {
-        // Residual switch: 8 cases that don't fit a simple formula family.
+        // Special cases: non-tabulated formulas, all integer arithmetic.
+        // v is ×10 fixed-point throughout.
         switch (k)
         {
-            case 10:
-                v = b;
-                units = b ? F("WARM") : F("COLD"); // unit handled here; skip unit switch below
+            case 10: // WARM/COLD flag
+                v = (int32_t)b * 10;
+                units = b ? F("WARM") : F("COLD");
                 break;
-            case 11:
-                v = 0.0001f * (float)a * ((float)b - 128.0f) + 1.0f;
+            case 11: // lambda: 0.0001*a*(b-128)+1.0
+                // v_x10 = (a*(b-128)/1000 + 1)*10 = a*(b-128)/100 + 10
+                v = (int32_t)a * ((int16_t)b - 128) / 100 + 10;
                 break;
-            case 33:
-                v = 100.0f * (float)b / (float)a;
+            case 20: // %%: (b-128)*a/128
+                v = (int32_t)((int16_t)b - 128) * a * 10 / 128;
                 break;
-            case 36:
-                v = (float)(((uint32_t)a) * 2560UL + ((uint32_t)b) * 10UL);
+            case 23: // %%: a*b/256
+            case 39: // mg/h: same coefficient
+                v = (int32_t)a * b * 10 / 256;
                 break;
-            case 46:
-                v = ((float)a * (float)b - 3200.0f) * 0.0027f;
+            case 31: // °C: a*b/2560
+                v = (int32_t)a * b * 10 / 2560;
                 break;
-            case 50:
-                v = ((float)b - 128.0f) / (0.01f * (float)a);
+            case 33: // %%: 100*b/a
+                v = (a > 0) ? (int32_t)b * 1000 / a : 0;
                 break;
-            case 52:
-                v = (float)b * 0.02f * (float)a - (float)a;
+            case 36: // km: a*2560+b*10
+                v = ((int32_t)a * 2560L + (int32_t)b * 10L) * 10;
+                break;
+            case 41: // Ah: 255*a+b
+            case 48: // raw: same
+                v = ((int32_t)255 * a + b) * 10;
+                break;
+            case 46: // Dk/w: (a*b-3200)*0.0027
+                // v_x10 = (a*b-3200)*27/10000
+                v = ((int32_t)a * b - 3200L) * 27L / 10000L * 10;
+                break;
+            case 50: // mbar: (b-128)/(0.01*a) = (b-128)*100/a
+                v = (a > 0) ? (int32_t)((int16_t)b - 128) * 1000 / a : 0;
+                break;
+            case 51: // mg/h: (b-128)*a/255
+                v = (int32_t)((int16_t)b - 128) * a * 10 / 255;
+                break;
+            case 52: // Nm: b*0.02*a - a = a*(0.02*b-1) → a*(b*20-1000)/1000
+                v = (int32_t)a * ((int32_t)b * 20 - 1000L) / 100;
+                break;
+            case 54: // count: 256*a+b
+            case 56: // raw: same
+                v = ((int32_t)256 * a + b) * 10;
                 break;
             default:
                 break;
@@ -334,28 +425,30 @@ void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte
         signals.experimental.v[idx] = v;
         signals.experimental.vUpdated = true;
     }
-    char firstChar = pgm_read_byte(reinterpret_cast<const char*>(units));
-    if (signals.experimental.unit[idx][0] != firstChar)
     {
-        uint8_t j = 0;
-        for (; j < obd::Model::ExperimentalGroup::UnitWidth; ++j)
+        char firstChar = pgm_read_byte(reinterpret_cast<const char*>(units));
+        if (signals.experimental.unit[idx][0] != firstChar)
         {
-            char c = pgm_read_byte(
-                reinterpret_cast<const char*>(reinterpret_cast<uintptr_t>(units) + j));
-            if (c == '\0')
-                break;
-            signals.experimental.unit[idx][j] = c;
+            uint8_t j = 0;
+            for (; j < obd::Model::ExperimentalGroup::UnitWidth; ++j)
+            {
+                char c = pgm_read_byte(
+                    reinterpret_cast<const char*>(reinterpret_cast<uintptr_t>(units) + j));
+                if (c == '\0')
+                    break;
+                signals.experimental.unit[idx][j] = c;
+            }
+            if (j <= obd::Model::ExperimentalGroup::UnitWidth)
+            {
+                signals.experimental.unit[idx][j] = '\0';
+            }
+            for (++j; j < obd::Model::ExperimentalGroup::UnitWidth + 1; ++j)
+            {
+                signals.experimental.unit[idx][j] = '\0';
+            }
+            signals.experimental.unitUpdated = true;
         }
-        if (j <= obd::Model::ExperimentalGroup::UnitWidth)
-        {
-            signals.experimental.unit[idx][j] = '\0';
-        }
-        for (++j; j < obd::Model::ExperimentalGroup::UnitWidth + 1; ++j)
-        {
-            signals.experimental.unit[idx][j] = '\0';
-        }
-        signals.experimental.unitUpdated = true;
-    }
+    } // end firstChar block
 
 signal_mapping:
     // Map decoded value into named signal fields
@@ -369,125 +462,60 @@ signal_mapping:
                     switch (idx)
                     {
                         case 0:
-                        {
-                            uint16_t value = (uint16_t)v;
-                            if (signals.instruments.vehicleSpeed != value)
-                            {
-                                signals.instruments.vehicleSpeed = value;
-                                signals.instruments.vehicleSpeedUpdated = true;
-                            }
+                            setU16(signals.instruments.vehicleSpeed,
+                                   signals.instruments.vehicleSpeedUpdated, (uint16_t)(v / 10));
                             break;
-                        }
                         case 1:
-                        {
-                            uint16_t value = (uint16_t)v;
-                            if (signals.instruments.engineRpm != value)
-                            {
-                                signals.instruments.engineRpm = value;
-                                signals.instruments.engineRpmUpdated = true;
-                            }
+                            setU16(signals.instruments.engineRpm,
+                                   signals.instruments.engineRpmUpdated, (uint16_t)(v / 10));
                             break;
-                        }
                         case 2:
-                        {
-                            uint16_t value = (uint16_t)v;
-                            if (signals.instruments.oilPressureMin != value)
-                            {
-                                signals.instruments.oilPressureMin = value;
-                                signals.instruments.oilPressureMinUpdated = true;
-                            }
+                            setU16(signals.instruments.oilPressureMin,
+                                   signals.instruments.oilPressureMinUpdated, (uint16_t)(v / 10));
                             break;
-                        }
                         case 3:
-                        {
-                            uint32_t value = (uint32_t)v;
-                            if (signals.instruments.timeEcu != value)
-                            {
-                                signals.instruments.timeEcu = value;
-                                signals.instruments.timeEcuUpdated = true;
-                            }
+                            setU32(signals.instruments.timeEcu, signals.instruments.timeEcuUpdated,
+                                   (uint32_t)(v / 10));
                             break;
-                        }
                     }
                     break;
                 case 2:
                     switch (idx)
                     {
                         case 0:
-                        {
-                            uint32_t value = (uint32_t)v;
-                            if (signals.instruments.odometer != value)
-                            {
-                                signals.instruments.odometer = value;
-                                signals.instruments.odometerUpdated = true;
-                            }
+                            setU32(signals.instruments.odometer,
+                                   signals.instruments.odometerUpdated, (uint32_t)(v / 10));
                             break;
-                        }
                         case 1:
-                        {
-                            uint8_t value = (uint8_t)v;
-                            if (signals.instruments.fuelLevel != value)
-                            {
-                                signals.instruments.fuelLevel = value;
-                                signals.instruments.fuelLevelUpdated = true;
-                            }
+                            setU8(signals.instruments.fuelLevel,
+                                  signals.instruments.fuelLevelUpdated, (uint8_t)(v / 10));
                             break;
-                        }
                         case 2:
-                        {
-                            uint16_t value = (uint16_t)v;
-                            if (signals.instruments.fuelSensorResistance != value)
-                            {
-                                signals.instruments.fuelSensorResistance = value;
-                                signals.instruments.fuelSensorResistanceUpdated = true;
-                            }
+                            setU16(signals.instruments.fuelSensorResistance,
+                                   signals.instruments.fuelSensorResistanceUpdated,
+                                   (uint16_t)(v / 10));
                             break;
-                        }
                         case 3:
-                        {
-                            uint8_t value = (uint8_t)v;
-                            if (signals.instruments.ambientTemp != value)
-                            {
-                                signals.instruments.ambientTemp = value;
-                                signals.instruments.ambientTempUpdated = true;
-                            }
+                            setU8(signals.instruments.ambientTemp,
+                                  signals.instruments.ambientTempUpdated, (uint8_t)(v / 10));
                             break;
-                        }
                     }
                     break;
                 case 3:
                     switch (idx)
                     {
                         case 0:
-                        {
-                            uint8_t value = (uint8_t)v;
-                            if (signals.instruments.coolantTemp != value)
-                            {
-                                signals.instruments.coolantTemp = value;
-                                signals.instruments.coolantTempUpdated = true;
-                            }
+                            setU8(signals.instruments.coolantTemp,
+                                  signals.instruments.coolantTempUpdated, (uint8_t)(v / 10));
                             break;
-                        }
                         case 1:
-                        {
-                            uint8_t value = (uint8_t)v;
-                            if (signals.instruments.oilLevelOk != value)
-                            {
-                                signals.instruments.oilLevelOk = value;
-                                signals.instruments.oilLevelOkUpdated = true;
-                            }
+                            setU8(signals.instruments.oilLevelOk,
+                                  signals.instruments.oilLevelOkUpdated, (uint8_t)(v / 10));
                             break;
-                        }
                         case 2:
-                        {
-                            uint8_t value = (uint8_t)v;
-                            if (signals.instruments.oilTemp != value)
-                            {
-                                signals.instruments.oilTemp = value;
-                                signals.instruments.oilTempUpdated = true;
-                            }
+                            setU8(signals.instruments.oilTemp, signals.instruments.oilTempUpdated,
+                                  (uint8_t)(v / 10));
                             break;
-                        }
                         default:
                             break;
                     }
@@ -505,35 +533,17 @@ signal_mapping:
                     switch (idx)
                     {
                         case 0:
-                        {
-                            uint16_t value = (uint16_t)v;
-                            if (signals.instruments.engineRpm != value)
-                            {
-                                signals.instruments.engineRpm = value;
-                                signals.instruments.engineRpmUpdated = true;
-                            }
+                            setU16(signals.instruments.engineRpm,
+                                   signals.instruments.engineRpmUpdated, (uint16_t)(v / 10));
                             break;
-                        }
                         case 1:
-                        {
-                            uint8_t value = (uint8_t)v;
-                            if (signals.engine.tempUnknown1 != value)
-                            {
-                                signals.engine.tempUnknown1 = value;
-                                signals.engine.tempUnknown1Updated = true;
-                            }
+                            setU8(signals.engine.tempUnknown1, signals.engine.tempUnknown1Updated,
+                                  (uint8_t)(v / 10));
                             break;
-                        }
                         case 2:
-                        {
-                            int8_t value = (int8_t)v;
-                            if (signals.engine.lambda != value)
-                            {
-                                signals.engine.lambda = value;
-                                signals.engine.lambdaUpdated = true;
-                            }
+                            setI8(signals.engine.lambda, signals.engine.lambdaUpdated,
+                                  (int8_t)(v / 10));
                             break;
-                        }
                         default:
                             break;
                     }
@@ -542,95 +552,47 @@ signal_mapping:
                     switch (idx)
                     {
                         case 1:
-                        {
-                            uint16_t value = (uint16_t)v;
-                            if (signals.engine.pressure != value)
-                            {
-                                signals.engine.pressure = value;
-                                signals.engine.pressureUpdated = true;
-                            }
+                            setU16(signals.engine.pressure, signals.engine.pressureUpdated,
+                                   (uint16_t)(v / 10));
                             break;
-                        }
                         case 2:
-                        {
-                            float value = v;
-                            if (signals.engine.tbAngle != value)
-                            {
-                                signals.engine.tbAngle = value;
-                                signals.engine.tbAngleUpdated = true;
-                            }
-                            break;
-                        }
+                            setI16(signals.engine.tbAngle, signals.engine.tbAngleUpdated,
+                                   (int16_t)v);
+                            break; // ×10
                         case 3:
-                        {
-                            float value = v;
-                            if (signals.engine.steeringAngle != value)
-                            {
-                                signals.engine.steeringAngle = value;
-                                signals.engine.steeringAngleUpdated = true;
-                            }
-                            break;
-                        }
+                            setI16(signals.engine.steeringAngle,
+                                   signals.engine.steeringAngleUpdated, (int16_t)v);
+                            break; // ×10
                     }
                     break;
                 case 4:
                     switch (idx)
                     {
                         case 1:
-                        {
-                            float value = v;
-                            if (signals.engine.voltage != value)
-                            {
-                                signals.engine.voltage = value;
-                                signals.engine.voltageUpdated = true;
-                            }
-                            break;
-                        }
+                            setU16(signals.engine.voltage, signals.engine.voltageUpdated,
+                                   (uint16_t)v);
+                            break; // ×10
                         case 2:
-                        {
-                            uint8_t value = (uint8_t)v;
-                            if (signals.engine.tempUnknown2 != value)
-                            {
-                                signals.engine.tempUnknown2 = value;
-                                signals.engine.tempUnknown2Updated = true;
-                            }
+                            setU8(signals.engine.tempUnknown2, signals.engine.tempUnknown2Updated,
+                                  (uint8_t)(v / 10));
                             break;
-                        }
                         case 3:
-                        {
-                            uint8_t value = (uint8_t)v;
-                            if (signals.engine.tempUnknown3 != value)
-                            {
-                                signals.engine.tempUnknown3 = value;
-                                signals.engine.tempUnknown3Updated = true;
-                            }
+                            setU8(signals.engine.tempUnknown3, signals.engine.tempUnknown3Updated,
+                                  (uint8_t)(v / 10));
                             break;
-                        }
                     }
                     break;
                 case 6:
                     switch (idx)
                     {
                         case 1:
-                        {
-                            uint16_t value = (uint16_t)v;
-                            if (signals.engine.engineLoad != value)
-                            {
-                                signals.engine.engineLoad = value;
-                                signals.engine.engineLoadUpdated = true;
-                            }
+                            setU16(signals.engine.engineLoad, signals.engine.engineLoadUpdated,
+                                   (uint16_t)(v / 10));
                             break;
-                        }
                         case 3:
-                        {
-                            int8_t value = (int8_t)v;
-                            if (signals.engine.lambda2 != value)
-                            {
-                                signals.engine.lambda2 = value;
-                                signals.engine.lambda2Updated = true;
-                            }
+                            setI8(signals.engine.lambda2, signals.engine.lambda2Updated,
+                                  (int8_t)(v / 10));
                             break;
-                        }
                     }
                     break;
                 default:

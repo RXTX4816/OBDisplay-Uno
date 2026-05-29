@@ -1,11 +1,49 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "Display.h"
 #include "../debug.h"
-#include <Wire.h>
+#include <avr/io.h>
 
 namespace
 {
 constexpr uint8_t OLED_I2C_ADDR = 0x3C;
+
+// Minimal blocking TWI driver — master TX only, single fixed address.
+// Replaces Arduino Wire (~1.3 KB) for write-only OLED communication.
+static void twiInit()
+{
+    PORTC |= (1 << PC4) | (1 << PC5); // pull-ups on SDA/SCL
+    TWSR = 0;                         // prescaler = 1
+    TWBR = 72;                        // 100 kHz @ 16 MHz: (16e6/100e3 - 16) / 2
+}
+
+static void twiWait()
+{
+    while (!(TWCR & (1 << TWINT)))
+        ;
+}
+
+static void twiStart(uint8_t addr)
+{
+    TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
+    twiWait();
+    TWDR = (uint8_t)(addr << 1); // write direction
+    TWCR = (1 << TWINT) | (1 << TWEN);
+    twiWait();
+}
+
+static void twiWrite(uint8_t b)
+{
+    TWDR = b;
+    TWCR = (1 << TWINT) | (1 << TWEN);
+    twiWait();
+}
+
+static void twiStop()
+{
+    TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWSTO);
+    while (TWCR & (1 << TWSTO))
+        ;
+}
 
 // SH1107 initialization sequence (from U8g2 driver, proven working).
 // Each command is sent individually with delays for stability.
@@ -130,10 +168,10 @@ const uint8_t PROGMEM kFont[] = {
 
 void writeCmd(uint8_t c)
 {
-    Wire.beginTransmission(OLED_I2C_ADDR);
-    Wire.write(0x00); // control byte: command
-    Wire.write(c);
-    Wire.endTransmission();
+    twiStart(OLED_I2C_ADDR);
+    twiWrite(0x00); // control byte: command
+    twiWrite(c);
+    twiStop();
 }
 
 void sendInit()
@@ -152,8 +190,7 @@ void sendInit()
 void Display::begin()
 {
     DBG(DBG_DISP_INIT);
-    Wire.begin();
-    Wire.setClock(100000);
+    twiInit();
     DBG(DBG_DISP_WIRE_OK);
 
     DBG(DBG_DISP_OFF);
@@ -173,11 +210,11 @@ void Display::begin()
         writeCmd(0x00);
         writeCmd(0x12); // CRITICAL: column high nibble = 0x12
 
-        Wire.beginTransmission(OLED_I2C_ADDR);
-        Wire.write(0x40); // control byte: data stream
+        twiStart(OLED_I2C_ADDR);
+        twiWrite(0x40); // control byte: data stream
         for (uint8_t col = 0; col < 64; ++col)
-            Wire.write(0x00);
-        Wire.endTransmission();
+            twiWrite(0x00);
+        twiStop();
     }
     DBG(DBG_DISP_READY);
 }
@@ -334,16 +371,16 @@ void Display::flush()
         uint8_t col = 0;
         while (col < 64)
         {
-            Wire.beginTransmission(OLED_I2C_ADDR);
-            Wire.write(0x40); // data stream control byte
+            twiStart(OLED_I2C_ADDR);
+            twiWrite(0x40); // data stream control byte
             uint8_t n = 0;
             while (col < 64 && n < 16)
             {
-                Wire.write(pageBuf[col]);
+                twiWrite(pageBuf[col]);
                 ++col;
                 ++n;
             }
-            Wire.endTransmission();
+            twiStop();
         }
     }
 

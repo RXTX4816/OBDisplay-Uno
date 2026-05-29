@@ -40,27 +40,27 @@ void renderExperimentalScreen(const DisplayManager& dm, uint8_t /*screen*/,
     ltoa((long)eg.groupCurrent, buf, 10);
     dm.print(5, 0, buf);
 
-    // Slot 1 (rows 2-3)
+    // Slot 1 (rows 2-3) — v[n] is ×10 fixed-point
     dm.print(0, 2, F("V1:"));
-    dm.print(3, 2, eg.v[0], 7);
+    dm.print(3, 2, eg.v[0], 1, 7);
     dm.print(0, 3, F("U1:"));
     dm.print(3, 3, eg.unit[0]);
 
     // Slot 2 (rows 5-6)
     dm.print(0, 5, F("V2:"));
-    dm.print(3, 5, eg.v[1], 7);
+    dm.print(3, 5, eg.v[1], 1, 7);
     dm.print(0, 6, F("U2:"));
     dm.print(3, 6, eg.unit[1]);
 
     // Slot 3 (rows 8-9)
     dm.print(0, 8, F("V3:"));
-    dm.print(3, 8, eg.v[2], 7);
+    dm.print(3, 8, eg.v[2], 1, 7);
     dm.print(0, 9, F("U3:"));
     dm.print(3, 9, eg.unit[2]);
 
     // Slot 4 (rows 11-12)
     dm.print(0, 11, F("V4:"));
-    dm.print(3, 11, eg.v[3], 7);
+    dm.print(3, 11, eg.v[3], 1, 7);
     dm.print(0, 12, F("U4:"));
     dm.print(3, 12, eg.unit[3]);
 

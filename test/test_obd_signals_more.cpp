@@ -185,12 +185,11 @@ void test_signals_fuel_consumption_calculation()
     TEST_ASSERT_EQUAL_UINT16(100, signals.computed.elapsedKmSinceStart);
     TEST_ASSERT_EQUAL_UINT8(10, signals.computed.fuelBurnedSinceStart);
 
-    // Fuel consumption should be: 10L / 100km = 0.1L/km = 10L/100km
-    // fuelPer100km should be approximately 10.0
-    TEST_ASSERT_TRUE(signals.computed.fuelPer100km >= 9.0f && signals.computed.fuelPer100km <= 11.0f);
+    // fuelPer100km stored ×10: 10 L/100km → 100. Acceptable range [90, 110].
+    TEST_ASSERT_TRUE(signals.computed.fuelPer100km >= 90 && signals.computed.fuelPer100km <= 110);
 
-    // fuelPerHour should be approximately 5.0 (10L / 2h)
-    TEST_ASSERT_TRUE(signals.computed.fuelPerHour >= 4.0f && signals.computed.fuelPerHour <= 6.0f);
+    // fuelPerHour stored ×10: 5 L/h → 50. Acceptable range [40, 60].
+    TEST_ASSERT_TRUE(signals.computed.fuelPerHour >= 40 && signals.computed.fuelPerHour <= 60);
 }
 
 int main(int argc, char **argv)

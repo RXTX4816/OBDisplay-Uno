@@ -35,9 +35,8 @@ static constexpr uint8_t BTN_MASK_DOWN = 0x08;
 static constexpr uint8_t BTN_MASK_MID = 0x10;
 
 OBDDisplay::OBDDisplay(uint8_t rxPin, uint8_t txPin, ::Display& display)
-    : obdSerial_(rxPin, txPin, false), display_(display), kwp_(obdSerial_, txPin), signals_(),
-      dtcStore_(), menuState_(),
-      buttons_(BTN_PIN_UP, BTN_PIN_DOWN, BTN_PIN_LEFT, BTN_PIN_RIGHT, BTN_PIN_MID),
+    : obdSerial_(rxPin, txPin), display_(display), kwp_(obdSerial_, txPin), signals_(), dtcStore_(),
+      menuState_(), buttons_(BTN_PIN_UP, BTN_PIN_DOWN, BTN_PIN_LEFT, BTN_PIN_RIGHT, BTN_PIN_MID),
       simulationModeActive_(false), autoSetup_(false), baudRate_(0), addrSelected_(0x00),
       kwpMode_(Mode::ReadSensors), kwpModeLast_(Mode::ReadSensors), kwpGroup_(1), connected_(false),
       connectTimeStart_(0), displayFrameTimestamp_(0), buttonTimeoutUntil_(0)

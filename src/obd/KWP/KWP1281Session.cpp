@@ -532,17 +532,18 @@ bool KWP1281Session::readSensorsGroup(uint8_t group, Model::OBDSignals& signals)
                         signals.instruments.engineRpmUpdated = true;
                     }
 
-                    uint8_t cool = (uint8_t)(s[7] * (s[8] - 100) * 0.1f);
+                    uint8_t cool = (uint8_t)((int16_t)s[7] * ((int16_t)s[8] - 100) / 10);
                     if (signals.instruments.coolantTemp != cool)
                     {
                         signals.instruments.coolantTemp = cool;
                         signals.instruments.coolantTempUpdated = true;
                     }
 
-                    float volt = 0.001f * s[10] * s[11];
-                    if (signals.engine.voltage != volt)
+                    // voltage stored ×10 (0.1V units): 0.001*a*b*10 = a*b/100
+                    uint16_t volt_x10 = (uint16_t)s[10] * s[11] / 100;
+                    if (signals.engine.voltage != volt_x10)
                     {
-                        signals.engine.voltage = volt;
+                        signals.engine.voltage = volt_x10;
                         signals.engine.voltageUpdated = true;
                     }
                     break;
