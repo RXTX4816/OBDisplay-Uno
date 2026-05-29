@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "DTCScreen.h"
+#include "../ScreenVM.h"
 
 namespace obd
 {
@@ -25,6 +26,16 @@ namespace Display
 //   Row 12:    S:XXX
 //   Row 14: U/D:pg Sel:bk
 
+// clang-format off
+static const uint8_t PROGMEM kDtcMenuScript[] = {
+    SO_LABEL,  0,  0, 8, 'D','T','C',' ','M','e','n','u',
+    SO_CURSOR, 0,  2, 0, 4, 'R','e','a','d',
+    SO_CURSOR, 0,  4, 1, 5, 'C','l','e','a','r',
+    SO_CURSOR, 0,  6, 2, 4, 'S','h','o','w',
+    SO_END
+};
+// clang-format on
+
 static const uint8_t rowV[4] = {2, 5, 8, 11};
 static const uint8_t rowS[4] = {3, 6, 9, 12};
 
@@ -35,15 +46,11 @@ void renderDtcScreen(DisplayManager& dm, uint8_t cursor, bool showActive, uint8_
 
     if (!showActive)
     {
-        // ── Main menu ───────────────────────────────────────────────
-        dm.print(0, 0, F("DTC Menu"));
+        // ── Main menu (VM-rendered) ──────────────────────────────────
+        ScreenCtx ctx{nullptr, nullptr, cursor, 0};
+        runScript(kDtcMenuScript, ctx, dm);
 
-        // Three selectable actions with '>' cursor indicator
-        dm.print(0, 2, cursor == 0 ? F(">Read") : F(" Read"));
-        dm.print(0, 4, cursor == 1 ? F(">Clear") : F(" Clear"));
-        dm.print(0, 6, cursor == 2 ? F(">Show") : F(" Show"));
-
-        // DTC count at the bottom
+        // DTC count line: "--" until first read, number after
         dm.print(0, 14, F("DTCs:"));
         if (dtcCount < 0)
         {

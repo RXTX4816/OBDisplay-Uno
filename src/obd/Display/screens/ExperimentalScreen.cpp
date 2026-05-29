@@ -1,70 +1,36 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "ExperimentalScreen.h"
-#include "ScreenHelpers.h"
+#include "../ScreenVM.h"
 
 namespace obd
 {
 namespace Display
 {
 
-// Portrait layout (10 cols x 16 rows):
-//   Row  0: Grp: XX
-//   Row  1: (empty)
-//   Row  2: V1: XXXXXXX
-//   Row  3: U1: UUUUUU
-//   Row  4: (empty)
-//   Row  5: V2: XXXXXXX
-//   Row  6: U2: UUUUUU
-//   Row  7: (empty)
-//   Row  8: V3: XXXXXXX
-//   Row  9: U3: UUUUUU
-//   Row 10: (empty)
-//   Row 11: V4: XXXXXXX
-//   Row 12: U4: UUUUUU
+// clang-format off
+static const uint8_t PROGMEM kExpScript[] = {
+    SO_LABEL,  0,  0, 4, 'G','r','p',':',  SO_U8,     5,  0, FLD_EXP_GRP,
+    SO_LABEL,  0,  2, 3, 'V','1',':',      SO_SCALED, 3,  2, FLD_EXP_V0, 7,
+    SO_LABEL,  0,  3, 3, 'U','1',':',      SO_STR,    3,  3, FLD_EXP_U0,
+    SO_LABEL,  0,  5, 3, 'V','2',':',      SO_SCALED, 3,  5, FLD_EXP_V1, 7,
+    SO_LABEL,  0,  6, 3, 'U','2',':',      SO_STR,    3,  6, FLD_EXP_U1,
+    SO_LABEL,  0,  8, 3, 'V','3',':',      SO_SCALED, 3,  8, FLD_EXP_V2, 7,
+    SO_LABEL,  0,  9, 3, 'U','3',':',      SO_STR,    3,  9, FLD_EXP_U2,
+    SO_LABEL,  0, 11, 3, 'V','4',':',      SO_SCALED, 3, 11, FLD_EXP_V3, 7,
+    SO_LABEL,  0, 12, 3, 'U','4',':',      SO_STR,    3, 12, FLD_EXP_U3,
+    SO_END
+};
+// clang-format on
 
-void initExperimentalScreen(DisplayManager& /*dm*/)
-{
-    // No-op: all rendering is done in renderExperimentalScreen
-}
+void initExperimentalScreen(DisplayManager& /*dm*/) {}
 
 void renderExperimentalScreen(const DisplayManager& dm, uint8_t /*screen*/,
                               const Model::OBDSignals& signals, bool forceUpdate)
 {
 #ifdef OBD_EXPERIMENTAL_SCREENS
-    const Model::ExperimentalGroup& eg = signals.experimental;
-
-    char buf[11];
-
-    // Row 0: Grp: XX
-    dm.print(0, 0, F("Grp:"));
-    ltoa((long)eg.groupCurrent, buf, 10);
-    dm.print(5, 0, buf);
-
-    // Slot 1 (rows 2-3) — v[n] is ×10 fixed-point
-    dm.print(0, 2, F("V1:"));
-    dm.print(3, 2, eg.v[0], 1, 7);
-    dm.print(0, 3, F("U1:"));
-    dm.print(3, 3, eg.unit[0]);
-
-    // Slot 2 (rows 5-6)
-    dm.print(0, 5, F("V2:"));
-    dm.print(3, 5, eg.v[1], 1, 7);
-    dm.print(0, 6, F("U2:"));
-    dm.print(3, 6, eg.unit[1]);
-
-    // Slot 3 (rows 8-9)
-    dm.print(0, 8, F("V3:"));
-    dm.print(3, 8, eg.v[2], 1, 7);
-    dm.print(0, 9, F("U3:"));
-    dm.print(3, 9, eg.unit[2]);
-
-    // Slot 4 (rows 11-12)
-    dm.print(0, 11, F("V4:"));
-    dm.print(3, 11, eg.v[3], 1, 7);
-    dm.print(0, 12, F("U4:"));
-    dm.print(3, 12, eg.unit[3]);
-
     (void)forceUpdate;
+    ScreenCtx ctx{&signals, nullptr, 0, 0};
+    runScript(kExpScript, ctx, dm);
 #else
     (void)dm;
     (void)signals;

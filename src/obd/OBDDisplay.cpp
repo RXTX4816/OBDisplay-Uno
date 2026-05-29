@@ -511,41 +511,22 @@ void OBDDisplay::handleInput_()
         switch (menuState_.currentMenu())
         {
             case MenuId::Cockpit:
-                if (btns & BTN_MASK_UP)
-                {
-                    menuState_.nextCockpitScreen();
-                    any = true;
-                }
-                else if (btns & BTN_MASK_DOWN)
-                {
-                    menuState_.prevCockpitScreen();
-                    any = true;
-                }
-                break;
             case MenuId::Experimental:
-                if (btns & BTN_MASK_UP)
-                {
-                    menuState_.nextExperimentalScreen();
-                    any = true;
-                }
-                else if (btns & BTN_MASK_DOWN)
-                {
-                    menuState_.prevExperimentalScreen();
-                    any = true;
-                }
-                break;
             case MenuId::Debug:
+            {
+                MenuId mid = menuState_.currentMenu();
                 if (btns & BTN_MASK_UP)
                 {
-                    menuState_.nextDebugScreen();
+                    menuState_.nextScreen(mid);
                     any = true;
                 }
                 else if (btns & BTN_MASK_DOWN)
                 {
-                    menuState_.prevDebugScreen();
+                    menuState_.prevScreen(mid);
                     any = true;
                 }
                 break;
+            }
             case MenuId::Dtc:
                 if (dtcShowActive_)
                 {
@@ -677,11 +658,11 @@ void OBDDisplay::handleInput_()
     // Keep groupCurrent and kwpGroup_ in sync with the experimental screen index.
     if (menuState_.currentMenu() == Display::MenuId::Experimental)
     {
-        if (menuState_.experimentalScreen() == 0)
+        if (menuState_.screen(Display::MenuId::Experimental) == 0)
         {
-            menuState_.setExperimentalScreen(1);
+            menuState_.setScreen(Display::MenuId::Experimental, 1);
         }
-        signals_.experimental.groupCurrent = menuState_.experimentalScreen();
+        signals_.experimental.groupCurrent = menuState_.screen(Display::MenuId::Experimental);
         kwpGroup_ = signals_.experimental.groupCurrent; // ReadGroup mode uses this
         signals_.experimental.kUpdated = true;
     }

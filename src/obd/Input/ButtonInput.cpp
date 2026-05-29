@@ -42,41 +42,22 @@ bool ButtonInput::update(MenuState& menuState, const InputActions& actions)
         switch (menuState.currentMenu())
         {
             case MenuId::Cockpit:
-                if (readUp())
-                {
-                    menuState.nextCockpitScreen();
-                    any = true;
-                }
-                else if (readDown())
-                {
-                    menuState.prevCockpitScreen();
-                    any = true;
-                }
-                break;
             case MenuId::Experimental:
-                if (readUp())
-                {
-                    menuState.nextExperimentalScreen();
-                    any = true;
-                }
-                else if (readDown())
-                {
-                    menuState.prevExperimentalScreen();
-                    any = true;
-                }
-                break;
             case MenuId::Debug:
+            {
+                MenuId mid = menuState.currentMenu();
                 if (readUp())
                 {
-                    menuState.nextDebugScreen();
+                    menuState.nextScreen(mid);
                     any = true;
                 }
                 else if (readDown())
                 {
-                    menuState.prevDebugScreen();
+                    menuState.prevScreen(mid);
                     any = true;
                 }
                 break;
+            }
             case MenuId::Dtc:
             case MenuId::Settings:
                 // DTC and Settings navigation is handled entirely by

@@ -123,7 +123,7 @@ void DisplayManager::initMenu(const Input::MenuState& menuState, uint8_t addrSel
     switch (menuState.currentMenu())
     {
         case MenuId::Cockpit:
-            initMenuCockpit(menuState.cockpitScreen(), addrSelected);
+            initMenuCockpit(menuState.screen(MenuId::Cockpit), addrSelected);
             break;
         case MenuId::Experimental:
             initMenuExperimental();
@@ -132,10 +132,10 @@ void DisplayManager::initMenu(const Input::MenuState& menuState, uint8_t addrSel
             initMenuDebug();
             break;
         case MenuId::Dtc:
-            initMenuDtc(menuState.dtcScreen());
+            initMenuDtc(menuState.screen(MenuId::Dtc));
             break;
         case MenuId::Settings:
-            initMenuSettings(menuState.settingsScreen());
+            initMenuSettings(menuState.screen(MenuId::Settings));
             break;
     }
 }
@@ -147,19 +147,20 @@ void DisplayManager::render(const Input::MenuState& menuState, const Model::OBDS
     switch (menuState.currentMenu())
     {
         case MenuId::Cockpit:
-            displayMenuCockpit(menuState.cockpitScreen(), addrSelected, signals, forceUpdate);
+            displayMenuCockpit(menuState.screen(MenuId::Cockpit), addrSelected, signals,
+                               forceUpdate);
             break;
         case MenuId::Experimental:
-            displayMenuExperimental(menuState.experimentalScreen(), signals, forceUpdate);
+            displayMenuExperimental(menuState.screen(MenuId::Experimental), signals, forceUpdate);
             break;
         case MenuId::Debug:
-            displayMenuDebug(menuState.debugScreen(), signals, kwpModeInt, forceUpdate);
+            displayMenuDebug(menuState.screen(MenuId::Debug), signals, kwpModeInt, forceUpdate);
             break;
         case MenuId::Dtc:
-            displayMenuDtc(menuState.dtcScreen(), dtcStore, forceUpdate);
+            displayMenuDtc(menuState.screen(MenuId::Dtc), dtcStore, forceUpdate);
             break;
         case MenuId::Settings:
-            displayMenuSettings(menuState.settingsScreen(), kwpModeInt, forceUpdate);
+            displayMenuSettings(menuState.screen(MenuId::Settings), kwpModeInt, forceUpdate);
             break;
     }
 }
