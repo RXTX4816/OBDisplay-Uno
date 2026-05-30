@@ -2,20 +2,30 @@
 #include "CockpitScreen.h"
 #include "../ScreenVM.h"
 
-// Portrait layout (10 cols x 16 rows):
+// Portrait layout (64×128 px), 2× pixel-doubled font (12 px/char, 14 px/row).
+// Row step = 16 px (14 px glyph + 2 px gap between rows).
 //
-// ADDR_INSTRUMENTS (0x17), screen 0 — all 15 signals:
-//   Row 0:  SPD:XXX     Row 7:  FUL:XX
-//   Row 1:  RPM:XXXX    Row 8:  FSR:XXXXX
-//   Row 2:  CLT:XXX     Row 9:  TM:XXXXXXX
-//   Row 3:  OIL:XXX     Row 10: L100:X.X
-//   Row 4:  AMB:XXX     Row 11: L/h:X.X
-//   Row 5:  OL:X OP:X   Row 12: km:XXXXX
-//   Row 6:  ODO:XXXXXX  Row 13: L:XX
+// ADDR_INSTRUMENTS (0x17), screen 0 — 6 rows (108 px used of 128):
+//   y=  0   speed (km/h)          e.g. "130"
+//   y= 16   RPM                   e.g. "2200"
+//   [+7 px gap]
+//   y= 39   oil temperature        e.g. "99 O"  / "-WARN-" if >=100
+//   y= 55   coolant temperature    e.g. "99 C"  / "-WARN-" if >=100
+//   [+7 px gap]
+//   y= 78   fuel level (L)         e.g. "33 L"
+//   y= 94   ambient temperature    e.g. "20AIR"
 //
-// ADDR_ENGINE (0x01):
-//   Screen 0: 8 signals stacked vertically
-//   Screen 1: 4 signals + 8-bit error string
+// ADDR_ENGINE (0x01), screen 0 — 8 rows (exactly 126 px of 128):
+//   y=  0   speed (km/h)          e.g. "120"
+//   y= 16   RPM                   e.g. "1200"
+//   y= 32   oil temperature        e.g. "99 O"  / "-WARN-" if >=100
+//   y= 48   coolant temperature    e.g. "99 C"  / "-WARN-" if >=100
+//   y= 64   engine load (%)        e.g. "20%"
+//   y= 80   throttle body angle    e.g. "5.5T"
+//   y= 96   battery voltage        e.g. "12V"
+//   y=112   lambda (%)             e.g. "5%"
+//
+// ADDR_ENGINE (0x01), screen 1 — error bits (small font, unchanged).
 
 namespace obd
 {
@@ -23,38 +33,6 @@ namespace Display
 {
 
 // clang-format off
-static const uint8_t PROGMEM kCockpit17Script[] = {
-    SO_LABEL,  0,  0, 4, 'S','P','D',':',   SO_U16,    4,  0, FLD_VEH_SPEED,
-    SO_LABEL,  0,  1, 4, 'R','P','M',':',   SO_U16,    4,  1, FLD_ENG_RPM,
-    SO_LABEL,  0,  2, 4, 'C','L','T',':',   SO_U8,     4,  2, FLD_COOLANT_T,
-    SO_LABEL,  0,  3, 4, 'O','I','L',':',   SO_U8,     4,  3, FLD_OIL_T,
-    SO_LABEL,  0,  4, 4, 'A','M','B',':',   SO_U8,     4,  4, FLD_AMB_T,
-    // Row 5: OL:X OP:X — two bool fields on one row
-    SO_LABEL,  0,  5, 3, 'O','L',':',       SO_U8,     3,  5, FLD_OIL_LVL,
-    SO_LABEL,  5,  5, 3, 'O','P',':',       SO_U8,     8,  5, FLD_OIL_PRES,
-    SO_LABEL,  0,  6, 4, 'O','D','O',':',   SO_U32,    4,  6, FLD_ODOMETER,
-    SO_LABEL,  0,  7, 4, 'F','U','L',':',   SO_U8,     4,  7, FLD_FUEL_LVL,
-    SO_LABEL,  0,  8, 4, 'F','S','R',':',   SO_U16,    4,  8, FLD_FUEL_RES,
-    SO_LABEL,  0,  9, 3, 'T','M', ':',      SO_U32,    3,  9, FLD_TIME_ECU,
-    SO_LABEL,  0, 10, 5, 'L','1','0','0',':', SO_SCALED, 5, 10, FLD_FUEL_100, 5,
-    SO_LABEL,  0, 11, 4, 'L','/','h',':',   SO_SCALED, 4, 11, FLD_FUEL_H,   4,
-    SO_LABEL,  0, 12, 3, 'k','m', ':',      SO_U16,    3, 12, FLD_ELAPSED_KM,
-    SO_LABEL,  0, 13, 2, 'L', ':',          SO_U8,     2, 13, FLD_FUEL_BURNED,
-    SO_END
-};
-
-static const uint8_t PROGMEM kCockpit01S0Script[] = {
-    SO_LABEL,  0, 0, 4, 'R','P','M',':',   SO_U16,    4, 0, FLD_ENG_RPM,
-    SO_LABEL,  0, 1, 2, 'V', ':',          SO_SCALED, 2, 1, FLD_VOLTAGE,  5,
-    SO_LABEL,  0, 2, 3, 'T','1',':',       SO_U8,     3, 2, FLD_TEMP1,
-    SO_LABEL,  0, 3, 3, 'T','2',':',       SO_U8,     3, 3, FLD_TEMP2,
-    SO_LABEL,  0, 4, 3, 'T','3',':',       SO_U8,     3, 4, FLD_TEMP3,
-    SO_LABEL,  0, 5, 4, 'L','A','M',':',   SO_I8,     4, 5, FLD_LAMBDA,
-    SO_LABEL,  0, 6, 5, 'L','A','M','2',':', SO_I8,   5, 6, FLD_LAMBDA2,
-    SO_LABEL,  0, 7, 3, 'L','D',':',       SO_U16,    3, 7, FLD_ENG_LOAD,
-    SO_END
-};
-
 static const uint8_t PROGMEM kCockpit01S1Script[] = {
     SO_LABEL,   0, 0, 4, 'T','B','a',':',  SO_SCALED, 4, 0, FLD_TB_ANGLE,    5,
     SO_LABEL,   0, 1, 4, 'S','T','a',':',  SO_SCALED, 4, 1, FLD_STEER_ANGLE, 5,
@@ -67,13 +45,45 @@ static const uint8_t PROGMEM kCockpit01S1Script[] = {
 
 void initCockpitScreen(DisplayManager& /*dm*/, uint8_t /*screen*/, uint8_t /*addrSelected*/) {}
 
+// Temperatures only have room for 2 digits + 3-char label at 2x font.
+// If the value reaches 100+ the label would overflow the screen, so
+// warn the driver instead — a 3-digit temp is dangerous anyway.
+static void printBigTemp(const DisplayManager& dm, uint8_t x, uint8_t y, uint8_t val,
+                         const char* label)
+{
+    if (val >= 100)
+        dm.printBig(x, y, "-WARN-");
+    else
+        dm.printBigWithLabel(x, y, val, label);
+}
+
+static void renderCockpit17Big(const DisplayManager& dm, const Model::OBDSignals& s)
+{
+    dm.printBig(0, 0, s.instruments.vehicleSpeed);
+    dm.printBig(0, 16, s.instruments.engineRpm);
+    printBigTemp(dm, 0, 39, s.instruments.oilTemp, " O");
+    printBigTemp(dm, 0, 55, s.instruments.coolantTemp, " C");
+    dm.printBigWithLabel(0, 78, s.instruments.fuelLevel, " L");
+    dm.printBigWithLabel(0, 94, s.instruments.ambientTemp, "AIR");
+}
+
+static void renderCockpit01Big(const DisplayManager& dm, const Model::OBDSignals& s)
+{
+    dm.printBig(0, 0, s.instruments.vehicleSpeed);
+    dm.printBig(0, 16, s.instruments.engineRpm);
+    printBigTemp(dm, 0, 32, s.instruments.oilTemp, " O");
+    printBigTemp(dm, 0, 48, s.instruments.coolantTemp, " C");
+    dm.printBig(0, 64, s.engine.engineLoad, '%');
+    dm.printBigScaled10(0, 80, s.engine.tbAngle, 'T');
+    dm.printBigVoltage(0, 96, s.engine.voltage);
+    dm.printBig(0, 112, (int16_t)s.engine.lambda, '%');
+}
+
 void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelected,
                          const Model::OBDSignals& signals, bool forceUpdate)
 {
     using namespace Model;
 
-    // Pre-assemble error bits string for screen 0x01/1 (const_cast is safe: bitsAsString
-    // is a mutable cache field, not logically const).
     if (addrSelected == 0x01 && screen == 1)
     {
         if (signals.engine.errorBitsUpdated || forceUpdate)
@@ -89,23 +99,18 @@ void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelecte
             em.bitsAsString[7] = em.catalyticConverter ? '1' : '0';
             em.bitsAsString[8] = '\0';
         }
+        ScreenCtx ctx{&signals, nullptr, 0, 0};
+        runScript(kCockpit01S1Script, ctx, dm);
+        return;
     }
-
-    ScreenCtx ctx{&signals, nullptr, 0, 0};
-    const uint8_t* script = nullptr;
 
     if (addrSelected == 0x17)
     {
-        script = kCockpit17Script;
+        renderCockpit17Big(dm, signals);
     }
     else if (addrSelected == 0x01)
     {
-        script = (screen == 0) ? kCockpit01S0Script : kCockpit01S1Script;
-    }
-
-    if (script)
-    {
-        runScript(script, ctx, dm);
+        renderCockpit01Big(dm, signals);
     }
     else
     {

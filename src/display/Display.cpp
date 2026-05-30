@@ -244,13 +244,14 @@ void Display::setCursor(uint8_t col, uint8_t row)
     cursorRow_ = row;
 }
 
-void Display::addTextEntry(uint8_t x, uint8_t line, const char* text)
+void Display::addTextEntry(uint8_t x, uint8_t line, const char* text, uint8_t scale)
 {
     if (entryCount_ < kMaxEntries)
     {
         TextEntry& e = entries_[entryCount_++];
         e.x = x;
         e.line = line;
+        e.scale = scale;
         strncpy(e.text, text, kTextLen - 1);
         e.text[kTextLen - 1] = '\0';
     }
@@ -305,6 +306,61 @@ void Display::print(int32_t n)
     print(buf);
 }
 
+void Display::printBig(uint8_t x_px, uint8_t y_px, const char* s)
+{
+    if (s == nullptr || entryCount_ >= kMaxEntries)
+        return;
+    addTextEntry(x_px, y_px, s, 2);
+    markDirty();
+}
+
+void Display::printBig(uint8_t x_px, uint8_t y_px, int32_t n)
+{
+    if (entryCount_ >= kMaxEntries)
+        return;
+    char buf[12];
+    ltoa(n, buf, 10);
+    printBig(x_px, y_px, buf);
+}
+
+// cppcheck-suppress functionStatic
+void Display::drawChar2xToPage(uint8_t x, uint8_t y, char c, uint8_t page, uint8_t* pageBuf)
+{
+    if (x >= 64 || y >= 128)
+        return;
+
+    uint8_t glyph = ((uint8_t)c < 0x20 || (uint8_t)c > 0x7F) ? 0 : (uint8_t)(c - 0x20);
+    const uint8_t* g = &kFont[(uint16_t)glyph * 5];
+
+    // 5 columns × 2 = 10 pixel-wide glyph (+ 2px gap = 12px per char)
+    for (uint8_t col = 0; col < 5; ++col)
+    {
+        uint8_t bits = pgm_read_byte(g + col);
+        uint8_t sx = x + (uint8_t)(col * 2);
+
+        for (uint8_t row = 0; row < 7; ++row)
+        {
+            if (!(bits & (1u << row)))
+                continue;
+
+            // Draw a 2×2 block for this set pixel
+            for (uint8_t dy = 0; dy < 2; ++dy)
+            {
+                uint8_t py = y + (uint8_t)(row * 2) + dy;
+                if ((py >> 3) != page)
+                    continue;
+                uint8_t bit = py & 7u;
+                for (uint8_t dx = 0; dx < 2; ++dx)
+                {
+                    uint8_t px = sx + dx;
+                    if (px < 64)
+                        pageBuf[px] |= (uint8_t)(1u << bit);
+                }
+            }
+        }
+    }
+}
+
 // cppcheck-suppress functionStatic
 void Display::drawCharToPage(uint8_t x, uint8_t y, char c, uint8_t page, uint8_t* pageBuf)
 {
@@ -352,14 +408,27 @@ void Display::flush()
         // Render all entries into this page
         for (uint8_t t = 0; t < entryCount_; ++t)
         {
-            uint8_t y = entries_[t].line * 8; // line to pixel y
-            uint8_t x = entries_[t].x;        // already in pixels
-            const char* s = entries_[t].text;
+            const TextEntry& e = entries_[t];
+            uint8_t x = e.x;
+            const char* s = e.text;
 
-            while (*s && x < 64)
+            if (e.scale == 2)
             {
-                drawCharToPage(x, y, *s++, page, pageBuf);
-                x += 6;
+                uint8_t y = e.line; // raw pixel y for big text
+                while (*s && x < 64)
+                {
+                    drawChar2xToPage(x, y, *s++, page, pageBuf);
+                    x += 12; // 10px glyph + 2px gap
+                }
+            }
+            else
+            {
+                uint8_t y = (uint8_t)(e.line * 8); // row to pixel y
+                while (*s && x < 64)
+                {
+                    drawCharToPage(x, y, *s++, page, pageBuf);
+                    x += 6;
+                }
             }
         }
 
