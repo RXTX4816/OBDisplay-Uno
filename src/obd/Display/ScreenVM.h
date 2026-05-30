@@ -74,7 +74,11 @@ enum FieldId : uint8_t
     FLD_EXP_U1, // char*
     FLD_EXP_U2, // char*
     FLD_EXP_U3, // char*
-                // DebugInfo
+    FLD_EXP_K0,
+    FLD_EXP_K1,
+    FLD_EXP_K2,
+    FLD_EXP_K3,
+    // DebugInfo
     FLD_DBG_CON,
     FLD_DBG_AVA,
     FLD_DBG_BC,
