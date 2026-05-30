@@ -56,7 +56,8 @@ class DisplayManager
     void print(uint8_t x, uint8_t y, const char* s) const;
     void print(uint8_t x, uint8_t y, const char* s, uint8_t width) const;
     void print(uint8_t x, uint8_t y, int32_t value) const;
-    void print(uint8_t x, uint8_t y, float value, uint8_t width = 0) const;
+    // Print a ×10 fixed-point value with one decimal place (e.g. 123 → "12.3").
+    void print(uint8_t x, uint8_t y, int32_t value, uint8_t decimals, uint8_t width = 0) const;
     void clearRegion(uint8_t x, uint8_t y, uint8_t width);
 
   private:

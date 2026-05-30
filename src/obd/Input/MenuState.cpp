@@ -7,11 +7,13 @@ namespace Input
 {
 
 MenuState::MenuState()
-    : currentMenu_(Display::MenuId::Cockpit), cockpitScreen_(0), cockpitScreenMax_(1),
-      experimentalScreen_(0), experimentalScreenMax_(64), debugScreen_(0), debugScreenMax_(4),
-      dtcScreen_(0), dtcScreenMax_(0), settingsScreen_(0), settingsScreenMax_(0),
-      menuChanged_(false), screenChanged_(false)
+    : currentMenu_(Display::MenuId::Cockpit), menuChanged_(false), screenChanged_(false)
 {
+    screens_[0] = {0, 1};  // Cockpit: max 1
+    screens_[1] = {0, 64}; // Experimental: max 64
+    screens_[2] = {0, 4};  // Debug: max 4
+    screens_[3] = {0, 0};  // Dtc: max 0
+    screens_[4] = {0, 0};  // Settings: max 0
 }
 
 void MenuState::nextMenu()
@@ -33,51 +35,21 @@ void MenuState::prevMenu()
     menuChanged_ = true;
 }
 
-void MenuState::nextCockpitScreen()
+void MenuState::nextScreen(Display::MenuId id)
 {
-    if (++cockpitScreen_ > cockpitScreenMax_)
-        cockpitScreen_ = 0;
+    NavCtx& c = screens_[static_cast<uint8_t>(id)];
+    if (++c.current > c.max)
+        c.current = 0;
     screenChanged_ = true;
 }
 
-void MenuState::prevCockpitScreen()
+void MenuState::prevScreen(Display::MenuId id)
 {
-    if (cockpitScreen_ == 0)
-        cockpitScreen_ = cockpitScreenMax_;
+    NavCtx& c = screens_[static_cast<uint8_t>(id)];
+    if (c.current == 0)
+        c.current = c.max;
     else
-        --cockpitScreen_;
-    screenChanged_ = true;
-}
-
-void MenuState::nextExperimentalScreen()
-{
-    if (++experimentalScreen_ > experimentalScreenMax_)
-        experimentalScreen_ = 0;
-    screenChanged_ = true;
-}
-
-void MenuState::prevExperimentalScreen()
-{
-    if (experimentalScreen_ == 0)
-        experimentalScreen_ = experimentalScreenMax_;
-    else
-        --experimentalScreen_;
-    screenChanged_ = true;
-}
-
-void MenuState::nextDebugScreen()
-{
-    if (++debugScreen_ > debugScreenMax_)
-        debugScreen_ = 0;
-    screenChanged_ = true;
-}
-
-void MenuState::prevDebugScreen()
-{
-    if (debugScreen_ == 0)
-        debugScreen_ = debugScreenMax_;
-    else
-        --debugScreen_;
+        --c.current;
     screenChanged_ = true;
 }
 

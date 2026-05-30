@@ -11,7 +11,7 @@ void ExperimentalGroup::reset()
     for (uint8_t i = 0; i < 4; ++i)
     {
         k[i] = 0;
-        v[i] = 123.4f;
+        v[i] = 1234; // 123.4 ×10
         // Reset unit text to "N/A"
         unit[i][0] = 'N';
         unit[i][1] = '/';
@@ -54,26 +54,18 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart)
         abs((int)instruments.fuelLevelStart - (int)instruments.fuelLevel);
     computed.fuelBurnedSinceStartUpdated = true;
 
-    if (computed.elapsedKmSinceStart > 0)
-    {
-        computed.fuelPer100km =
-            (100.0f / computed.elapsedKmSinceStart) * computed.fuelBurnedSinceStart;
-    }
-    else
-    {
-        computed.fuelPer100km = 0.0f;
-    }
+    // fuelPer100km ×10: burned*1000/km (e.g. 5L/60km → 83 = 8.3 L/100km)
+    computed.fuelPer100km = (computed.elapsedKmSinceStart > 0)
+                                ? (uint16_t)((uint32_t)computed.fuelBurnedSinceStart * 1000u /
+                                             computed.elapsedKmSinceStart)
+                                : 0u;
     computed.fuelPer100kmUpdated = true;
 
-    if (computed.elapsedSecondsSinceStart > 0)
-    {
-        computed.fuelPerHour =
-            (3600.0f / computed.elapsedSecondsSinceStart) * computed.fuelBurnedSinceStart;
-    }
-    else
-    {
-        computed.fuelPerHour = 0.0f;
-    }
+    // fuelPerHour ×10: burned*36000/sec (e.g. 5L/1800s → 100 = 10.0 L/h)
+    computed.fuelPerHour = (computed.elapsedSecondsSinceStart > 0)
+                               ? (uint16_t)((uint32_t)computed.fuelBurnedSinceStart * 36000u /
+                                            computed.elapsedSecondsSinceStart)
+                               : 0u;
     computed.fuelPerHourUpdated = true;
 }
 

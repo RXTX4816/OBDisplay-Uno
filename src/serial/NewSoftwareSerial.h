@@ -1,53 +1,18 @@
-/*
-NewSoftwareSerial.h (formerly SoftSerial.h) -
-Multi-instance software serial library for Arduino/Wiring
--- Interrupt-driven receive and other improvements by ladyada
-   (http://ladyada.net)
--- Tuning, circular buffer, derivation from class Print/Stream,
-   multi-instance support, porting to 8MHz processors,
-   various optimizations, PROGMEM delay tables, inverse logic and
-   direct port writing by Mikal Hart (http://www.arduiniana.org)
--- Pin change interrupt macros by Paul Stoffregen (http://www.pjrc.com)
--- 20MHz processor support by Garrett Mace (http://www.macetech.com)
--- ATmega1280/2560 support by Brett Hagman (http://www.roguerobotics.com/)
-
-This library is free software; you can redistribute it and/or
-modify it under the terms of the GNU Lesser General Public
-License as published by the Free Software Foundation; either
-version 2.1 of the License, or (at your option) any later version.
-
-This library is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public
-License along with this library; if not, write to the Free Software
-Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-
-The latest version of this library can always be found at
-http://arduiniana.org.
-*/
-
-#ifndef NewSoftwareSerial_h
-#define NewSoftwareSerial_h
+// SPDX-License-Identifier: LGPL-2.1-or-later
+// Stripped-down software serial for KWP-1281 K-Line communication.
+// Keeps only the 5 baud rates used by VAG ECUs (1200–10400), removes
+// Stream/Print inheritance (~400 bytes), inverse logic, multi-instance
+// support, and peek/flush.  API compatible with KWP1281Session usage:
+// begin(), write(), read(), available().
+#pragma once
 
 #include <inttypes.h>
-#include <Stream.h>
 
-/******************************************************************************
- * Definitions
- ******************************************************************************/
+#define _SS_MAX_RX_BUFF 64
 
-#define _SS_MAX_RX_BUFF 64 // RX buffer size
-#ifndef GCC_VERSION
-#define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
-#endif
-
-class NewSoftwareSerial : public Stream
+class NewSoftwareSerial
 {
   private:
-    // per object data
     uint8_t _receivePin;
     uint8_t _receiveBitMask;
     volatile uint8_t* _receivePortRegister;
@@ -59,59 +24,37 @@ class NewSoftwareSerial : public Stream
     uint16_t _rx_delay_stopbit;
     uint16_t _tx_delay;
 
-    uint16_t _buffer_overflow : 1;
-    uint16_t _inverse_logic : 1;
-
-    // static data
     static char _receive_buffer[_SS_MAX_RX_BUFF];
     static volatile uint8_t _receive_buffer_tail;
     static volatile uint8_t _receive_buffer_head;
-    static NewSoftwareSerial* active_object;
+    static NewSoftwareSerial* _instance; // single instance for ISR
 
-    // private methods
     void recv();
     uint8_t rx_pin_read();
     void tx_pin_write(uint8_t pin_state);
     void setTX(uint8_t transmitPin);
     void setRX(uint8_t receivePin);
 
-    // private static method for timing
     static inline void tunedDelay(uint16_t delay);
 
   public:
-    // public methods
-    NewSoftwareSerial(uint8_t receivePin, uint8_t transmitPin, bool inverse_logic = false);
+    NewSoftwareSerial(uint8_t receivePin, uint8_t transmitPin);
     ~NewSoftwareSerial();
+
     void begin(long speed);
-    bool listen();
     void end();
-    bool isListening() { return this == active_object; }
-    bool overflow()
+    size_t write(uint8_t byte);
+    int read();
+    int available();
+    bool isListening() { return _instance == this; }
+    // cppcheck-suppress functionStatic
+    void flush()
     {
-        bool ret = _buffer_overflow;
-        _buffer_overflow = false;
-        return ret;
+        uint8_t s = SREG;
+        cli();
+        _receive_buffer_head = _receive_buffer_tail = 0;
+        SREG = s;
     }
-    int peek();
 
-    virtual size_t write(uint8_t byte);
-    virtual int read();
-    virtual int available();
-    virtual void flush();
-
-    using Print::write;
-
-    // public only for easy access by interrupt handlers
     static inline void handle_interrupt();
 };
-
-// Arduino 0012 workaround
-#undef int
-#undef char
-#undef long
-#undef byte
-#undef float
-#undef abs
-#undef round
-
-#endif

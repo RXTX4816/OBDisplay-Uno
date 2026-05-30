@@ -74,29 +74,30 @@ void DisplayManager::print(uint8_t x, uint8_t y, const char* s, uint8_t width) c
     display_.print(buf);
 }
 
-// Format a float to one decimal place without pulling in dtostrf/dtoa
-// (saves ~1KB flash). Values here are small (temps, voltages, fuel).
-static void fmtFixed1(float value, char* out)
+// Format a ×10 fixed-point integer with one decimal place (e.g. 123 → "12.3").
+// No float arithmetic — avoids the entire soft-float library on AVR.
+static void fmtScaled(int32_t value, char* out)
 {
-    bool neg = value < 0.0f;
-    if (neg)
-        value = -value;
-    uint32_t scaled = (uint32_t)(value * 10.0f + 0.5f);
     char* p = out;
-    if (neg)
+    if (value < 0)
+    {
         *p++ = '-';
-    utoa((uint16_t)(scaled / 10), p, 10);
+        value = -value;
+    }
+    uint32_t u = (uint32_t)value;
+    utoa((uint16_t)(u / 10), p, 10);
     while (*p != '\0')
         ++p;
     *p++ = '.';
-    *p++ = (char)('0' + (scaled % 10));
+    *p++ = (char)('0' + (u % 10));
     *p = '\0';
 }
 
-void DisplayManager::print(uint8_t x, uint8_t y, float value, uint8_t width) const
+void DisplayManager::print(uint8_t x, uint8_t y, int32_t value, uint8_t /*decimals*/,
+                           uint8_t width) const
 {
     char tmp[12];
-    fmtFixed1(value, tmp);
+    fmtScaled(value, tmp);
     if (width == 0)
     {
         display_.setCursor(x, y);
@@ -122,7 +123,7 @@ void DisplayManager::initMenu(const Input::MenuState& menuState, uint8_t addrSel
     switch (menuState.currentMenu())
     {
         case MenuId::Cockpit:
-            initMenuCockpit(menuState.cockpitScreen(), addrSelected);
+            initMenuCockpit(menuState.screen(MenuId::Cockpit), addrSelected);
             break;
         case MenuId::Experimental:
             initMenuExperimental();
@@ -131,10 +132,10 @@ void DisplayManager::initMenu(const Input::MenuState& menuState, uint8_t addrSel
             initMenuDebug();
             break;
         case MenuId::Dtc:
-            initMenuDtc(menuState.dtcScreen());
+            initMenuDtc(menuState.screen(MenuId::Dtc));
             break;
         case MenuId::Settings:
-            initMenuSettings(menuState.settingsScreen());
+            initMenuSettings(menuState.screen(MenuId::Settings));
             break;
     }
 }
@@ -146,19 +147,20 @@ void DisplayManager::render(const Input::MenuState& menuState, const Model::OBDS
     switch (menuState.currentMenu())
     {
         case MenuId::Cockpit:
-            displayMenuCockpit(menuState.cockpitScreen(), addrSelected, signals, forceUpdate);
+            displayMenuCockpit(menuState.screen(MenuId::Cockpit), addrSelected, signals,
+                               forceUpdate);
             break;
         case MenuId::Experimental:
-            displayMenuExperimental(menuState.experimentalScreen(), signals, forceUpdate);
+            displayMenuExperimental(menuState.screen(MenuId::Experimental), signals, forceUpdate);
             break;
         case MenuId::Debug:
-            displayMenuDebug(menuState.debugScreen(), signals, kwpModeInt, forceUpdate);
+            displayMenuDebug(menuState.screen(MenuId::Debug), signals, kwpModeInt, forceUpdate);
             break;
         case MenuId::Dtc:
-            displayMenuDtc(menuState.dtcScreen(), dtcStore, forceUpdate);
+            displayMenuDtc(menuState.screen(MenuId::Dtc), dtcStore, forceUpdate);
             break;
         case MenuId::Settings:
-            displayMenuSettings(menuState.settingsScreen(), kwpModeInt, forceUpdate);
+            displayMenuSettings(menuState.screen(MenuId::Settings), kwpModeInt, forceUpdate);
             break;
     }
 }
