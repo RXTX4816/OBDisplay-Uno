@@ -223,9 +223,9 @@ void DisplayManager::renderDtcMenu(uint8_t cursor, bool showActive, uint8_t show
     renderDtcScreen(*this, cursor, showActive, showPage, dtcCount, dtcStore);
 }
 
-void DisplayManager::renderSettings(uint8_t cursor, int kwpModeInt)
+void DisplayManager::renderSettings(uint8_t cursor, int kwpModeInt, bool autoReconnect)
 {
-    renderSettingsScreen(*this, cursor, kwpModeInt);
+    renderSettingsScreen(*this, cursor, kwpModeInt, autoReconnect);
 }
 
 void DisplayManager::renderDebug(const DebugInfo& di, int kwpModeInt)

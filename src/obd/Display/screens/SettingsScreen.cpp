@@ -13,14 +13,17 @@ static const uint8_t PROGMEM kSettingsScript[] = {
     SO_CURSOR,   0, 2, 0, 4, 'E','x','i','t',
     SO_CURSOR,   0, 4, 1, 4, 'K','W','P',':',
     SO_MODE_STR, 5, 4, FLD_KWP_MODE,
+    SO_CURSOR,   0, 6, 2, 8, 'A','u','t','o','R','c','n',':',
     SO_END
 };
 // clang-format on
 
-void renderSettingsScreen(const DisplayManager& dm, uint8_t cursor, int kwpModeInt)
+void renderSettingsScreen(const DisplayManager& dm, uint8_t cursor, int kwpModeInt,
+                          bool autoReconnect)
 {
     ScreenCtx ctx{nullptr, nullptr, cursor, (uint8_t)kwpModeInt};
     runScript(kSettingsScript, ctx, dm);
+    dm.print(9, 6, autoReconnect ? F("Y") : F("N"));
 }
 
 } // namespace Display
