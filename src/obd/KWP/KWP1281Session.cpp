@@ -372,6 +372,8 @@ bool KWP1281Session::connectToEcu(bool simulationMode, bool autoSetup, uint16_t&
     (void)autoSetup;
 
     lastConnectError_ = 0;
+    blockCounter_ = 0;
+    comError_ = false;
     setConfig(baudRate, addrSelected);
     if (baudRate_ == 0)
     {
@@ -421,11 +423,11 @@ bool KWP1281Session::connectToEcu(bool simulationMode, bool autoSetup, uint16_t&
 
 void KWP1281Session::disconnect()
 {
-    if (!connected_)
-        return;
-    obd_.end();
+    if (connected_)
+        obd_.end();
     connected_ = false;
     blockCounter_ = 0;
+    comError_ = false;
 }
 
 bool KWP1281Session::keepAlive()
