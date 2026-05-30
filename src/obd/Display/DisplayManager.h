@@ -49,7 +49,7 @@ class DisplayManager
     // Menu-specific render overrides that bypass the generic render() path.
     void renderDtcMenu(uint8_t cursor, bool showActive, uint8_t showPage, int8_t dtcCount,
                        const Model::DTCStore& dtcStore);
-    void renderSettings(uint8_t cursor, int kwpModeInt);
+    void renderSettings(uint8_t cursor, int kwpModeInt, bool autoReconnect);
     void renderDebug(const DebugInfo& di, int kwpModeInt);
 
     void print(uint8_t x, uint8_t y, const __FlashStringHelper* s) const;

@@ -61,6 +61,10 @@ class OBDDisplay
     // Settings menu state
     uint8_t settingsMenuCursor_ = 0; // 0=Exit, 1=KWP Mode
 
+    bool autoReconnect_ = true;
+    uint8_t reconnectAttempts_ = 0;
+    uint32_t reconnectAfterMs_ = 0;
+
     bool connected_;
     bool wasConnected_ = false;
     bool lastConnectionFailed_ = false;
@@ -84,7 +88,7 @@ class OBDDisplay
     } phase_ = Phase::Setup;
 
     void startupAnimation_();
-    void runSetupFlow_();
+    void runSetupFlow_(uint8_t startStage = 0);
     void showWaitingScreen_();
     static int16_t freeRam_();
     void resetState_();

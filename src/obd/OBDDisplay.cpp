@@ -17,6 +17,7 @@ using namespace Input;
 static constexpr uint16_t ECU_TIMEOUT_MS = 1300;
 static constexpr uint16_t DISPLAY_FRAME_LENGTH_MS = 177;
 static constexpr uint16_t BUTTON_TIMEOUT_MS = 222;
+static constexpr uint16_t RECONNECT_DELAY_MS = 5000;
 static constexpr uint16_t BUTTON_REPEAT_INITIAL_MS = 400; // delay before first auto-repeat
 static constexpr uint16_t BUTTON_REPEAT_PERIOD_MS = 120;  // interval between repeats
 
@@ -66,6 +67,7 @@ void OBDDisplay::begin()
     connectTimeStart_ = millis();
     displayFrameTimestamp_ = millis();
     buttonTimeoutUntil_ = 0;
+    reconnectAfterMs_ = millis() + RECONNECT_DELAY_MS;
 }
 
 void OBDDisplay::startupAnimation_()
@@ -100,112 +102,209 @@ void OBDDisplay::startupAnimation_()
 void OBDDisplay::showWaitingScreen_()
 {
     display_.clear();
-    // Show confirmed configuration as a summary at the top.
     display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
     display_.print(0, 1, F("Baud:"));
     display_.print(5, 1, (int32_t)baudRate_);
     display_.print(0, 2, addrSelected_ == 0x17 ? F("Addr: 0x17") : F("Addr: 0x01"));
+    display_.print(0, 3, autoReconnect_ ? F("AutoRcn: Y") : F("AutoRcn: N"));
     display_.print(0, 4, F("--------"));
-    display_.print(0, 6, F("< ENTER >"));
-    display_.print(0, 8, F("< SELECT>"));
+    if (autoReconnect_)
+    {
+        display_.print(0, 6, F("AUTO"));
+        display_.print(0, 8, F("CONNECT"));
+    }
+    else
+    {
+        display_.print(0, 6, F("< ENTER >"));
+        display_.print(0, 8, F("< SELECT>"));
+    }
 }
 
-void OBDDisplay::runSetupFlow_()
+void OBDDisplay::runSetupFlow_(uint8_t startStage)
 {
-    // Progressive single-screen setup: each confirmed choice is pinned to
-    // the top, then the next choice appears below it.
-
-    int8_t userSimMode = -1; // 0 = ECU, 1 = SIM
-    if (connectionAttempts_ > 0)
-        userSimMode = simulationModeActive_ ? 1 : 0;
-
+    reconnectAttempts_ = 0;
     signals_.reset();
     dtcStore_.reset();
 
-    if (!autoSetup_)
+    if (autoSetup_)
     {
-        // Stage 1: Mode selection (centered on blank screen)
-        display_.beginBatch();
-        display_.clear();
-        display_.print(0, 5, F("Mode:"));
-        display_.print(0, 7, F("< ECU"));
-        display_.print(0, 8, F("  SIM >"));
-        display_.endBatch();
+        kwp_.setConfig(baudRate_, addrSelected_);
+        return;
+    }
 
-        while (userSimMode == -1)
+    static const uint16_t supportedBaudRates[5] = {1200, 2400, 4800, 9600, 10400};
+
+    // Track baud index across back-navigation; seed from current baudRate_ if valid.
+    uint8_t baudPtr = 3; // default 9600
+    for (uint8_t i = 0; i < 5; ++i)
+        if (supportedBaudRates[i] == baudRate_)
         {
-            if (digitalRead(BTN_PIN_RIGHT) == LOW)
-                userSimMode = 1;
-            else if (digitalRead(BTN_PIN_LEFT) == LOW)
-                userSimMode = 0;
+            baudPtr = i;
+            break;
         }
-        simulationModeActive_ = (userSimMode == 1);
 
-        // Stage 2: Baud rate — confirmed mode pinned at row 0
-        const uint16_t supportedBaudRates[5] = {1200, 2400, 4800, 9600, 10400};
-        uint8_t baudPtr = 3; // default 9600
-        uint16_t userBaud = supportedBaudRates[baudPtr];
-        char baudStr[8];
-
-        auto drawBaudScreen = [&]()
+    uint8_t stage = startStage;
+    while (stage <= 3)
+    {
+        switch (stage)
         {
-            display_.beginBatch();
-            display_.clear();
-            display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
-            display_.print(0, 2, F("Baud:"));
-            ltoa((long)userBaud, baudStr, 10);
-            display_.print(0, 3, F("< Sel >"));
-            display_.print(0, 4, baudStr, 8);
-            display_.endBatch();
-        };
-        drawBaudScreen();
+            case 0: // Mode: ECU or SIM
+            {
+                display_.beginBatch();
+                display_.clear();
+                display_.print(0, 5, F("Mode:"));
+                display_.print(0, 7, F("< ECU"));
+                display_.print(0, 8, F("  SIM >"));
+                display_.endBatch();
 
-        bool pressedEnter = false;
-        while (!pressedEnter)
-        {
-            if (digitalRead(BTN_PIN_RIGHT) == LOW)
-            {
-                baudPtr = (baudPtr >= 4) ? 0 : static_cast<uint8_t>(baudPtr + 1);
-                userBaud = supportedBaudRates[baudPtr];
-                drawBaudScreen();
-                delay(333);
+                for (;;)
+                {
+                    if (digitalRead(BTN_PIN_RIGHT) == LOW)
+                    {
+                        simulationModeActive_ = true;
+                        delay(333);
+                        break;
+                    }
+                    if (digitalRead(BTN_PIN_LEFT) == LOW)
+                    {
+                        simulationModeActive_ = false;
+                        delay(333);
+                        break;
+                    }
+                }
+                stage = 1;
+                break;
             }
-            else if (digitalRead(BTN_PIN_LEFT) == LOW)
+            case 1: // Baud rate
             {
-                baudPtr = (baudPtr == 0) ? 4 : static_cast<uint8_t>(baudPtr - 1);
-                userBaud = supportedBaudRates[baudPtr];
-                drawBaudScreen();
-                delay(333);
+                char baudStr[8];
+                auto drawBaud = [&]()
+                {
+                    display_.beginBatch();
+                    display_.clear();
+                    display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
+                    display_.print(0, 2, F("Baud:"));
+                    ltoa((long)supportedBaudRates[baudPtr], baudStr, 10);
+                    display_.print(0, 3, F("< Sel >"));
+                    display_.print(0, 4, baudStr, 8);
+                    display_.endBatch();
+                };
+                drawBaud();
+
+                bool done = false;
+                while (!done)
+                {
+                    if (digitalRead(BTN_PIN_UP) == LOW)
+                    {
+                        delay(333);
+                        stage = 0;
+                        done = true;
+                    }
+                    else if (digitalRead(BTN_PIN_RIGHT) == LOW)
+                    {
+                        baudPtr = (baudPtr >= 4) ? 0 : static_cast<uint8_t>(baudPtr + 1);
+                        drawBaud();
+                        delay(333);
+                    }
+                    else if (digitalRead(BTN_PIN_LEFT) == LOW)
+                    {
+                        baudPtr = (baudPtr == 0) ? 4 : static_cast<uint8_t>(baudPtr - 1);
+                        drawBaud();
+                        delay(333);
+                    }
+                    else if (digitalRead(BTN_PIN_MID) == LOW)
+                    {
+                        baudRate_ = supportedBaudRates[baudPtr];
+                        delay(333);
+                        stage = 2;
+                        done = true;
+                    }
+                    delay(10);
+                }
+                break;
             }
-            else if (digitalRead(BTN_PIN_MID) == LOW)
+            case 2: // ECU address
             {
-                pressedEnter = true;
+                uint8_t prevAddr = addrSelected_;
+                display_.beginBatch();
+                display_.clear();
+                display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
+                display_.print(0, 1, F("Baud:"));
+                display_.print(5, 1, (int32_t)baudRate_);
+                display_.print(0, 3, F("Addr:"));
+                display_.print(0, 4, F("< 0x01"));
+                display_.print(0, 5, F("  0x17 >"));
+                display_.endBatch();
+
+                for (;;)
+                {
+                    if (digitalRead(BTN_PIN_UP) == LOW)
+                    {
+                        delay(333);
+                        stage = 1;
+                        break;
+                    }
+                    if (digitalRead(BTN_PIN_RIGHT) == LOW)
+                    {
+                        addrSelected_ = 0x17;
+                        delay(333);
+                        stage = 3;
+                        break;
+                    }
+                    if (digitalRead(BTN_PIN_LEFT) == LOW)
+                    {
+                        addrSelected_ = 0x01;
+                        delay(333);
+                        stage = 3;
+                        break;
+                    }
+                }
+                if (addrSelected_ != prevAddr)
+                    reconnectAttempts_ = 0;
+                break;
             }
-            delay(10);
+            case 3: // Auto-reconnect
+            {
+                display_.beginBatch();
+                display_.clear();
+                display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
+                display_.print(0, 1, F("Baud:"));
+                display_.print(5, 1, (int32_t)baudRate_);
+                display_.print(0, 2, addrSelected_ == 0x17 ? F("Addr: 0x17") : F("Addr: 0x01"));
+                display_.print(0, 4, F("AutoRcn:"));
+                display_.print(0, 5, F("< N"));
+                display_.print(0, 6, F("  Y >"));
+                display_.endBatch();
+
+                for (;;)
+                {
+                    if (digitalRead(BTN_PIN_UP) == LOW)
+                    {
+                        delay(333);
+                        stage = 2;
+                        break;
+                    }
+                    if (digitalRead(BTN_PIN_RIGHT) == LOW)
+                    {
+                        autoReconnect_ = true;
+                        delay(333);
+                        stage = 4;
+                        break;
+                    }
+                    if (digitalRead(BTN_PIN_LEFT) == LOW)
+                    {
+                        autoReconnect_ = false;
+                        delay(333);
+                        stage = 4;
+                        break;
+                    }
+                }
+                break;
+            }
+            default:
+                stage = 4; // exit loop
+                break;
         }
-        baudRate_ = userBaud;
-        delay(333);
-
-        // Stage 3: ECU address — mode and baud pinned at rows 0-1
-        int8_t userAddr = -1;
-        display_.beginBatch();
-        display_.clear();
-        display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
-        display_.print(0, 1, F("Baud:"));
-        display_.print(5, 1, (int32_t)baudRate_);
-        display_.print(0, 3, F("Addr:"));
-        display_.print(0, 4, F("< 0x01"));
-        display_.print(0, 5, F("  0x17 >"));
-        display_.endBatch();
-
-        while (userAddr == -1)
-        {
-            if (digitalRead(BTN_PIN_RIGHT) == LOW)
-                userAddr = 1;
-            else if (digitalRead(BTN_PIN_LEFT) == LOW)
-                userAddr = 0;
-        }
-        addrSelected_ = (userAddr == 0) ? 0x01 : 0x17;
     }
 
     kwp_.setConfig(baudRate_, addrSelected_);
@@ -229,33 +328,66 @@ void OBDDisplay::update()
         connectTimeStart_ = millis();
         displayFrameTimestamp_ = millis();
         buttonTimeoutUntil_ = 0;
+        reconnectAfterMs_ = millis() + RECONNECT_DELAY_MS;
         return;
     }
 
     if (phase_ == Phase::WaitingForConnect)
     {
-        // Block connection attempts until user presses SELECT. Respect
-        // the button timeout so that a SELECT used to exit does not
-        // immediately auto-connect.
-        if (millis() < buttonTimeoutUntil_ || !buttons_.isSelectPressed())
+        uint32_t now = millis();
+
+        // UP while autoReconnect is off: re-enter setup starting at AutoRCN stage so
+        // the user can step back through their settings.
+        if (!autoReconnect_ && now >= buttonTimeoutUntil_ && digitalRead(BTN_PIN_UP) == LOW)
         {
-            // Keep showing the "Press SELECT" screen; no ECU comms yet.
+            runSetupFlow_(3);
+            showWaitingScreen_();
+            buttonTimeoutUntil_ = millis() + BUTTON_TIMEOUT_MS;
+            reconnectAfterMs_ = millis() + RECONNECT_DELAY_MS;
             return;
         }
 
-        // Transition to running phase and force cockpit to re-init so
-        // labels are drawn immediately after leaving the PRESS SELECT
-        // screen.
+        // LEFT or RIGHT toggles auto-reconnect (debounced via buttonTimeoutUntil_).
+        if (now >= buttonTimeoutUntil_ &&
+            (digitalRead(BTN_PIN_LEFT) == LOW || digitalRead(BTN_PIN_RIGHT) == LOW))
+        {
+            autoReconnect_ = !autoReconnect_;
+            if (!autoReconnect_)
+                reconnectAttempts_ = 0;
+            buttonTimeoutUntil_ = now + BUTTON_TIMEOUT_MS;
+            showWaitingScreen_();
+            return;
+        }
+
+        bool shouldConnect = false;
+
+        if (autoReconnect_ && now >= reconnectAfterMs_)
+        {
+            reconnectAttempts_++;
+            if (reconnectAttempts_ > 5)
+            {
+                autoReconnect_ = false;
+                reconnectAttempts_ = 0;
+                showWaitingScreen_();
+                return;
+            }
+            shouldConnect = true;
+        }
+        else if (now >= buttonTimeoutUntil_ && buttons_.isSelectPressed())
+        {
+            reconnectAttempts_ = 0;
+            shouldConnect = true;
+        }
+
+        if (!shouldConnect)
+            return;
+
         phase_ = Phase::Running;
         menuState_ = Input::MenuState();
         menuState_.markMenuChanged();
 
-        // In simulation mode, there is no real ECU to connect to; treat as
-        // immediately "connected" and skip ensureConnected_().
         if (simulationModeActive_)
-        {
             connected_ = true;
-        }
     }
 
     // Always keep UI responsive, even when not connected to an ECU.
@@ -297,6 +429,7 @@ bool OBDDisplay::ensureConnected_()
         display_.print(0, 8, F("Lost"));
         delay(1000);
 
+        reconnectAfterMs_ = millis() + RECONNECT_DELAY_MS;
         phase_ = Phase::WaitingForConnect;
         showWaitingScreen_();
         buttonTimeoutUntil_ = 0;
@@ -318,6 +451,7 @@ bool OBDDisplay::ensureConnected_()
     if (lastConnectionFailed_)
     {
         lastConnectionFailed_ = false;
+        reconnectAfterMs_ = millis() + RECONNECT_DELAY_MS;
         phase_ = Phase::WaitingForConnect;
         showWaitingScreen_();
         buttonTimeoutUntil_ = 0;
@@ -586,10 +720,9 @@ void OBDDisplay::handleInput_()
                 }
                 break;
             case MenuId::Settings:
-                // Single screen: up/down toggles between Exit (0) and KWP Mode (1)
                 if (btns & BTN_MASK_UP || btns & BTN_MASK_DOWN)
                 {
-                    settingsMenuCursor_ = (settingsMenuCursor_ + 1) % 2;
+                    settingsMenuCursor_ = (settingsMenuCursor_ + 1) % 3;
                     any = true;
                 }
                 else if (btns & BTN_MASK_MID)
@@ -599,9 +732,17 @@ void OBDDisplay::handleInput_()
                         actions.requestExit = true;
                         any = true;
                     }
-                    else
+                    else if (settingsMenuCursor_ == 1)
                     {
                         actions.toggleKwpMode = true;
+                        any = true;
+                    }
+                    else
+                    {
+                        autoReconnect_ = !autoReconnect_;
+                        if (!autoReconnect_)
+                            reconnectAttempts_ = 0;
+                        menuState_.markScreenChanged();
                         any = true;
                     }
                 }
@@ -803,7 +944,8 @@ void OBDDisplay::updateDisplay_()
                     break;
 
                 case MenuId::Settings:
-                    display_.renderSettings(settingsMenuCursor_, static_cast<int>(kwpMode_));
+                    display_.renderSettings(settingsMenuCursor_, static_cast<int>(kwpMode_),
+                                            autoReconnect_);
                     break;
 
                 case MenuId::Debug:
@@ -812,7 +954,7 @@ void OBDDisplay::updateDisplay_()
                     di.serialCon = obdSerial_.isListening() ? 1u : 0u;
                     di.serialAva = (uint8_t)min((int)obdSerial_.available(), 255);
                     di.blockCtr = kwp_.getBlockCounter();
-                    di.attempts = (uint8_t)min(connectionAttempts_, (uint16_t)255);
+                    di.attempts = reconnectAttempts_;
                     di.addr = addrSelected_;
                     di.baud = baudRate_;
                     di.group = kwpGroup_;
