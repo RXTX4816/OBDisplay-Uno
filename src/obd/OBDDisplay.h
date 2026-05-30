@@ -43,7 +43,9 @@ class OBDDisplay
     uint8_t addrSelected_;
     KWP::Mode kwpMode_;
     KWP::Mode kwpModeLast_;
+    KWP::Mode kwpModeBeforeGroup_;
     uint8_t kwpGroup_;
+    bool inGroupScreen_;
 
     // DTC menu state
     uint8_t dtcMenuCursor_ = 0; // 0=Read, 1=Clear, 2=Show

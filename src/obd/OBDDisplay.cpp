@@ -38,8 +38,9 @@ OBDDisplay::OBDDisplay(uint8_t rxPin, uint8_t txPin, ::Display& display)
     : obdSerial_(rxPin, txPin), display_(display), kwp_(obdSerial_, txPin), signals_(), dtcStore_(),
       menuState_(), buttons_(BTN_PIN_UP, BTN_PIN_DOWN, BTN_PIN_LEFT, BTN_PIN_RIGHT, BTN_PIN_MID),
       simulationModeActive_(false), autoSetup_(false), baudRate_(0), addrSelected_(0x00),
-      kwpMode_(Mode::ReadSensors), kwpModeLast_(Mode::ReadSensors), kwpGroup_(1), connected_(false),
-      connectTimeStart_(0), displayFrameTimestamp_(0), buttonTimeoutUntil_(0)
+      kwpMode_(Mode::ReadSensors), kwpModeLast_(Mode::ReadSensors),
+      kwpModeBeforeGroup_(Mode::ReadSensors), kwpGroup_(1), inGroupScreen_(false),
+      connected_(false), connectTimeStart_(0), displayFrameTimestamp_(0), buttonTimeoutUntil_(0)
 {
 }
 
@@ -655,6 +656,24 @@ void OBDDisplay::handleInput_()
         }
         menuState_.markScreenChanged();
     }
+    // Auto-switch to ReadGroup when entering the Experimental (Group) screen,
+    // and restore the previous mode when leaving.
+    {
+        bool nowInGroup = (menuState_.currentMenu() == Display::MenuId::Experimental);
+        if (nowInGroup && !inGroupScreen_)
+        {
+            kwpModeBeforeGroup_ = kwpMode_;
+            kwpMode_ = Mode::ReadGroup;
+            menuState_.markScreenChanged();
+        }
+        else if (!nowInGroup && inGroupScreen_)
+        {
+            kwpMode_ = kwpModeBeforeGroup_;
+            menuState_.markScreenChanged();
+        }
+        inGroupScreen_ = nowInGroup;
+    }
+
     // Keep groupCurrent and kwpGroup_ in sync with the experimental screen index.
     if (menuState_.currentMenu() == Display::MenuId::Experimental)
     {
