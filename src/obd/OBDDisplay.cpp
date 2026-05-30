@@ -35,6 +35,27 @@ static constexpr uint8_t BTN_MASK_UP = 0x04;
 static constexpr uint8_t BTN_MASK_DOWN = 0x08;
 static constexpr uint8_t BTN_MASK_MID = 0x10;
 
+// ECU address list (PROGMEM to save RAM)
+static const uint8_t kEcuAddrs[] PROGMEM = {0x01, 0x03, 0x08, 0x17, 0x19, 0x46};
+static const char kEcuN0[] PROGMEM = "Engine";
+static const char kEcuN1[] PROGMEM = "ABS Brakes";
+static const char kEcuN2[] PROGMEM = "Auto HVAC";
+static const char kEcuN3[] PROGMEM = "Instrument";
+static const char kEcuN4[] PROGMEM = "CAN Gatway";
+static const char kEcuN5[] PROGMEM = "Cntr Conv.";
+static PGM_P const kEcuNames[] PROGMEM = {kEcuN0, kEcuN1, kEcuN2, kEcuN3, kEcuN4, kEcuN5};
+static constexpr uint8_t kEcuCount = 6;
+
+static uint8_t ecuAddrAt(uint8_t i)
+{
+    return pgm_read_byte(&kEcuAddrs[i]);
+}
+static void ecuNameAt(uint8_t i, char* buf)
+{
+    strncpy_P(buf, (PGM_P)pgm_read_word(&kEcuNames[i]), 10);
+    buf[10] = '\0';
+}
+
 OBDDisplay::OBDDisplay(uint8_t rxPin, uint8_t txPin, ::Display& display)
     : obdSerial_(rxPin, txPin), display_(display), kwp_(obdSerial_, txPin), signals_(), dtcStore_(),
       menuState_(), buttons_(BTN_PIN_UP, BTN_PIN_DOWN, BTN_PIN_LEFT, BTN_PIN_RIGHT, BTN_PIN_MID),
@@ -105,7 +126,13 @@ void OBDDisplay::showWaitingScreen_()
     display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
     display_.print(0, 1, F("Baud:"));
     display_.print(5, 1, (int32_t)baudRate_);
-    display_.print(0, 2, addrSelected_ == 0x17 ? F("Addr: 0x17") : F("Addr: 0x01"));
+    {
+        char addrBuf[11] = "Addr: 0x";
+        addrBuf[8] = "0123456789ABCDEF"[(addrSelected_ >> 4) & 0xF];
+        addrBuf[9] = "0123456789ABCDEF"[addrSelected_ & 0xF];
+        addrBuf[10] = '\0';
+        display_.print(0, 2, addrBuf);
+    }
     display_.print(0, 3, autoReconnect_ ? F("AutoRcn: Y") : F("AutoRcn: N"));
     display_.print(0, 4, F("--------"));
     if (autoReconnect_)
@@ -118,6 +145,7 @@ void OBDDisplay::showWaitingScreen_()
         display_.print(0, 6, F("< ENTER >"));
         display_.print(0, 8, F("< SELECT>"));
     }
+    display_.flush();
 }
 
 void OBDDisplay::runSetupFlow_(uint8_t startStage)
@@ -187,6 +215,7 @@ void OBDDisplay::runSetupFlow_(uint8_t startStage)
                     ltoa((long)supportedBaudRates[baudPtr], baudStr, 10);
                     display_.print(0, 3, F("< Sel >"));
                     display_.print(0, 4, baudStr, 8);
+                    display_.print(0, 15, F("UP:back"));
                     display_.endBatch();
                 };
                 drawBaud();
@@ -226,38 +255,72 @@ void OBDDisplay::runSetupFlow_(uint8_t startStage)
             case 2: // ECU address
             {
                 uint8_t prevAddr = addrSelected_;
-                display_.beginBatch();
-                display_.clear();
-                display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
-                display_.print(0, 1, F("Baud:"));
-                display_.print(5, 1, (int32_t)baudRate_);
-                display_.print(0, 3, F("Addr:"));
-                display_.print(0, 4, F("< 0x01"));
-                display_.print(0, 5, F("  0x17 >"));
-                display_.endBatch();
 
-                for (;;)
+                // Seed addrPtr from the current selection.
+                uint8_t addrPtr = 0;
+                for (uint8_t i = 0; i < kEcuCount; ++i)
+                    if (ecuAddrAt(i) == addrSelected_)
+                    {
+                        addrPtr = i;
+                        break;
+                    }
+
+                char nameBuf[11];
+                char hexBuf[5]; // "0x01"
+                auto drawAddr = [&]()
+                {
+                    ecuNameAt(addrPtr, nameBuf);
+                    uint8_t a = ecuAddrAt(addrPtr);
+                    hexBuf[0] = '0';
+                    hexBuf[1] = 'x';
+                    hexBuf[2] = "0123456789ABCDEF"[(a >> 4) & 0xF];
+                    hexBuf[3] = "0123456789ABCDEF"[a & 0xF];
+                    hexBuf[4] = '\0';
+                    display_.beginBatch();
+                    display_.clear();
+                    display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
+                    display_.print(0, 1, F("Baud:"));
+                    display_.print(5, 1, (int32_t)baudRate_);
+                    display_.print(0, 3, F("ECU Addr:"));
+                    display_.print(0, 4, F("< Sel >"));
+                    display_.print(0, 5, hexBuf);
+                    display_.print(0, 6, nameBuf);
+                    display_.print(0, 15, F("UP:back"));
+                    display_.endBatch();
+                };
+                drawAddr();
+
+                bool done = false;
+                while (!done)
                 {
                     if (digitalRead(BTN_PIN_UP) == LOW)
                     {
                         delay(333);
                         stage = 1;
-                        break;
+                        done = true;
                     }
-                    if (digitalRead(BTN_PIN_RIGHT) == LOW)
+                    else if (digitalRead(BTN_PIN_RIGHT) == LOW)
                     {
-                        addrSelected_ = 0x17;
+                        addrPtr =
+                            (addrPtr >= kEcuCount - 1) ? 0 : static_cast<uint8_t>(addrPtr + 1);
+                        drawAddr();
+                        delay(333);
+                    }
+                    else if (digitalRead(BTN_PIN_LEFT) == LOW)
+                    {
+                        addrPtr = (addrPtr == 0) ? static_cast<uint8_t>(kEcuCount - 1)
+                                                 : static_cast<uint8_t>(addrPtr - 1);
+                        drawAddr();
+                        delay(333);
+                    }
+                    else if (digitalRead(BTN_PIN_MID) == LOW)
+                    {
+                        addrSelected_ = ecuAddrAt(addrPtr);
                         delay(333);
                         stage = 3;
-                        break;
+                        done = true;
                     }
-                    if (digitalRead(BTN_PIN_LEFT) == LOW)
-                    {
-                        addrSelected_ = 0x01;
-                        delay(333);
-                        stage = 3;
-                        break;
-                    }
+                    delay(10);
                 }
                 if (addrSelected_ != prevAddr)
                     reconnectAttempts_ = 0;
@@ -270,10 +333,25 @@ void OBDDisplay::runSetupFlow_(uint8_t startStage)
                 display_.print(0, 0, simulationModeActive_ ? F("Mode: SIM") : F("Mode: ECU"));
                 display_.print(0, 1, F("Baud:"));
                 display_.print(5, 1, (int32_t)baudRate_);
-                display_.print(0, 2, addrSelected_ == 0x17 ? F("Addr: 0x17") : F("Addr: 0x01"));
+                {
+                    char addrBuf[11];
+                    addrBuf[0] = 'A';
+                    addrBuf[1] = 'd';
+                    addrBuf[2] = 'd';
+                    addrBuf[3] = 'r';
+                    addrBuf[4] = ':';
+                    addrBuf[5] = ' ';
+                    addrBuf[6] = '0';
+                    addrBuf[7] = 'x';
+                    addrBuf[8] = "0123456789ABCDEF"[(addrSelected_ >> 4) & 0xF];
+                    addrBuf[9] = "0123456789ABCDEF"[addrSelected_ & 0xF];
+                    addrBuf[10] = '\0';
+                    display_.print(0, 2, addrBuf);
+                }
                 display_.print(0, 4, F("AutoRcn:"));
                 display_.print(0, 5, F("< N"));
                 display_.print(0, 6, F("  Y >"));
+                display_.print(0, 15, F("UP:back"));
                 display_.endBatch();
 
                 for (;;)
@@ -427,6 +505,7 @@ bool OBDDisplay::ensureConnected_()
         display_.clear();
         display_.print(0, 6, F("Conn. ERR"));
         display_.print(0, 8, F("Lost"));
+        display_.flush();
         delay(1000);
 
         reconnectAfterMs_ = millis() + RECONNECT_DELAY_MS;
@@ -492,6 +571,7 @@ bool OBDDisplay::ensureConnected_()
             }
             if (reason)
                 display_.print(0, 2, reason);
+            display_.flush();
 
             delay(3000);
 
@@ -720,7 +800,12 @@ void OBDDisplay::handleInput_()
                 }
                 break;
             case MenuId::Settings:
-                if (btns & BTN_MASK_UP || btns & BTN_MASK_DOWN)
+                if (btns & BTN_MASK_UP)
+                {
+                    settingsMenuCursor_ = (settingsMenuCursor_ + 2) % 3;
+                    any = true;
+                }
+                else if (btns & BTN_MASK_DOWN)
                 {
                     settingsMenuCursor_ = (settingsMenuCursor_ + 1) % 3;
                     any = true;
@@ -945,7 +1030,8 @@ void OBDDisplay::updateDisplay_()
 
                 case MenuId::Settings:
                     display_.renderSettings(settingsMenuCursor_, static_cast<int>(kwpMode_),
-                                            autoReconnect_);
+                                            autoReconnect_, kwp_.ecuLinesData(),
+                                            kwp_.ecuLineCount());
                     break;
 
                 case MenuId::Debug:

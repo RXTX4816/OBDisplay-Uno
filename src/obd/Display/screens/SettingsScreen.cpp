@@ -19,11 +19,18 @@ static const uint8_t PROGMEM kSettingsScript[] = {
 // clang-format on
 
 void renderSettingsScreen(const DisplayManager& dm, uint8_t cursor, int kwpModeInt,
-                          bool autoReconnect)
+                          bool autoReconnect, const char (*ecuLines)[11], uint8_t ecuLineCount)
 {
     ScreenCtx ctx{nullptr, nullptr, cursor, (uint8_t)kwpModeInt};
     runScript(kSettingsScript, ctx, dm);
     dm.print(9, 6, autoReconnect ? F("Y") : F("N"));
+
+    if (ecuLineCount > 0)
+    {
+        dm.print(0, 8, F("ECU ID:"));
+        for (uint8_t i = 0; i < ecuLineCount && i < 6; ++i)
+            dm.print(0, (uint8_t)(9 + i), ecuLines[i]);
+    }
 }
 
 } // namespace Display

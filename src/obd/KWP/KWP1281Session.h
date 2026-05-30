@@ -39,6 +39,10 @@ class KWP1281Session
     uint8_t getBlockCounter() const { return blockCounter_; }
     uint8_t lastConnectError() const { return lastConnectError_; }
 
+    uint8_t ecuLineCount() const { return ecuLineCount_; }
+    const char* ecuLine(uint8_t i) const { return ecuLines_[i]; }
+    const char (*ecuLinesData() const)[11] { return ecuLines_; }
+
   private:
     NewSoftwareSerial& obd_;
     uint8_t txPin_;
@@ -50,6 +54,9 @@ class KWP1281Session
     uint16_t timeoutMs_;
     uint8_t lastConnectError_;
 
+    char ecuLines_[6][11];
+    uint8_t ecuLineCount_;
+
     void incrementBlockCounter_();
     void writeByte_(uint8_t data);
     int16_t readByte_();
@@ -59,6 +66,7 @@ class KWP1281Session
     bool sendAckBlock_();
     bool receiveAckBlock_();
     bool readConnectBlocks_(bool initializationPhase);
+    void captureBlockText_(const uint8_t* s, int size);
     bool perform5BaudInit_();
 };
 

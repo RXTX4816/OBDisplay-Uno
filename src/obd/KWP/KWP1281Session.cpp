@@ -10,7 +10,7 @@ namespace KWP
 
 KWP1281Session::KWP1281Session(NewSoftwareSerial& serial, uint8_t txPin)
     : obd_(serial), txPin_(txPin), baudRate_(0), ecuAddr_(0), blockCounter_(0), connected_(false),
-      comError_(false), timeoutMs_(1100), lastConnectError_(0)
+      comError_(false), timeoutMs_(1100), lastConnectError_(0), ecuLines_{}, ecuLineCount_(0)
 {
     pinMode(txPin_, OUTPUT);
     digitalWrite(txPin_, HIGH);
@@ -20,6 +20,7 @@ void KWP1281Session::setConfig(uint16_t baudRate, uint8_t ecuAddr)
 {
     baudRate_ = baudRate;
     ecuAddr_ = ecuAddr;
+    ecuLineCount_ = 0;
 }
 
 void KWP1281Session::incrementBlockCounter_()
@@ -275,6 +276,22 @@ bool KWP1281Session::receiveAckBlock_()
     return true;
 }
 
+void KWP1281Session::captureBlockText_(const uint8_t* s, int size)
+{
+    // Payload is s[3..size-2]; strip trailing spaces before splitting.
+    int end = size - 1;
+    while (end > 3 && s[end - 1] == ' ')
+        --end;
+
+    for (int i = 3; i < end && ecuLineCount_ < 6; i += 10)
+    {
+        uint8_t len = (uint8_t)min(10, end - i);
+        memcpy(ecuLines_[ecuLineCount_], s + i, len);
+        ecuLines_[ecuLineCount_][len] = '\0';
+        ++ecuLineCount_;
+    }
+}
+
 bool KWP1281Session::readConnectBlocks_(bool initializationPhase)
 {
     while (true)
@@ -294,6 +311,7 @@ bool KWP1281Session::readConnectBlocks_(bool initializationPhase)
             lastConnectError_ = DBG_KWP_BLOCKS_FAIL;
             return false;
         }
+        captureBlockText_(s, size);
         if (!sendAckBlock_())
             return false;
     }
