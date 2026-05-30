@@ -66,10 +66,25 @@ jobs:
           cp .pio/build/uno/firmware.elf "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.elf"
 
       - name: Generate release notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SHA=$(git rev-parse HEAD)
           DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-          cat > release-notes.md <<EOF
+
+          CHANGELOG=$(gh api "repos/${{ github.repository }}/releases/generate-notes" \
+            --method POST \
+            -f tag_name="${{ env.VERSION }}" \
+            --jq '.body' 2>/dev/null || echo "")
+
+          {
+            if [ -n "$CHANGELOG" ]; then
+              echo "$CHANGELOG"
+              echo ""
+              echo "---"
+              echo ""
+            fi
+            cat <<ENDBUILDINFO
           ## OBDisplay-Uno ${{ env.VERSION }}
 
           ### Build info
@@ -96,7 +111,8 @@ jobs:
 
           The \`.elf\` file is a developer artifact (debug symbols, flash analysis). It cannot be flashed directly — use the \`.hex\` above.
 
-          EOF
+          ENDBUILDINFO
+          } > release-notes.md
 
       - name: Create or update GitHub release
         env:
