@@ -17,11 +17,10 @@ static const uint8_t PROGMEM kSettingsScript[] = {
 };
 // clang-format on
 
-void renderSettingsScreen(DisplayManager& dm, uint8_t cursor, int kwpModeInt)
+void renderSettingsScreen(const DisplayManager& dm, uint8_t cursor, int kwpModeInt)
 {
     ScreenCtx ctx{nullptr, nullptr, cursor, (uint8_t)kwpModeInt};
     runScript(kSettingsScript, ctx, dm);
-    (void)dm;
 }
 
 } // namespace Display
