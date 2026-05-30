@@ -55,64 +55,78 @@ struct __attribute__((packed)) KWPEntry
 // c1_s = c1 × 1000 stored as int16_t.
 // k=20,23,31,39,41,48,51,54,56 → F_SPECIAL (non-power-of-2 or large c1, handled in switch).
 // k=25,40,42,43,53 → F_LINEAR (handled in computeFormula with hardcoded integer c2/c3).
-static const KWPEntry kwp_table[57] PROGMEM = {
-    /* 0  unused */ {F_SPECIAL, 0},
-    /* 1  rpm    */ {F_AB_C, 200},                // 0.2
-    /* 2  %%     */ {F_AB_C, 2},                  // 0.002
-    /* 3  Deg    */ {F_AB_C, 2},                  // 0.002
-    /* 4  ATDC   */ {(2 << 4) | F_ABS_BK_CA, 10}, // 0.01, c2=127
-    /* 5  °C     */ {(1 << 4) | F_BK_CA, 100},    // 0.1,  c2=100
-    /* 6  V      */ {F_AB_C, 1},                  // 0.001
-    /* 7  km/h   */ {F_AB_C, 10},                 // 0.01
-    /* 8  raw    */ {F_AB_C, 100},                // 0.1
-    /* 9  Deg    */ {(2 << 4) | F_BK_CA, 20},     // 0.02, c2=127
-    /* 10 WARM   */ {F_SPECIAL, 0},
-    /* 11 lambda */ {F_SPECIAL, 0},
-    /* 12 Ohm    */ {F_AB_C, 1},             // 0.001
-    /* 13 mm     */ {(2 << 4) | F_BK_CA, 1}, // 0.001, c2=127
-    /* 14 bar    */ {F_AB_C, 5},             // 0.005
-    /* 15 ms     */ {F_AB_C, 10},            // 0.01
-    /* 16 unused */ {F_SPECIAL, 0},
-    /* 17 unused */ {F_SPECIAL, 0},
-    /* 18 mbar   */ {F_AB_C, 40},     // 0.04
-    /* 19 l      */ {F_AB_C, 10},     // 0.01
-    /* 20 %%     */ {F_SPECIAL, 0},   // c1=1/128, handled as special
-    /* 21 V      */ {F_AB_C, 1},      // 0.001
-    /* 22 ms     */ {F_AB_C, 1},      // 0.001
-    /* 23 %%     */ {F_SPECIAL, 0},   // c1=1/256, handled as special
-    /* 24 A      */ {F_AB_C, 1},      // 0.001
-    /* 25 g/s    */ {F_LINEAR, 1421}, // 1.421, c2/c3 hardcoded in dispatch
-    /* 26 C      */ {F_B_A, 0},
-    /* 27 °      */ {(3 << 4) | F_ABS_BK_CA, 10}, // 0.01, c2=128
-    /* 28 raw    */ {F_B_A, 0},
-    /* 29 unused */ {F_SPECIAL, 0},
-    /* 30 Dk/w   */ {F_AB_C, 83},   // 0.083333 ≈ 83/1000
-    /* 31 °C     */ {F_SPECIAL, 0}, // c1=1/2560, handled as special
-    /* 32 unused */ {F_SPECIAL, 0},
-    /* 33 %%     */ {F_SPECIAL, 0},
-    /* 34 kW     */ {(3 << 4) | F_BK_CA, 10}, // 0.01, c2=128
-    /* 35 l/h    */ {F_AB_C, 10},             // 0.01
-    /* 36 km     */ {F_SPECIAL, 0},
-    /* 37 raw    */ {F_B, 0},
-    /* 38 Dk/w   */ {(3 << 4) | F_BK_CA, 1}, // 0.001, c2=128
-    /* 39 mg/h   */ {F_SPECIAL, 0},          // c1=1/256, handled as special
-    /* 40 A      */ {F_LINEAR, 100},         // 0.1, c2/c3 hardcoded
-    /* 41 Ah     */ {F_SPECIAL, 0},          // v=255*a+b, handled as special
-    /* 42 Kw     */ {F_LINEAR, 100},         // 0.1, c2/c3 hardcoded
-    /* 43 V      */ {F_LINEAR, 100},         // 0.1, c2/c3 hardcoded
-    /* 44 unused */ {F_SPECIAL, 0},
-    /* 45 raw    */ {F_AB_C, 1}, // 0.001
-    /* 46 Dk/w   */ {F_SPECIAL, 0},
-    /* 47 ms     */ {(3 << 4) | F_BK_CA, 1000}, // 1.0, c2=128
-    /* 48 raw    */ {F_SPECIAL, 0},             // v=255*a+b, handled as special
-    /* 49 mg/h   */ {F_AB_C, 25},               // 0.025
-    /* 50 mbar   */ {F_SPECIAL, 0},
-    /* 51 mg/h   */ {F_SPECIAL, 0}, // c1≈1/255, handled as special
-    /* 52 Nm     */ {F_SPECIAL, 0},
-    /* 53 g/s    */ {F_LINEAR, 1422}, // 1.4222, c2/c3 hardcoded
-    /* 54 count  */ {F_SPECIAL, 0},   // v=256*a+b, handled as special
-    /* 55 s      */ {F_AB_C, 5},      // 0.005
-    /* 56 raw    */ {F_SPECIAL, 0},   // v=256*a+b, handled as special
+static const KWPEntry kwp_table[71] PROGMEM = {
+    /* 0  unused  */ {F_SPECIAL, 0},
+    /* 1  rpm     */ {F_AB_C, 200},                // 0.2
+    /* 2  %%      */ {F_AB_C, 2},                  // 0.002
+    /* 3  Deg     */ {F_AB_C, 2},                  // 0.002
+    /* 4  ATDC    */ {(2 << 4) | F_ABS_BK_CA, 10}, // 0.01, c2=127
+    /* 5  °C      */ {(1 << 4) | F_BK_CA, 100},    // 0.1,  c2=100
+    /* 6  V       */ {F_AB_C, 1},                  // 0.001
+    /* 7  km/h    */ {F_AB_C, 10},                 // 0.01
+    /* 8  raw     */ {F_AB_C, 100},                // 0.1
+    /* 9  Deg     */ {(2 << 4) | F_BK_CA, 20},     // 0.02, c2=127
+    /* 10 WARM    */ {F_SPECIAL, 0},
+    /* 11 lambda  */ {F_SPECIAL, 0},
+    /* 12 Ohm     */ {F_AB_C, 1},             // 0.001
+    /* 13 mm      */ {(2 << 4) | F_BK_CA, 1}, // 0.001, c2=127
+    /* 14 bar     */ {F_AB_C, 5},             // 0.005
+    /* 15 ms      */ {F_AB_C, 10},            // 0.01
+    /* 16 Bin.Bit */ {F_SPECIAL, 0},
+    /* 17 chr     */ {F_SPECIAL, 0},
+    /* 18 mbar    */ {F_AB_C, 40},     // 0.04
+    /* 19 l       */ {F_AB_C, 10},     // 0.01
+    /* 20 %%      */ {F_SPECIAL, 0},   // (b-128)*a/128
+    /* 21 V       */ {F_AB_C, 1},      // 0.001
+    /* 22 ms      */ {F_AB_C, 1},      // 0.001
+    /* 23 %%      */ {F_SPECIAL, 0},   // a*b/256
+    /* 24 A       */ {F_AB_C, 1},      // 0.001
+    /* 25 g/s     */ {F_LINEAR, 1421}, // 1.421, c2/c3 hardcoded in dispatch
+    /* 26 C       */ {F_B_A, 0},
+    /* 27 °       */ {(3 << 4) | F_ABS_BK_CA, 10}, // 0.01, c2=128
+    /* 28 raw     */ {F_B_A, 0},
+    /* 29 Kennfd  */ {F_SPECIAL, 0},
+    /* 30 Dk/w    */ {F_AB_C, 83},   // 0.083333 ≈ 83/1000
+    /* 31 °C      */ {F_SPECIAL, 0}, // a*b/2560
+    /* 32 signed  */ {F_SPECIAL, 0},
+    /* 33 %%      */ {F_SPECIAL, 0},
+    /* 34 kW      */ {(3 << 4) | F_BK_CA, 10}, // 0.01, c2=128
+    /* 35 l/h     */ {F_AB_C, 10},             // 0.01
+    /* 36 km      */ {F_SPECIAL, 0},
+    /* 37 raw     */ {F_B, 0},
+    /* 38 Dk/w    */ {(3 << 4) | F_BK_CA, 1}, // 0.001, c2=128
+    /* 39 mg/h    */ {F_SPECIAL, 0},          // a*b/256
+    /* 40 A       */ {F_LINEAR, 100},         // 0.1, c2/c3 hardcoded
+    /* 41 Ah      */ {F_SPECIAL, 0},          // 255*a+b
+    /* 42 Kw      */ {F_LINEAR, 100},         // 0.1, c2/c3 hardcoded
+    /* 43 V       */ {F_LINEAR, 100},         // 0.1, c2/c3 hardcoded
+    /* 44 h:m     */ {F_SPECIAL, 0},
+    /* 45 raw     */ {F_AB_C, 1}, // 0.001
+    /* 46 Dk/w    */ {F_SPECIAL, 0},
+    /* 47 ms      */ {(3 << 4) | F_BK_CA, 1000}, // 1.0, c2=128
+    /* 48 raw     */ {F_SPECIAL, 0},             // 255*a+b
+    /* 49 mg/h    */ {F_AB_C, 25},               // 0.025
+    /* 50 mbar    */ {F_SPECIAL, 0},
+    /* 51 mg/h    */ {F_SPECIAL, 0}, // (b-128)*a/255
+    /* 52 Nm      */ {F_SPECIAL, 0},
+    /* 53 g/s     */ {F_LINEAR, 1422}, // 1.4222, c2/c3 hardcoded
+    /* 54 count   */ {F_SPECIAL, 0},   // 256*a+b
+    /* 55 s       */ {F_AB_C, 5},      // a*b/200
+    /* 56 WSC     */ {F_SPECIAL, 0},   // 256*a+b
+    /* 57 WSC     */ {F_SPECIAL, 0},   // 256*a+b+65536
+    /* 58 -       */ {F_SPECIAL, 0},   // 1.0225*b (or 1.0225*(256-b) if b>128)
+    /* 59 -       */ {F_SPECIAL, 0},   // (256*a+b)/32768
+    /* 60 sec     */ {F_SPECIAL, 0},   // (256*a+b)*0.01
+    /* 61 -       */ {F_SPECIAL, 0},   // (b-128)/a
+    /* 62 S       */ {F_AB_C, 256},    // 0.256*a*b
+    /* 63 txt     */ {F_SPECIAL, 0},
+    /* 64 Ohm     */ {F_SPECIAL, 0},           // a+b
+    /* 65 mm      */ {(2 << 4) | F_BK_CA, 10}, // 0.01*a*(b-127), c2=127
+    /* 66 V       */ {F_SPECIAL, 0},           // a*b/511.12
+    /* 67 Deg     */ {F_SPECIAL, 0},           // 640*a+2.5*b
+    /* 68 deg/s   */ {F_SPECIAL, 0},           // (256*a+b)/7.365
+    /* 69 bar     */ {F_SPECIAL, 0},           // (256*a+b)*0.3254
+    /* 70 m/s2    */ {F_SPECIAL, 0},           // (256*a+b)*0.192
 };
 
 // Apply the tabulated formula for measurement type k.
@@ -234,7 +248,7 @@ void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte
     const __FlashStringHelper* units = F("");
 
     // Dispatch formula via table; F_SPECIAL cases fall through to the switch below.
-    if (k < 57 && (FormulaType)(pgm_read_byte(&kwp_table[k].typeAndC2) & 0x0F) != F_SPECIAL)
+    if (k < 71 && (FormulaType)(pgm_read_byte(&kwp_table[k].typeAndC2) & 0x0F) != F_SPECIAL)
     {
         v = computeFormula(k, a, b);
     }
@@ -249,8 +263,11 @@ void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte
                 units = b ? F("WARM") : F("COLD");
                 break;
             case 11: // lambda: 0.0001*a*(b-128)+1.0
-                // v_x10 = (a*(b-128)/1000 + 1)*10 = a*(b-128)/100 + 10
                 v = (int32_t)a * ((int16_t)b - 128) / 100 + 10;
+                break;
+            case 16: // Bin. Bits: 256*a + b
+            case 17: // chr(a) chr(b) — show as raw 16-bit
+                v = ((int32_t)a * 256 + b) * 10;
                 break;
             case 20: // %%: (b-128)*a/128
                 v = (int32_t)((int16_t)b - 128) * a * 10 / 128;
@@ -259,11 +276,17 @@ void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte
             case 39: // mg/h: same coefficient
                 v = (int32_t)a * b * 10 / 256;
                 break;
+            case 29: // Kennfeld: 1=first map, 2=second map
+                v = (b < a) ? 10 : 20;
+                break;
             case 31: // °C: a*b/2560
                 v = (int32_t)a * b * 10 / 2560;
                 break;
-            case 33: // %%: 100*b/a
-                v = (a > 0) ? (int32_t)b * 1000 / a : 0;
+            case 32: // signed byte: (int8_t)b
+                v = (b > 128) ? ((int32_t)b - 256) * 10 : (int32_t)b * 10;
+                break;
+            case 33: // %%: 100*b/a (if a==0: 100*b)
+                v = (a > 0) ? (int32_t)b * 1000 / a : (int32_t)b * 1000;
                 break;
             case 36: // km: a*2560+b*10
                 v = ((int32_t)a * 2560L + (int32_t)b * 10L) * 10;
@@ -272,8 +295,10 @@ void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte
             case 48: // raw: same
                 v = ((int32_t)255 * a + b) * 10;
                 break;
+            case 44: // Uhrzeit h:m → total minutes
+                v = ((int32_t)a * 60 + b) * 10;
+                break;
             case 46: // Dk/w: (a*b-3200)*0.0027
-                // v_x10 = (a*b-3200)*27/10000
                 v = ((int32_t)a * b - 3200L) * 27L / 10000L * 10;
                 break;
             case 50: // mbar: (b-128)/(0.01*a) = (b-128)*100/a
@@ -282,12 +307,49 @@ void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte
             case 51: // mg/h: (b-128)*a/255
                 v = (int32_t)((int16_t)b - 128) * a * 10 / 255;
                 break;
-            case 52: // Nm: b*0.02*a - a = a*(0.02*b-1) → a*(b*20-1000)/1000
+            case 52: // Nm: b*0.02*a - a = a*(0.02*b-1)
                 v = (int32_t)a * ((int32_t)b * 20 - 1000L) / 100;
                 break;
             case 54: // count: 256*a+b
-            case 56: // raw: same
+            case 56: // WSC: same
                 v = ((int32_t)256 * a + b) * 10;
+                break;
+            case 57: // WSC: 256*a+b+65536
+                v = ((int32_t)256 * a + b + 65536L) * 10;
+                break;
+            case 58: // 1.0225*b (or 1.0225*(256-b) if b>128)
+            {
+                int16_t bv = (b > 128) ? (int16_t)(256 - b) : (int16_t)b;
+                v = (int32_t)bv * 10225L / 1000L;
+            }
+            break;
+            case 59: // (256*a+b)/32768
+                v = ((int32_t)256 * a + b) * 10 / 32768L;
+                break;
+            case 60: // (256*a+b)*0.01 sec
+                v = ((int32_t)256 * a + b) / 10;
+                break;
+            case 61: // (b-128)/a (if a==0: b-128)
+                v = (a > 0) ? (int32_t)((int16_t)b - 128) * 10 / a
+                            : (int32_t)((int16_t)b - 128) * 10;
+                break;
+            case 64: // a+b Ohm
+                v = ((int32_t)a + b) * 10;
+                break;
+            case 66: // (a*b)/511.12
+                v = (int32_t)a * b * 10 / 511;
+                break;
+            case 67: // 640*a + 2.5*b
+                v = (int32_t)a * 6400L + (int32_t)b * 25;
+                break;
+            case 68: // (256*a+b)/7.365
+                v = ((int32_t)256 * a + b) * 200L / 1473L;
+                break;
+            case 69: // (256*a+b)*0.3254
+                v = ((int32_t)256 * a + b) * 3254L / 10000L;
+                break;
+            case 70: // (256*a+b)*0.192
+                v = ((int32_t)256 * a + b) * 1920L / 10000L;
                 break;
             default:
                 break;
@@ -335,7 +397,6 @@ void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte
             case 37:
             case 45:
             case 48:
-            case 56:
                 units = F(" ");
                 break;
             case 12:
@@ -403,6 +464,34 @@ void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte
                 break;
             case 55:
                 units = F("s");
+                break;
+            case 44:
+                units = F("h:m");
+                break;
+            case 56:
+            case 57:
+                units = F("WSC");
+                break;
+            case 60:
+                units = F("sec");
+                break;
+            case 62:
+                units = F("S");
+                break;
+            case 64:
+                units = F("Ohm");
+                break;
+            case 65:
+                units = F("mm");
+                break;
+            case 68:
+                units = F("deg/s");
+                break;
+            case 69:
+                units = F("bar");
+                break;
+            case 70:
+                units = F("m/s2");
                 break;
             default:
                 break;

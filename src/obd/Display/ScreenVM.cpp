@@ -77,6 +77,14 @@ static int32_t getFieldInt(FieldId fid, const ScreenCtx& ctx)
             return s ? s->experimental.v[2] : 0;
         case FLD_EXP_V3:
             return s ? s->experimental.v[3] : 0;
+        case FLD_EXP_K0:
+            return s ? (int32_t)s->experimental.k[0] : 0;
+        case FLD_EXP_K1:
+            return s ? (int32_t)s->experimental.k[1] : 0;
+        case FLD_EXP_K2:
+            return s ? (int32_t)s->experimental.k[2] : 0;
+        case FLD_EXP_K3:
+            return s ? (int32_t)s->experimental.k[3] : 0;
         // DebugInfo
         case FLD_DBG_CON:
             return d ? (int32_t)d->serialCon : 0;
