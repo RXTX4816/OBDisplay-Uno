@@ -10,52 +10,50 @@
 
 Menu order: **Cockpit → Experimental → Debug → DTC → Settings**
 
-## Cockpit screen (ADDR_INSTRUMENTS 0x17)
+## Cockpit screen
 
-Displays all vehicle data on a single 64×128 screen. All fields update simultaneously at ~177 ms intervals.
+Pixel-doubled big font, portrait 64×128. All fields update at ~177 ms intervals. SELECT has no action.
 
-```
-Row  0: SPD:xxx  RPM:xxxx
-Row  1: CLT:xxx  OIL:xxx
-Row  2: OLV:x OPR:x AMB:xx
-Row  3: ODO:xxxxxxxxxx
-Row  4: FUL:xx  FSR:xxxxx
-Row  5: TIME:xxxxxxxxx
-Row  6: L/100:xxxxx L/h:xxxx
-Row  7: km:xxxxx  L:xxxxx
-```
-
-| Field | Description |
-|---|---|
-| `SPD` | Vehicle speed (km/h) |
-| `RPM` | Engine speed (rev/min) |
-| `CLT` | Coolant temperature (°C) |
-| `OIL` | Oil temperature (°C) |
-| `OLV` | Oil level OK — 1=OK, 0=low |
-| `OPR` | Minimum oil pressure (bar) |
-| `AMB` | Ambient temperature (°C) |
-| `ODO` | Odometer (km) |
-| `FUL` | Fuel level (L) |
-| `FSR` | Fuel sender resistance (Ω) |
-| `TIME` | ECU uptime (seconds) |
-| `L/100` | Fuel consumption rate (L/100 km) since connection |
-| `L/h` | Hourly fuel consumption (L/h) |
-| `km` | Trip distance (km) since connection |
-| `L` | Fuel burned (L) since connection |
-
-SELECT has no action on the Cockpit screen — data is always live.
-
-## Cockpit screen (ADDR_ENGINE 0x01)
-
-Two screens, UP/DOWN to switch:
+### ADDR_INSTRUMENTS `0x17` — one screen
 
 ```
-Screen 0:                Screen 1:
-RPM:xxxx  V:xxxxx        TBa:xxxxx STa:xxxxx
-T1:xx T2:xx T3:xx        mbar:xxxx bits:xxxxxxxx
-LAM:xxx LAM2:xxx
-LOAD:xxx
+130        speed (km/h)
+2200       RPM
+
+99 O       oil temp (°C)  ← -WARN- at ≥ 100
+99 C       coolant (°C)   ← -WARN- at ≥ 100
+
+33 L       fuel level (L)
+20AIR      ambient (°C)
 ```
+
+### ADDR_ENGINE `0x01` — two screens (UP/DOWN)
+
+**Screen 0:**
+
+```
+120        speed (km/h)
+1200       RPM
+99 O       oil temp       ← -WARN- at ≥ 100
+99 C       coolant        ← -WARN- at ≥ 100
+20%        engine load
+5.5T       throttle body angle
+12V        battery voltage
+5%         lambda
+```
+
+**Screen 1** (error bits, small font):
+
+```
+TBa: xxxxx  STa: xxxxx
+mb:  xxxx
+bits:
+xxxxxxxx
+```
+
+### Other addresses
+
+For addresses without a dedicated layout (`0x03`, `0x08`, `0x19`, `0x46`) the cockpit screen shows the address and "no data". Use the Experimental screen to browse raw measurement groups for those ECUs.
 
 ## Experimental screen
 

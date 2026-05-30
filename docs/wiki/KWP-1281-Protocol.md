@@ -25,12 +25,16 @@ The firmware increments a block counter on every block sent and verifies the ECU
 
 ## Supported ECU addresses
 
-| Address | Module |
-|---|---|
-| `0x01` | Engine ECU |
-| `0x17` | Instruments / dashboard |
+| Address | Module | Cockpit display |
+|---|---|---|
+| `0x01` | Engine ECU | Dedicated big-font layout |
+| `0x03` | ABS Brakes | Raw group values |
+| `0x08` | Auto HVAC | Raw group values |
+| `0x17` | Instruments / dashboard | Dedicated big-font layout |
+| `0x19` | CAN Gateway | Raw group values |
+| `0x46` | Central Convenience | Raw group values |
 
-Other addresses exist (e.g., `0x03` ABS, `0x15` airbag, `0x46` comfort) but are not supported. Do not connect to `0x15` unless you understand the risk.
+Addresses without a dedicated cockpit layout show the raw group values from the Experimental screen. Do not connect to `0x15` (airbag) — on some ECUs clearing DTCs there can deploy the airbag if an electrical fault is present.
 
 ## Supported baud rates
 

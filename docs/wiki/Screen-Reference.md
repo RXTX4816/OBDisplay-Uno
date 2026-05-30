@@ -2,7 +2,7 @@
 
 ## Navigation overview
 
-The display has a single 64×128 px area (10 columns × 16 rows of text). When connected, content is organised into **menus** (horizontal) and **screens** (vertical within a menu).
+The display is a 64×128 px portrait panel. When connected, content is organised into **menus** (horizontal) and **screens** (vertical within a menu). The cockpit screens use a pixel-doubled big font; all other screens use the small font (10 columns × 16 rows).
 
 ```
 ← LEFT / RIGHT →    switches menu
@@ -22,52 +22,73 @@ Cockpit  ←→  Experimental  ←→  Debug  ←→  DTC  ←→  Settings
 
 ## Cockpit
 
-Live sensor data. No SELECT action — data updates automatically every ~177 ms.
+Live sensor data displayed in a pixel-doubled big font (12 px/char, 16 px/row). No SELECT action — data updates automatically every ~177 ms.
 
 ### Instruments cluster (address `0x17`)
 
-One screen showing all values at once:
+One screen, six values stacked vertically:
 
 ```
-SPD:xxx  RPM:xxxx
-CLT:xxx  OIL:xxx
-OLV:x OPR:x AMB:xx
-ODO:xxxxxxxxxx
-FUL:xx  FSR:xxxxx
-TIME:xxxxxxxxx
-L/100:xxxxx L/h:xxxx
-km:xxxxx  L:xxxxx
+130
+2200
+
+99 O
+99 C
+
+33 L
+20AIR
 ```
 
-| Field | Meaning | Unit |
-|---|---|---|
-| `SPD` | Vehicle speed | km/h |
-| `RPM` | Engine speed | rev/min |
-| `CLT` | Coolant temperature | °C |
-| `OIL` | Oil temperature | °C |
-| `OLV` | Oil level OK | 1=OK, 0=low |
-| `OPR` | Minimum oil pressure | bar |
-| `AMB` | Ambient temperature | °C |
-| `ODO` | Odometer | km |
-| `FUL` | Fuel level | L |
-| `FSR` | Fuel sender resistance | Ω |
-| `TIME` | ECU uptime | seconds |
-| `L/100` | Fuel consumption rate since connection | L/100 km |
-| `L/h` | Hourly fuel consumption | L/h |
-| `km` | Trip distance since connection | km |
-| `L` | Fuel burned since connection | L |
+| Row | Field | Format | Notes |
+|---|---|---|---|
+| 0 | Vehicle speed | `NNN` km/h | |
+| 1 | Engine RPM | `NNNN` | |
+| 2 | Oil temperature | `NN O` | Shows `-WARN-` at ≥ 100 °C |
+| 3 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C |
+| 4 | Fuel level | `NN L` | |
+| 5 | Ambient temperature | `NNAIR` | |
 
 ### Engine ECU (address `0x01`)
 
-Two screens — UP/DOWN to switch:
+**Screen 0** — eight values stacked vertically (big font):
 
 ```
-Screen 0:              Screen 1:
-RPM:xxxx  V:xxxxx      TBa:xxxxx STa:xxxxx
-T1:xx T2:xx T3:xx      mbar:xxxx bits:xxxxxxxx
-LAM:xxx LAM2:xxx
-LOAD:xxx
+120
+1200
+99 O
+99 C
+20%
+5.5T
+12V
+5%
 ```
+
+| Row | Field | Format | Notes |
+|---|---|---|---|
+| 0 | Vehicle speed | `NNN` km/h | |
+| 1 | Engine RPM | `NNNN` | |
+| 2 | Oil temperature | `NN O` | Shows `-WARN-` at ≥ 100 °C |
+| 3 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C |
+| 4 | Engine load | `NN%` | |
+| 5 | Throttle body angle | `N.NT` | ×10 fixed-point |
+| 6 | Battery voltage | `NNV` | |
+| 7 | Lambda | `NN%` | |
+
+**Screen 1** — error bits (small font):
+
+```
+TBa: xxxxx  STa: xxxxx
+mb:  xxxx
+bits:
+xxxxxxxx
+```
+
+| Field | Meaning |
+|---|---|
+| `TBa` | Throttle body angle |
+| `STa` | Steering angle |
+| `mb` | Manifold pressure (mbar) |
+| `bits` | Engine error flags (8 bits: EGR / O2 heat / O2 / AC / SAI / EVAP / cat heat / cat) |
 
 ---
 

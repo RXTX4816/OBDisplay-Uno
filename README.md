@@ -1,19 +1,19 @@
 # OBDisplay-Uno
 
 [![CI/CD](https://github.com/RXTX4816/OBDisplay-Uno/actions/workflows/ci.yml/badge.svg)](https://github.com/RXTX4816/OBDisplay-Uno/actions)
-[![Flash: 79.4%](https://img.shields.io/badge/flash-79.4%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
-[![RAM: 41.0%](https://img.shields.io/badge/RAM-41.0%25_of_2048B-green)](https://github.com/RXTX4816/OBDisplay-Uno)
-[![Flash (debug): 83.5%](https://img.shields.io/badge/flash_(debug)-83.5%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
-[![RAM (debug): 49.6%](https://img.shields.io/badge/RAM_(debug)-49.6%25_of_2048B-yellow)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![Flash: 84.5%](https://img.shields.io/badge/flash-84.5%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![RAM: 43.2%](https://img.shields.io/badge/RAM-43.2%25_of_2048B-green)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![Flash (debug): 88.9%](https://img.shields.io/badge/flash_(debug)-88.9%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![RAM (debug): 51.7%](https://img.shields.io/badge/RAM_(debug)-51.7%25_of_2048B-yellow)](https://github.com/RXTX4816/OBDisplay-Uno)
 [![MCU: ATmega328P](https://img.shields.io/badge/MCU-ATmega328P-blue)](https://www.microchip.com/en-us/product/atmega328p)
 
-KWP-1281 K-Line trip computer for Arduino Uno with SH1107 OLED display (64×128, landscape mode work in progress).
+KWP-1281 K-Line trip computer for Arduino Uno with SH1107 OLED display (64×128 portrait).
 
 Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta, ~1998–2006) that use the K-Line OBD interface and the KWP-1281 protocol.
 
 ## Showcase
 
-<img src="assets/LIVE-DASHBOARD.png" width="30%"> <img src="assets/LIVE-SETUP-SCREEN.png" width="30%"> <img src="assets/LIVE-DTC-SHOW.png" width="30%">
+<video src="assets/OBDisplay-Showcase.mp4" controls width="25%"></video>
 
 ## Installation
 
@@ -23,11 +23,11 @@ Pre-built firmware is available on the [Releases](https://github.com/RXTX4816/OB
 
 - Full KWP-1281 implementation: 5-baud GPIO init, block send/receive, ACK, keepalive, exit
 - Supported baud rates: 1200, 2400, 4800, 9600, 10400
-- Supported ECU addresses: `0x01` (engine) and `0x17` (instruments/dashboard)
+- Supported ECU addresses: `0x01` Engine, `0x03` ABS Brakes, `0x08` Auto HVAC, `0x17` Instruments, `0x19` CAN Gateway, `0x46` Central Convenience (cockpit display with big font for `0x01`/`0x17`; others show raw group values)
 - Three KWP modes: ACK (keepalive only), group read, full sensor read
 - 56-case sensor decode table (full VW/Audi KWP-1281 measurement type table)
 - Read and clear DTC fault codes
-- SH1107 64×128 OLED display (GME64128-02) — text-only rendering with batch I2C transfers (optimized for responsiveness)
+- SH1107 64×128 OLED display (GME64128-02), portrait orientation — pixel-doubled cockpit font, text-only rendering with batch I2C transfers
 - Simulation mode for testing without a car
 - Cooperative task scheduler (TaskScheduler) to prevent ECU timeouts
 
