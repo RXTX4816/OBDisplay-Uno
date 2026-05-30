@@ -620,6 +620,7 @@ void OBDDisplay::handleInput_()
         {
             kwp_.disconnect();
             connected_ = false;
+            wasConnected_ = false;
             phase_ = Phase::WaitingForConnect;
             showWaitingScreen_();
         }
@@ -634,6 +635,7 @@ void OBDDisplay::handleInput_()
         }
         kwp_.disconnect();
         connected_ = false;
+        wasConnected_ = false;
         phase_ = Phase::Setup;
         buttonTimeoutUntil_ = millis() + BUTTON_TIMEOUT_MS;
         return;
