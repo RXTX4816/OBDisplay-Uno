@@ -223,9 +223,10 @@ void DisplayManager::renderDtcMenu(uint8_t cursor, bool showActive, uint8_t show
     renderDtcScreen(*this, cursor, showActive, showPage, dtcCount, dtcStore);
 }
 
-void DisplayManager::renderSettings(uint8_t cursor, int kwpModeInt, bool autoReconnect)
+void DisplayManager::renderSettings(uint8_t cursor, int kwpModeInt, bool autoReconnect,
+                                    const char (*ecuLines)[11], uint8_t ecuLineCount)
 {
-    renderSettingsScreen(*this, cursor, kwpModeInt, autoReconnect);
+    renderSettingsScreen(*this, cursor, kwpModeInt, autoReconnect, ecuLines, ecuLineCount);
 }
 
 void DisplayManager::renderDebug(const DebugInfo& di, int kwpModeInt)
