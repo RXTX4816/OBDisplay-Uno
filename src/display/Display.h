@@ -49,6 +49,10 @@ class Display
         print(n);
     }
 
+    // 2× pixel-doubled text at arbitrary pixel coordinates.
+    void printBig(uint8_t x_px, uint8_t y_px, const char* s);
+    void printBig(uint8_t x_px, uint8_t y_px, int32_t n);
+
     static constexpr uint8_t WIDTH = 64; // portrait pixels
     static constexpr uint8_t HEIGHT = 128;
     static constexpr uint8_t COLS = 10; // 64 / 6 ≈ 10 text columns
@@ -60,13 +64,15 @@ class Display
 
     struct TextEntry
     {
-        uint8_t x = 0;            // pixel column (0-63), computed from cursorCol * 6
-        uint8_t line = 0;         // page line (0-15), same as cursorRow
+        uint8_t x = 0;            // pixel column (0-63)
+        uint8_t line = 0;         // scale=1: row (0-15); scale=2: raw pixel y (0-127)
+        uint8_t scale = 1;        // 1 = normal 5x7; 2 = 2x pixel-doubled 10x14
         char text[kTextLen] = {}; // text content, always copied here
     };
 
     void drawCharToPage(uint8_t x, uint8_t y, char c, uint8_t page, uint8_t* pageBuf);
-    void addTextEntry(uint8_t x, uint8_t line, const char* text);
+    void drawChar2xToPage(uint8_t x, uint8_t y, char c, uint8_t page, uint8_t* pageBuf);
+    void addTextEntry(uint8_t x, uint8_t line, const char* text, uint8_t scale = 1);
     void markDirty()
     {
         dirty_ = true;

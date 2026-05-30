@@ -61,6 +61,19 @@ class DisplayManager
     void print(uint8_t x, uint8_t y, int32_t value, uint8_t decimals, uint8_t width = 0) const;
     void clearRegion(uint8_t x, uint8_t y, uint8_t width);
 
+    // 2× pixel-doubled printing at raw pixel coordinates.
+    // printBig: integer value, optionally with a single-char or string suffix label.
+    void printBig(uint8_t x_px, uint8_t y_px, uint16_t val) const;
+    void printBig(uint8_t x_px, uint8_t y_px, uint16_t val, char suffix) const;
+    void printBig(uint8_t x_px, uint8_t y_px, int16_t val, char suffix) const;
+    void printBig(uint8_t x_px, uint8_t y_px, const char* s) const;
+    void printBigWithLabel(uint8_t x_px, uint8_t y_px, uint16_t val, const char* label) const;
+    // ×10 fixed-point shown as "X.X" + suffix (e.g. tbAngle 55 → "5.5T").
+    // Out-of-range values (abs > 999) print "ERR" instead of overflowing.
+    void printBigScaled10(uint8_t x_px, uint8_t y_px, int16_t val, char suffix) const;
+    // ×10 voltage: drops decimal, appends 'V' (e.g. 123 → "12V").
+    void printBigVoltage(uint8_t x_px, uint8_t y_px, uint16_t val) const;
+
   private:
     ::Display& display_;
 

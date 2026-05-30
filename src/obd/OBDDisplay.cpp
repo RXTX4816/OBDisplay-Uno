@@ -862,6 +862,9 @@ void OBDDisplay::handleInput_()
         kwp_.disconnect();
         connected_ = false;
         wasConnected_ = false;
+        // Clear autoSetup so the next runSetupFlow_() runs the full interactive
+        // stages instead of returning early — user wants to reconfigure.
+        autoSetup_ = false;
         phase_ = Phase::Setup;
         buttonTimeoutUntil_ = millis() + BUTTON_TIMEOUT_MS;
         return;

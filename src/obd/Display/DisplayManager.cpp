@@ -107,6 +107,96 @@ void DisplayManager::print(uint8_t x, uint8_t y, int32_t value, uint8_t /*decima
     print(x, y, tmp, width);
 }
 
+void DisplayManager::printBig(uint8_t x_px, uint8_t y_px, const char* s) const
+{
+    display_.printBig(x_px, y_px, s);
+}
+
+void DisplayManager::printBig(uint8_t x_px, uint8_t y_px, uint16_t val) const
+{
+    char buf[12];
+    utoa(val, buf, 10);
+    display_.printBig(x_px, y_px, buf);
+}
+
+void DisplayManager::printBig(uint8_t x_px, uint8_t y_px, uint16_t val, char suffix) const
+{
+    char buf[12];
+    uint8_t i = 0;
+    utoa(val, buf, 10);
+    while (buf[i] != '\0')
+        ++i;
+    buf[i++] = suffix;
+    buf[i] = '\0';
+    display_.printBig(x_px, y_px, buf);
+}
+
+void DisplayManager::printBig(uint8_t x_px, uint8_t y_px, int16_t val, char suffix) const
+{
+    char buf[12];
+    uint8_t i = 0;
+    itoa(val, buf, 10);
+    while (buf[i] != '\0')
+        ++i;
+    buf[i++] = suffix;
+    buf[i] = '\0';
+    display_.printBig(x_px, y_px, buf);
+}
+
+void DisplayManager::printBigWithLabel(uint8_t x_px, uint8_t y_px, uint16_t val,
+                                       const char* label) const
+{
+    char buf[12];
+    uint8_t i = 0;
+    utoa(val, buf, 10);
+    while (buf[i] != '\0')
+        ++i;
+    while (*label && i < 11)
+        buf[i++] = *label++;
+    buf[i] = '\0';
+    display_.printBig(x_px, y_px, buf);
+}
+
+void DisplayManager::printBigScaled10(uint8_t x_px, uint8_t y_px, int16_t val, char suffix) const
+{
+    // Guard: anything outside ±999 can't sensibly display in 5 chars.
+    if (val > 9990 || val < -9990)
+    {
+        display_.printBig(x_px, y_px, "ERR");
+        return;
+    }
+    char buf[12];
+    char* p = buf;
+    // Use int32_t to safely negate without UB at INT16_MIN.
+    int32_t v = val;
+    if (v < 0)
+    {
+        *p++ = '-';
+        v = -v;
+    }
+    utoa((uint16_t)((uint32_t)v / 10u), p, 10);
+    while (*p != '\0')
+        ++p;
+    *p++ = '.';
+    *p++ = (char)('0' + (uint8_t)((uint32_t)v % 10u));
+    *p++ = suffix;
+    *p = '\0';
+    display_.printBig(x_px, y_px, buf);
+}
+
+void DisplayManager::printBigVoltage(uint8_t x_px, uint8_t y_px, uint16_t val) const
+{
+    // val is ×10 (e.g. 123 = 12.3 V) — show integer part + 'V'
+    char buf[12];
+    uint8_t i = 0;
+    utoa((uint16_t)(val / 10u), buf, 10);
+    while (buf[i] != '\0')
+        ++i;
+    buf[i++] = 'V';
+    buf[i] = '\0';
+    display_.printBig(x_px, y_px, buf);
+}
+
 // cppcheck-suppress functionStatic
 void DisplayManager::clearRegion(uint8_t x, uint8_t y, uint8_t width)
 {
