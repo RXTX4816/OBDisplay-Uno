@@ -59,7 +59,7 @@ class Display
     static constexpr uint8_t ROWS = 16; // 128 / 8 = 16 text rows
 
   private:
-    static constexpr uint8_t kMaxEntries = 20;
+    static constexpr uint8_t kMaxEntries = 24;
     static constexpr uint8_t kTextLen = 11; // 10 chars + null terminator
 
     struct TextEntry
