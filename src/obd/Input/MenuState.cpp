@@ -9,11 +9,11 @@ namespace Input
 MenuState::MenuState()
     : currentMenu_(Display::MenuId::Cockpit), menuChanged_(false), screenChanged_(false)
 {
-    screens_[0] = {0, 1};  // Cockpit: max 1
-    screens_[1] = {0, 64}; // Experimental: max 64
-    screens_[2] = {0, 4};  // Debug: max 4
-    screens_[3] = {0, 0};  // Dtc: max 0
-    screens_[4] = {0, 0};  // Settings: max 0
+    screens_[0] = {0, 1};   // Cockpit: max 1
+    screens_[1] = {0, 255}; // Experimental: max 255 (full uint8 group range)
+    screens_[2] = {0, 4};   // Debug: max 4
+    screens_[3] = {0, 0};   // Dtc: max 0
+    screens_[4] = {0, 0};   // Settings: max 0
 }
 
 void MenuState::nextMenu()

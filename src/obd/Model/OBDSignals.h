@@ -25,6 +25,11 @@ struct ExperimentalGroup
     bool groupSide = false;   // false: 0/1, true: 2/3
     bool groupSideUpdated = false;
 
+    // Jump-to-group digit-entry UI state (managed by OBDDisplay input handler)
+    bool grpJumpActive = false;
+    uint8_t grpJumpDigits[3] = {0, 0, 0}; // hundreds, tens, units
+    uint8_t grpJumpCursor = 0;            // 0=hundreds, 1=tens, 2=units
+
     void reset();
     void invertGroupSide();
 };

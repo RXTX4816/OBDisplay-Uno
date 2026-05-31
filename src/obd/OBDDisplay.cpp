@@ -708,13 +708,16 @@ void OBDDisplay::handleInput_()
     InputActions actions{};
     bool any = false;
 
-    if (btns & BTN_MASK_RIGHT)
+    // LEFT/RIGHT navigate menus unless jump mode has captured them.
+    bool inJumpMode = (menuState_.currentMenu() == Display::MenuId::Experimental &&
+                       signals_.experimental.grpJumpActive);
+    if (!inJumpMode && (btns & BTN_MASK_RIGHT))
     {
         menuState_.nextMenu();
         dtcShowActive_ = false; // leave DTC show mode when navigating away
         any = true;
     }
-    else if (btns & BTN_MASK_LEFT)
+    else if (!inJumpMode && (btns & BTN_MASK_LEFT))
     {
         menuState_.prevMenu();
         dtcShowActive_ = false;
@@ -726,7 +729,6 @@ void OBDDisplay::handleInput_()
         switch (menuState_.currentMenu())
         {
             case MenuId::Cockpit:
-            case MenuId::Experimental:
             case MenuId::Debug:
             {
                 MenuId mid = menuState_.currentMenu();
@@ -739,6 +741,102 @@ void OBDDisplay::handleInput_()
                 {
                     menuState_.prevScreen(mid);
                     any = true;
+                }
+                break;
+            }
+            case MenuId::Experimental:
+            {
+                auto& eg = signals_.experimental;
+                if (eg.grpJumpActive)
+                {
+                    if (btns & BTN_MASK_UP)
+                    {
+                        uint8_t idx = eg.grpJumpCursor;
+                        uint8_t* d = eg.grpJumpDigits;
+                        // Hundreds capped at 2; tens/units capped at 5 when constrained by 255.
+                        uint8_t maxDig = (idx == 0)                             ? 2u
+                                         : (idx == 1 && d[0] == 2)              ? 5u
+                                         : (idx == 2 && d[0] == 2 && d[1] == 5) ? 5u
+                                                                                : 9u;
+                        if (++d[idx] > maxDig)
+                            d[idx] = 0;
+                        // Clamp lower digits if entering the constrained zone.
+                        if (idx == 0 && d[0] == 2)
+                        {
+                            if (d[1] > 5)
+                                d[1] = 5;
+                            if (d[1] == 5 && d[2] > 5)
+                                d[2] = 5;
+                        }
+                        else if (idx == 1 && d[0] == 2 && d[1] == 5 && d[2] > 5)
+                        {
+                            d[2] = 5;
+                        }
+                        menuState_.markScreenChanged();
+                        any = true;
+                    }
+                    else if (btns & BTN_MASK_DOWN)
+                    {
+                        uint8_t idx = eg.grpJumpCursor;
+                        uint8_t* d = eg.grpJumpDigits;
+                        uint8_t maxDig = (idx == 0)                             ? 2u
+                                         : (idx == 1 && d[0] == 2)              ? 5u
+                                         : (idx == 2 && d[0] == 2 && d[1] == 5) ? 5u
+                                                                                : 9u;
+                        d[idx] = (d[idx] == 0) ? maxDig : d[idx] - 1u;
+                        menuState_.markScreenChanged();
+                        any = true;
+                    }
+                    else if (btns & BTN_MASK_LEFT)
+                    {
+                        if (eg.grpJumpCursor > 0)
+                            eg.grpJumpCursor--;
+                        menuState_.markScreenChanged();
+                        any = true;
+                    }
+                    else if (btns & BTN_MASK_RIGHT)
+                    {
+                        if (eg.grpJumpCursor < 2)
+                            eg.grpJumpCursor++;
+                        menuState_.markScreenChanged();
+                        any = true;
+                    }
+                    else if (btns & BTN_MASK_MID)
+                    {
+                        // Digit constraints guarantee value fits in uint8 (1-255).
+                        uint8_t target = (uint8_t)(eg.grpJumpDigits[0] * 100u +
+                                                   eg.grpJumpDigits[1] * 10u + eg.grpJumpDigits[2]);
+                        if (target < 1u)
+                            target = 1u;
+                        menuState_.setScreen(Display::MenuId::Experimental, target);
+                        eg.grpJumpActive = false;
+                        menuState_.markScreenChanged();
+                        any = true;
+                    }
+                }
+                else
+                {
+                    if (btns & BTN_MASK_UP)
+                    {
+                        menuState_.nextScreen(MenuId::Experimental);
+                        any = true;
+                    }
+                    else if (btns & BTN_MASK_DOWN)
+                    {
+                        menuState_.prevScreen(MenuId::Experimental);
+                        any = true;
+                    }
+                    else if (btns & BTN_MASK_MID)
+                    {
+                        uint8_t cur = eg.groupCurrent;
+                        eg.grpJumpDigits[0] = cur / 100;
+                        eg.grpJumpDigits[1] = (cur / 10) % 10;
+                        eg.grpJumpDigits[2] = cur % 10;
+                        eg.grpJumpCursor = 0;
+                        eg.grpJumpActive = true;
+                        menuState_.markScreenChanged();
+                        any = true;
+                    }
                 }
                 break;
             }
@@ -900,6 +998,7 @@ void OBDDisplay::handleInput_()
         else if (!nowInGroup && inGroupScreen_)
         {
             kwpMode_ = kwpModeBeforeGroup_;
+            signals_.experimental.grpJumpActive = false;
             menuState_.markScreenChanged();
         }
         inGroupScreen_ = nowInGroup;
@@ -1071,30 +1170,20 @@ void OBDDisplay::updateDisplay_()
 void OBDDisplay::incrementExperimentalGroup_()
 {
     auto& eg = signals_.experimental;
-    const uint8_t groupMax = 64;
-    if (eg.groupCurrent >= groupMax)
-    {
+    if (eg.groupCurrent >= 255)
         eg.groupCurrent = 1;
-    }
     else
-    {
         eg.groupCurrent++;
-    }
     eg.kUpdated = true;
 }
 
 void OBDDisplay::decrementExperimentalGroup_()
 {
     auto& eg = signals_.experimental;
-    const uint8_t groupMax = 64;
     if (eg.groupCurrent <= 1)
-    {
-        eg.groupCurrent = groupMax;
-    }
+        eg.groupCurrent = 255;
     else
-    {
         eg.groupCurrent--;
-    }
     eg.kUpdated = true;
 }
 
