@@ -13,7 +13,7 @@ Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta,
 
 ## Showcase
 
-<video src="https://github.com/user-attachments/assets/b561798a-9ff4-4339-bede-bff35ef192e2" controls width="200"></video>
+![OBDisplay-Uno Showcase](assets/OBDisplay-Uno-Showcase.png)
 
 ## Installation
 
