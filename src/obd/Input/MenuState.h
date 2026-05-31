@@ -26,6 +26,7 @@ class MenuState
     void prevMenu();
     void nextScreen(Display::MenuId id);
     void prevScreen(Display::MenuId id);
+    void setCockpitMax(uint8_t max) { screens_[0].max = max; }
 
     bool consumeMenuChanged();
     bool consumeScreenChanged();

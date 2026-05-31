@@ -28,7 +28,7 @@ void setup()
     digitalWrite(13, LOW);
 
 #ifdef OBD_DEBUG
-    Serial.begin(115200);
+    uartDebugBegin();
     delay(500);
     DBG(DBG_CTRL_STEP);
 #endif

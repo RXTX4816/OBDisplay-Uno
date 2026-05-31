@@ -40,6 +40,7 @@ void OBDSignals::reset()
     engine = EngineSignals{};
     experimental.reset();
     computed = ComputedStats{};
+    warnings = WarningState{};
 }
 
 void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart)
@@ -67,6 +68,81 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart)
                                             computed.elapsedSecondsSinceStart)
                                : 0u;
     computed.fuelPerHourUpdated = true;
+
+    // kmRemaining: estimated range at current L/100km rate; capped at 9999 for display
+    uint32_t kmR = (computed.fuelPer100km > 0)
+                       ? ((uint32_t)instruments.fuelLevel * 1000u / computed.fuelPer100km)
+                       : 0u;
+    computed.kmRemaining = (uint16_t)(kmR > 9999u ? 9999u : kmR);
+    computed.kmRemainingUpdated = true;
+}
+
+// Helper: set a warning bit and update maxLevel
+static inline void setWarn(WarningState& w, WarnBit bit, uint8_t level)
+{
+    w.bits |= (uint16_t)(1u << bit);
+    if (level > w.maxLevel)
+        w.maxLevel = level;
+}
+
+void OBDSignals::computeWarnings(uint8_t ecuAddr)
+{
+    uint16_t prevBits = warnings.bits;
+    warnings.bits = 0;
+    warnings.maxLevel = 0;
+
+    if (ecuAddr == 0x17)
+    {
+        // Oil pressure: value 2 = "<min, 0.9 bar" confirmed; encoding uncertain, verify on car
+        if (instruments.oilPressureMinUpdated && instruments.oilPressureMin >= 2)
+            setWarn(warnings, WARN_OIL_PRES, 3);
+        if (instruments.oilTempUpdated && instruments.oilTemp > 93)
+            setWarn(warnings, WARN_OIL_HOT, 3);
+        if (instruments.oilLevelOkUpdated && instruments.oilLevelOk == 0)
+            setWarn(warnings, WARN_OIL_LVL, 2);
+        // Coolant: gate once, cache value, run all three threshold checks
+        if (instruments.coolantTempUpdated)
+        {
+            uint8_t ct = instruments.coolantTemp;
+            if (ct > 93)
+                setWarn(warnings, WARN_COOL_HOT, 3);
+            if (ct < 40)
+                setWarn(warnings, WARN_VERY_COLD, 2);
+            if (ct < 75)
+                setWarn(warnings, WARN_COLD_ENG, 1);
+        }
+        // Fuel: gate once, cache value, run both threshold checks
+        if (instruments.fuelLevelUpdated)
+        {
+            uint8_t fl = instruments.fuelLevel;
+            if (fl < 4)
+                setWarn(warnings, WARN_FUEL_CRIT, 2);
+            if (fl < 8)
+                setWarn(warnings, WARN_FUEL_LOW, 1);
+        }
+    }
+    else if (ecuAddr == 0x01)
+    {
+        if (engine.voltageUpdated && engine.voltage < 120)
+            setWarn(warnings, WARN_LOW_VOLT, 2);
+        if (engine.engineLoadUpdated && engine.engineLoad > 90)
+            setWarn(warnings, WARN_HIGH_LOAD, 1);
+        // Coolant proxy: gate once, cache, run all three threshold checks
+        if (engine.tempUnknown2Updated)
+        {
+            uint8_t t2 = engine.tempUnknown2;
+            if (t2 > 93)
+                setWarn(warnings, WARN_COOL_HOT, 3);
+            if (t2 < 40)
+                setWarn(warnings, WARN_VERY_COLD, 2);
+            if (t2 < 75)
+                setWarn(warnings, WARN_COLD_ENG, 1);
+        }
+    }
+
+    // hasNew fires only when new bits appear (not when warnings clear)
+    if (warnings.bits != prevBits && (warnings.bits & ~prevBits) != 0)
+        warnings.hasNew = true;
 }
 
 void OBDSignals::updateSimulation()

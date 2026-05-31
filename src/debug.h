@@ -36,14 +36,35 @@
 #define DBG_CTRL_STEP 0x20 // startup step; val = step number
 
 #ifdef OBD_DEBUG
-#include <Arduino.h>
+#include <avr/io.h>
+
+// Direct UART0 write — no HardwareSerial, no ISR vectors, no ring buffer.
+// Saves ~1 KB vs Serial.write() while producing identical wire output.
+// Call uartDebugBegin() from setup() instead of Serial.begin(115200).
+inline void uartDebugBegin()
+{
+    // U2X0 double-speed mode: UBRR=16 → 117,647 baud (~2% error from 115200, fine for USB-serial)
+    UCSR0A = 1 << U2X0;
+    UBRR0H = 0;
+    UBRR0L = 16;
+    UCSR0B = 1 << TXEN0; // TX-only; no RX, no interrupts
+    // UCSR0C reset value is already 8N1 (0x06), no change needed
+}
+
+static inline void _uartPut(uint8_t c)
+{
+    while (!(UCSR0A & (1 << UDRE0)))
+        ;
+    UDR0 = c;
+}
+
 inline void _dbg(uint8_t code, uint16_t val = 0)
 {
-    Serial.write(0xAA);
-    Serial.write(code);
-    Serial.write(static_cast<uint8_t>(val >> 8));
-    Serial.write(static_cast<uint8_t>(val & 0xFF));
-    Serial.write(0x55);
+    _uartPut(0xAA);
+    _uartPut(code);
+    _uartPut(static_cast<uint8_t>(val >> 8));
+    _uartPut(static_cast<uint8_t>(val & 0xFF));
+    _uartPut(0x55);
 }
 #define DBG(code) _dbg(code)
 #define DBGV(code, val) _dbg(code, static_cast<uint16_t>(val))

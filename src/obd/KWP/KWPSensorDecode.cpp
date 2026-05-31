@@ -633,6 +633,11 @@ signal_mapping:
                             setI8(signals.engine.lambda, signals.engine.lambdaUpdated,
                                   (int8_t)(v / 10));
                             break;
+                        case 3:
+                            // Basic-setting requirement bits: 1=condition met
+                            setU8(signals.engine.basicSettingBits,
+                                  signals.engine.basicSettingBitsUpdated, (uint8_t)(v / 10));
+                            break;
                         default:
                             break;
                     }
@@ -682,6 +687,23 @@ signal_mapping:
                             setI8(signals.engine.lambda2, signals.engine.lambda2Updated,
                                   (int8_t)(v / 10));
                             break;
+                    }
+                    break;
+                case 100:
+                    // OBD readiness bits: 1=not complete/FAIL, 0=complete/PASS
+                    if (idx == 0)
+                    {
+                        // k=16 binary type: v = raw_byte×10, so raw_byte = v/10
+                        uint8_t rb = (uint8_t)(v / 10);
+                        signals.engine.exhaustGasRecirculationError = (rb >> 7) & 1;
+                        signals.engine.oxygenSensorHeatingError = (rb >> 6) & 1;
+                        signals.engine.oxygenSensorError = (rb >> 5) & 1;
+                        signals.engine.airConditioningError = (rb >> 4) & 1;
+                        signals.engine.secondaryAirInjectionError = (rb >> 3) & 1;
+                        signals.engine.evaporativeEmissionsError = (rb >> 2) & 1;
+                        signals.engine.catalystHeatingError = (rb >> 1) & 1;
+                        signals.engine.catalyticConverter = (rb >> 0) & 1;
+                        signals.engine.errorBitsUpdated = true;
                     }
                     break;
                 default:
