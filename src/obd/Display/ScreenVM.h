@@ -31,6 +31,7 @@ enum ScreenOp : uint8_t
     SO_HEX_U8 = 0x0A,   // [x, y, fid]         — prints "0xNN"
     SO_CURSOR = 0x0B,   // [x, y, target, len, chars...] — ">label" or " label"
     SO_MODE_STR = 0x0C, // [x, y, fid]         — ACK/Grp/Sensor from uint8_t kwpMode
+    SO_BIN_U8 = 0x0D,   // [x, y, fid]         — prints 8-bit binary "01101001"
 };
 
 enum FieldId : uint8_t
