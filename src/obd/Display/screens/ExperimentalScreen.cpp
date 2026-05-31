@@ -81,6 +81,16 @@ void renderExperimentalScreen(const DisplayManager& dm, uint8_t /*screen*/,
                 bin[8] = '\0';
                 dm.print(2, vr, bin);
             }
+            else if (eg.k[i] == 36)
+            {
+                // k=36 km: always a multiple of 10 — no decimal needed.
+                // fmtScaled always appends ".x" so bypass it: format as plain integer.
+                char vlabel[4] = {'V', (char)('1' + i), ':', '\0'};
+                dm.print(0, vr, vlabel);
+                char buf[8];
+                ltoa((long)(eg.v[i] / 10), buf, 10);
+                dm.print(3, vr, buf, 7);
+            }
             else
             {
                 char vlabel[4] = {'V', (char)('1' + i), ':', '\0'};

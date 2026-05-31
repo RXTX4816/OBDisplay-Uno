@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "OBDDisplay.h"
+#include "Buzzer.h"
 #include "../debug.h"
 
 // AVR linker-defined heap bounds; must be at global scope for freeRam_().
@@ -465,7 +466,10 @@ void OBDDisplay::update()
         menuState_.markMenuChanged();
 
         if (simulationModeActive_)
+        {
             connected_ = true;
+            menuState_.setCockpitMax(addrSelected_ == 0x01 ? 4u : addrSelected_ == 0x17 ? 2u : 0u);
+        }
     }
 
     // Always keep UI responsive, even when not connected to an ECU.
@@ -589,11 +593,14 @@ bool OBDDisplay::ensureConnected_()
     // like the original sketch did.
     menuState_ = Input::MenuState(); // reset to defaults (Cockpit, screen 0)
     menuState_.markMenuChanged();
+    menuState_.setCockpitMax(addrSelected_ == 0x01 ? 4u : addrSelected_ == 0x17 ? 2u : 0u);
 
     // Seed one round of data so the very first cockpit frame drawn
     // after connect is fully populated without waiting for a manual
     // screen change.
     updateKwpOrSimulation_();
+    signals_.instruments.odometerStart = signals_.instruments.odometer;
+    signals_.instruments.fuelLevelStart = signals_.instruments.fuelLevel;
     computeValues_();
     return true;
 }
@@ -629,6 +636,20 @@ void OBDDisplay::updateKwpOrSimulation_()
                         break;
                     }
                 }
+                // Group 100 (OBD readiness) changes rarely — poll once per ~60 cycles (~2 min)
+                if (connected_ && addrSelected_ == 0x01)
+                {
+                    static uint8_t g100Ctr = 0;
+                    if (++g100Ctr >= 60)
+                    {
+                        g100Ctr = 0;
+                        if (!kwp_.readSensorsGroup(100, signals_))
+                        {
+                            kwp_.disconnect();
+                            connected_ = false;
+                        }
+                    }
+                }
                 break;
         }
     }
@@ -642,6 +663,14 @@ void OBDDisplay::updateKwpOrSimulation_()
 void OBDDisplay::computeValues_()
 {
     signals_.compute(millis(), connectTimeStart_);
+    signals_.computeWarnings(addrSelected_);
+    if (signals_.warnings.hasNew)
+    {
+        signals_.warnings.hasNew = false;
+        warningFlashUntilMs_ = millis() + 3000u;
+        warningFlashPhase_ = true;
+        beepWarning(signals_.warnings.maxLevel);
+    }
 }
 
 void OBDDisplay::pollButtons()
@@ -1153,10 +1182,36 @@ void OBDDisplay::updateDisplay_()
                 }
 
                 default:
-                    display_.initMenu(menuState_, addrSelected_, static_cast<int>(kwpMode_));
-                    display_.render(menuState_, signals_, dtcStore_, addrSelected_,
-                                    static_cast<int>(kwpMode_), true);
+                {
+                    bool doFlash = (millis() < warningFlashUntilMs_ &&
+                                    menuState_.currentMenu() == MenuId::Cockpit);
+                    if (doFlash)
+                    {
+                        if (warningFlashPhase_)
+                        {
+                            switch (signals_.warnings.maxLevel)
+                            {
+                                case 3:
+                                    display_.print(0, 7, F("!!!CRIT!!!"));
+                                    break;
+                                case 2:
+                                    display_.print(0, 7, F("!! CAUTION"));
+                                    break;
+                                default:
+                                    display_.print(0, 7, F("!  ALERT  "));
+                                    break;
+                            }
+                        }
+                        warningFlashPhase_ = !warningFlashPhase_;
+                    }
+                    else
+                    {
+                        display_.initMenu(menuState_, addrSelected_, static_cast<int>(kwpMode_));
+                        display_.render(menuState_, signals_, dtcStore_, addrSelected_,
+                                        static_cast<int>(kwpMode_), true);
+                    }
                     break;
+                }
             }
 
             if (timeToUpdate)

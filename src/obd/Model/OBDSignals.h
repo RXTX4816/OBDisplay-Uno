@@ -80,6 +80,9 @@ struct EngineSignals
     int8_t lambda = 0;
     bool lambdaUpdated = false;
 
+    uint8_t basicSettingBits = 0; // group 1 v4: 1=condition met per bit
+    bool basicSettingBitsUpdated = false;
+
     bool exhaustGasRecirculationError = false;
     bool oxygenSensorHeatingError = false;
     bool oxygenSensorError = false;
@@ -133,6 +136,33 @@ struct ComputedStats
 
     uint16_t fuelPerHour = 0; // ×10 fixed-point (e.g. 45 = 4.5 L/h)
     bool fuelPerHourUpdated = false;
+
+    uint16_t kmRemaining = 0; // estimated range at current consumption rate (capped at 9999)
+    bool kmRemainingUpdated = false;
+};
+
+// Warning bitmask bits are ordered HIGH→MED→LOW so a forward iteration renders by severity.
+// bit 0–2: HIGH  bit 3–6: MED  bit 7–9: LOW
+enum WarnBit : uint8_t
+{
+    WARN_OIL_PRES = 0,  // HIGH: oilPressureMin >= 2 (0x17)
+    WARN_OIL_HOT = 1,   // HIGH: oilTemp > 93°C (0x17)
+    WARN_COOL_HOT = 2,  // HIGH: coolantTemp > 93°C (both)
+    WARN_OIL_LVL = 3,   // MED:  oilLevelOk == 0 (0x17)
+    WARN_LOW_VOLT = 4,  // MED:  engine.voltage < 120 (12.0 V) (0x01)
+    WARN_FUEL_CRIT = 5, // MED:  fuelLevel < 4 L (0x17)
+    WARN_VERY_COLD = 6, // MED:  coolantTemp < 40°C (both)
+    WARN_HIGH_LOAD = 7, // LOW:  engineLoad > 90% (0x01)
+    WARN_FUEL_LOW = 8,  // LOW:  fuelLevel < 8 L (0x17)
+    WARN_COLD_ENG = 9,  // LOW:  coolantTemp < 75°C (both)
+    WARN_COUNT = 10,
+};
+
+struct WarningState
+{
+    uint16_t bits = 0;    // bitmask; bit N = WarnBit N
+    uint8_t maxLevel = 0; // 0=none 1=low 2=med 3=high
+    bool hasNew = false;  // set when a new warning fires; consumed by OBDDisplay
 };
 
 struct OBDSignals
@@ -141,9 +171,11 @@ struct OBDSignals
     EngineSignals engine;
     ExperimentalGroup experimental;
     ComputedStats computed;
+    WarningState warnings;
 
     void reset();
     void compute(uint32_t nowMs, uint32_t connectTimeStart);
+    void computeWarnings(uint8_t ecuAddr);
     void updateSimulation();
 };
 

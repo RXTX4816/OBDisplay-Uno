@@ -73,6 +73,10 @@ class OBDDisplay
     uint32_t displayFrameTimestamp_;
     uint32_t buttonTimeoutUntil_;
 
+    // Warning flash overlay: replaces cockpit view for ~3 s when a new warning fires
+    uint32_t warningFlashUntilMs_ = 0;
+    bool warningFlashPhase_ = false;
+
     // Latched button state — bits set by pollButtons(), consumed by handleInput_().
     // This decouples detection (high-frequency) from action (per update() cycle).
     uint8_t pendingBtns_ = 0;
