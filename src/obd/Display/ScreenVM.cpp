@@ -188,6 +188,17 @@ void runScript(const uint8_t* p, const ScreenCtx& ctx, const DisplayManager& dm)
                 dm.print(x, y, buf);
                 break;
             }
+            case SO_BIN_U8:
+            {
+                fid = pgm_read_byte(p++);
+                uint8_t val = (uint8_t)getFieldInt((FieldId)fid, ctx);
+                char buf[9];
+                for (uint8_t i = 0; i < 8; ++i)
+                    buf[i] = (val & (0x80 >> i)) ? '1' : '0';
+                buf[8] = '\0';
+                dm.print(x, y, buf);
+                break;
+            }
             case SO_CURSOR:
             {
                 uint8_t target = pgm_read_byte(p++);

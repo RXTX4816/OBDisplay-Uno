@@ -1,26 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "ExperimentalScreen.h"
-#include "../ScreenVM.h"
 
 namespace obd
 {
 namespace Display
 {
-
-// clang-format off
-static const uint8_t PROGMEM kExpScript[] = {
-    SO_LABEL,  0,  0, 4, 'G','r','p',':',  SO_U8,     5,  0, FLD_EXP_GRP,
-    SO_LABEL,  0,  2, 3, 'V','1',':',      SO_SCALED, 3,  2, FLD_EXP_V0, 7,
-    SO_LABEL,  0,  3, 2, 'k',':',          SO_U8,     2,  3, FLD_EXP_K0,   SO_STR, 5, 3, FLD_EXP_U0,
-    SO_LABEL,  0,  5, 3, 'V','2',':',      SO_SCALED, 3,  5, FLD_EXP_V1, 7,
-    SO_LABEL,  0,  6, 2, 'k',':',          SO_U8,     2,  6, FLD_EXP_K1,   SO_STR, 5, 6, FLD_EXP_U1,
-    SO_LABEL,  0,  8, 3, 'V','3',':',      SO_SCALED, 3,  8, FLD_EXP_V2, 7,
-    SO_LABEL,  0,  9, 2, 'k',':',          SO_U8,     2,  9, FLD_EXP_K2,   SO_STR, 5, 9, FLD_EXP_U2,
-    SO_LABEL,  0, 11, 3, 'V','4',':',      SO_SCALED, 3, 11, FLD_EXP_V3, 7,
-    SO_LABEL,  0, 12, 2, 'k',':',          SO_U8,     2, 12, FLD_EXP_K3,   SO_STR, 5, 12, FLD_EXP_U3,
-    SO_END
-};
-// clang-format on
 
 void initExperimentalScreen(DisplayManager& /*dm*/) {}
 
@@ -73,8 +57,43 @@ void renderExperimentalScreen(const DisplayManager& dm, uint8_t /*screen*/,
     else
     {
         // Normal group data view.
-        ScreenCtx ctx{&signals, nullptr, 0, 0};
-        runScript(kExpScript, ctx, dm);
+        dm.print(0, 0, F("Grp:"));
+        dm.print(5, 0, (int32_t)eg.groupCurrent);
+
+        static const uint8_t vRows[4] = {2, 5, 8, 11};
+        static const uint8_t kRows[4] = {3, 6, 9, 12};
+
+        for (uint8_t i = 0; i < 4; ++i)
+        {
+            const uint8_t vr = vRows[i];
+            const uint8_t kr = kRows[i];
+
+            if (eg.k[i] == 16)
+            {
+                // k=16 is "Binary Bits" — show lower byte of the value as 8-bit binary.
+                // Layout: "V1" at col 0-1, 8 bits at col 2-9 (exactly 10 cols).
+                char vlabel[3] = {'V', (char)('1' + i), '\0'};
+                dm.print(0, vr, vlabel);
+                uint8_t val = (uint8_t)(eg.v[i] / 10);
+                char bin[9];
+                for (uint8_t b = 0; b < 8; ++b)
+                    bin[b] = (val & (0x80 >> b)) ? '1' : '0';
+                bin[8] = '\0';
+                dm.print(2, vr, bin);
+            }
+            else
+            {
+                char vlabel[4] = {'V', (char)('1' + i), ':', '\0'};
+                dm.print(0, vr, vlabel);
+                dm.print(3, vr, eg.v[i], 1, 7);
+            }
+
+            // k row: always decimal type code + unit string.
+            dm.print(0, kr, F("k:"));
+            dm.print(2, kr, (int32_t)eg.k[i]);
+            dm.print(5, kr, eg.unit[i]);
+        }
+
         dm.print(0, 15, F("OK:Sel Grp"));
     }
 #else
