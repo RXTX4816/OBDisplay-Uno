@@ -476,6 +476,7 @@ void OBDDisplay::update()
     // Always keep UI responsive, even when not connected to an ECU.
     bool wasConnected = connected_;
     bool nowConnected = ensureConnected_();
+    bool justConnected = !wasConnected && nowConnected;
 
     // Only talk to ECU or run simulation when we have (or had) a connection.
     // If ensureConnected_() failed in ECU mode, it already showed an
@@ -483,8 +484,14 @@ void OBDDisplay::update()
     // the tripcomputer loop.
     if ((nowConnected || wasConnected || simulationModeActive_) && phase_ == Phase::Running)
     {
-        updateKwpOrSimulation_();
-        computeValues_();
+        // Skip the redundant read on the first frame after connection: ensureConnected_()
+        // already seeded a full group-read round and called computeValues_(), so
+        // updateDisplay_() below can render the cockpit immediately.
+        if (!justConnected)
+        {
+            updateKwpOrSimulation_();
+            computeValues_();
+        }
     }
 
     handleInput_();
