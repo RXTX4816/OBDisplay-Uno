@@ -44,6 +44,7 @@ struct InstrumentSignals
 
     uint16_t oilPressureMin = 0;
     bool oilPressureMinUpdated = false;
+    uint8_t oilPressureLowCount = 0; // debounce counter for WARN_OIL_PRES
 
     uint32_t timeEcu = 0;
     bool timeEcuUpdated = false;
@@ -145,7 +146,8 @@ struct ComputedStats
 // bit 0–2: HIGH  bit 3–6: MED  bit 7–9: LOW
 enum WarnBit : uint8_t
 {
-    WARN_OIL_PRES = 0,  // HIGH: oilPressureMin >= 2 (0x17)
+    WARN_OIL_PRES =
+        0, // HIGH: oilPressureMin != 31 (normal=31; low=unknown) sustained 3 reads (0x17)
     WARN_OIL_HOT = 1,   // HIGH: oilTemp > 93°C (0x17)
     WARN_COOL_HOT = 2,  // HIGH: coolantTemp > 93°C (both)
     WARN_OIL_LVL = 3,   // MED:  oilLevelOk == 0 (0x17)
