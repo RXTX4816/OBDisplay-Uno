@@ -56,6 +56,7 @@ struct InstrumentSignals
     uint8_t fuelLevel = 0;
     bool fuelLevelUpdated = false;
     uint8_t fuelLevelStart = 0;
+    uint16_t fuelLevelSmoothX8 = 0; // EMA-smoothed fuel ×8 (1 unit = 0.125 L)
 
     uint16_t fuelSensorResistance = 0;
     bool fuelSensorResistanceUpdated = false;
@@ -126,7 +127,9 @@ struct ComputedStats
     uint32_t elapsedSecondsSinceStart = 0;
     bool elapsedSecondsSinceStartUpdated = false;
 
-    uint16_t elapsedKmSinceStart = 0;
+    uint32_t tripDistance100 = 0; // speed-integrated trip distance ×100 (1 unit = 0.01 km)
+
+    uint16_t elapsedKmSinceStart = 0; // derived: tripDistance100 / 100, for display
     bool elapsedKmSinceStartUpdated = false;
 
     uint8_t fuelBurnedSinceStart = 0;
@@ -179,6 +182,9 @@ struct OBDSignals
     void compute(uint32_t nowMs, uint32_t connectTimeStart);
     void computeWarnings(uint8_t ecuAddr);
     void updateSimulation();
+
+    uint32_t prevComputeMs_ = 0xFFFFFFFFu; // 0xFFFFFFFF = uninitialized sentinel
+    uint32_t tripDistAccum_ = 0;           // sub-unit accumulator (km/h × ms, mod 36000)
 };
 
 } // namespace Model

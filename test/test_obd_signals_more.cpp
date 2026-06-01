@@ -14,25 +14,30 @@ void test_compute_realistic_trip()
     OBDSignals signals;
     signals.reset();
 
-    // Simulate a short trip
-    signals.instruments.odometerStart = 1000;   // km
-    signals.instruments.odometer = 1050;        // km
-    signals.instruments.fuelLevelStart = 60;    // percent
-    signals.instruments.fuelLevel = 55;         // percent
+    // 100 km/h constant speed for 1 hour → 100 km trip, 5 L burned
+    signals.instruments.vehicleSpeed = 100;
+    signals.instruments.fuelLevelStart = 55;
+    signals.instruments.fuelLevelSmoothX8 = (uint16_t)(50u * 8u); // 5 L burned
 
+    // Prime prevComputeMs_ with the start time
+    signals.compute(0, 0); // first call: initializes prevComputeMs_
+
+    // One big step: 3600 s at 100 km/h
     const uint32_t startMs = 0;
-    const uint32_t nowMs = 3600UL * 1000UL;     // 1 hour later
-
+    const uint32_t nowMs = 3600UL * 1000UL;
     signals.compute(nowMs, startMs);
 
-    // 50 km in 1h -> 50 km/h, burned 5% fuel
     TEST_ASSERT_EQUAL_UINT32(3600, signals.computed.elapsedSecondsSinceStart);
-    TEST_ASSERT_EQUAL_UINT16(50, signals.computed.elapsedKmSinceStart);
-    TEST_ASSERT_EQUAL_UINT8(5, signals.computed.fuelBurnedSinceStart);
+    // 100 km/h × 3600 s = 100 km → tripDistance100 ≈ 10000
+    TEST_ASSERT_TRUE(signals.computed.tripDistance100 >= 9990 &&
+                     signals.computed.tripDistance100 <= 10010);
+    TEST_ASSERT_EQUAL_UINT16(100, signals.computed.elapsedKmSinceStart);
 
-    // Basic sanity checks on derived metrics (exact formulas tested in base test)
-    TEST_ASSERT_TRUE(signals.computed.fuelPer100km >= 0.0f);
-    TEST_ASSERT_TRUE(signals.computed.fuelPerHour >= 0.0f);
+    // fuelBurnedSinceStart: 5L burned (via smoothX8)
+    TEST_ASSERT_EQUAL_UINT8(5, signals.computed.fuelBurnedSinceStart);
+    // fuelPer100km ×10: 5L/100km → 50
+    TEST_ASSERT_TRUE(signals.computed.fuelPer100km >= 45 &&
+                     signals.computed.fuelPer100km <= 55);
 }
 
 void test_update_simulation_changes_values()
@@ -146,6 +151,11 @@ void test_signals_reset_clears_all_values()
     TEST_ASSERT_EQUAL_UINT16(0, signals.instruments.vehicleSpeed);
     TEST_ASSERT_EQUAL_UINT16(0, signals.instruments.engineRpm);
     TEST_ASSERT_EQUAL_INT8(0, signals.instruments.coolantTemp);
+
+    // Integrator state must be reset to sentinel / zero
+    TEST_ASSERT_EQUAL_UINT32(0xFFFFFFFFu, signals.prevComputeMs_);
+    TEST_ASSERT_EQUAL_UINT32(0, signals.tripDistAccum_);
+    TEST_ASSERT_EQUAL_UINT32(0, signals.computed.tripDistance100);
 }
 
 void test_signals_zero_time_elapsed()
@@ -153,16 +163,17 @@ void test_signals_zero_time_elapsed()
     OBDSignals signals;
     signals.reset();
 
-    signals.instruments.odometerStart = 100;
-    signals.instruments.odometer = 150;
     signals.instruments.fuelLevelStart = 80;
     signals.instruments.fuelLevel = 75;
+    signals.instruments.fuelLevelSmoothX8 = (uint16_t)(75u * 8u); // 5 L burned
 
-    // Call compute with zero elapsed time
+    // Call compute with zero elapsed time (both calls at t=0)
+    signals.compute(0, 0); // initializes prevComputeMs_
     signals.compute(0, 0);
 
     TEST_ASSERT_EQUAL_UINT32(0, signals.computed.elapsedSecondsSinceStart);
-    TEST_ASSERT_EQUAL_UINT16(50, signals.computed.elapsedKmSinceStart);
+    TEST_ASSERT_EQUAL_UINT32(0, signals.computed.tripDistance100);
+    TEST_ASSERT_EQUAL_UINT16(0, signals.computed.elapsedKmSinceStart);
     TEST_ASSERT_EQUAL_UINT8(5, signals.computed.fuelBurnedSinceStart);
 }
 
@@ -171,25 +182,90 @@ void test_signals_fuel_consumption_calculation()
     OBDSignals signals;
     signals.reset();
 
-    // Set up a 100km trip over 2 hours using 10 liters
-    signals.instruments.odometerStart = 0;
-    signals.instruments.odometer = 100;
+    // 100 km/h for 2 hours → 200 km; 10 L burned
+    signals.instruments.vehicleSpeed = 100;
     signals.instruments.fuelLevelStart = 50;
-    signals.instruments.fuelLevel = 40;
+    signals.instruments.fuelLevelSmoothX8 = (uint16_t)(40u * 8u); // 10 L burned
 
-    const uint32_t twoHoursMs = 2 * 3600UL * 1000UL;
+    const uint32_t twoHoursMs = 2UL * 3600UL * 1000UL;
+    signals.compute(0, 0);                  // prime prevComputeMs_
     signals.compute(twoHoursMs, 0);
 
-    // Verify basic calculations
     TEST_ASSERT_EQUAL_UINT32(2 * 3600, signals.computed.elapsedSecondsSinceStart);
-    TEST_ASSERT_EQUAL_UINT16(100, signals.computed.elapsedKmSinceStart);
+    // tripDistance100 ≈ 20000 (200 km)
+    TEST_ASSERT_TRUE(signals.computed.tripDistance100 >= 19990 &&
+                     signals.computed.tripDistance100 <= 20010);
+    TEST_ASSERT_EQUAL_UINT16(200, signals.computed.elapsedKmSinceStart);
     TEST_ASSERT_EQUAL_UINT8(10, signals.computed.fuelBurnedSinceStart);
 
-    // fuelPer100km stored ×10: 10 L/100km → 100. Acceptable range [90, 110].
-    TEST_ASSERT_TRUE(signals.computed.fuelPer100km >= 90 && signals.computed.fuelPer100km <= 110);
+    // fuelPer100km ×10: 10L/200km = 5.0 L/100km → 50. Range [45, 55].
+    TEST_ASSERT_TRUE(signals.computed.fuelPer100km >= 45 &&
+                     signals.computed.fuelPer100km <= 55);
 
-    // fuelPerHour stored ×10: 5 L/h → 50. Acceptable range [40, 60].
-    TEST_ASSERT_TRUE(signals.computed.fuelPerHour >= 40 && signals.computed.fuelPerHour <= 60);
+    // fuelPerHour ×10: 10L/7200s * 3600 * 10 = 5.0 L/h → 50. Range [45, 55].
+    TEST_ASSERT_TRUE(signals.computed.fuelPerHour >= 45 &&
+                     signals.computed.fuelPerHour <= 55);
+}
+
+void test_speed_integration_accumulates_distance()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    signals.instruments.vehicleSpeed = 100; // km/h
+    signals.instruments.fuelLevelSmoothX8 =
+        (uint16_t)signals.instruments.fuelLevel * 8u;
+
+    // Prime, then drive 1 hour
+    signals.compute(0, 0);
+    signals.compute(3600UL * 1000UL, 0);
+
+    // 100 km/h × 3600 s = 100 km = tripDistance100 10000
+    TEST_ASSERT_TRUE(signals.computed.tripDistance100 >= 9990 &&
+                     signals.computed.tripDistance100 <= 10010);
+    TEST_ASSERT_EQUAL_UINT16(100, signals.computed.elapsedKmSinceStart);
+}
+
+void test_fuel_ema_smooths_spike()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    signals.instruments.vehicleSpeed = 0;
+    signals.instruments.fuelLevelStart = 40;
+    signals.instruments.fuelLevelSmoothX8 = (uint16_t)(40u * 8u); // = 320
+
+    // Inject a +10 L slosh spike
+    signals.instruments.fuelLevel = 50;
+    signals.instruments.fuelLevelUpdated = true;
+
+    signals.compute(0, 0);   // prime
+    signals.compute(50, 0);  // one 50 ms step
+
+    // After one EMA step: smooth = (320*31 + 400) >> 5 = (9920 + 400) / 32 = 10320/32 = 322
+    // i.e. moved only ~2/320 = 0.6% toward the spike
+    TEST_ASSERT_TRUE(signals.instruments.fuelLevelSmoothX8 >= 320 &&
+                     signals.instruments.fuelLevelSmoothX8 <= 325);
+}
+
+void test_fuelper100km_uses_smooth_distance()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    // Directly seed tripDistance100 by driving 60 km before calling compute
+    signals.instruments.vehicleSpeed = 100; // km/h
+    signals.instruments.fuelLevelStart = 50;
+    signals.instruments.fuelLevelSmoothX8 = (uint16_t)(45u * 8u); // 5 L burned
+
+    signals.compute(0, 0); // prime
+    // 100 km/h × 2160 s = 60 km
+    signals.compute(2160UL * 1000UL, 0);
+
+    // tripDistance100 ≈ 6000; burnedX8 = 5*8 = 40
+    // fuelPer100km = 40 * 12500 / 6000 = 500000/6000 ≈ 83 → 8.3 L/100km
+    TEST_ASSERT_TRUE(signals.computed.fuelPer100km >= 75 &&
+                     signals.computed.fuelPer100km <= 91);
 }
 
 int main(int argc, char **argv)
@@ -204,6 +280,9 @@ int main(int argc, char **argv)
     RUN_TEST(test_compute_realistic_trip);
     RUN_TEST(test_signals_fuel_consumption_calculation);
     RUN_TEST(test_update_simulation_changes_values);
+    RUN_TEST(test_speed_integration_accumulates_distance);
+    RUN_TEST(test_fuel_ema_smooths_spike);
+    RUN_TEST(test_fuelper100km_uses_smooth_distance);
 
     // DTCStore tests
     RUN_TEST(test_dtc_store_reset);

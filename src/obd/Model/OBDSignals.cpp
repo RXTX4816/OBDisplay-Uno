@@ -41,6 +41,8 @@ void OBDSignals::reset()
     experimental.reset();
     computed = ComputedStats{};
     warnings = WarningState{};
+    prevComputeMs_ = 0xFFFFFFFFu;
+    tripDistAccum_ = 0;
 }
 
 void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart)
@@ -48,30 +50,76 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart)
     computed.elapsedSecondsSinceStart = (nowMs - connectTimeStart) / 1000;
     computed.elapsedSecondsSinceStartUpdated = true;
 
-    computed.elapsedKmSinceStart = (instruments.odometer - instruments.odometerStart);
+    // ── Speed-integrated trip distance ──────────────────────────────────────
+    // Guard first call: sentinel 0xFFFFFFFF means prevComputeMs_ is uninitialized.
+    if (prevComputeMs_ == 0xFFFFFFFFu)
+    {
+        prevComputeMs_ = nowMs;
+    }
+    else
+    {
+        uint32_t deltaMs = nowMs - prevComputeMs_;
+        prevComputeMs_ = nowMs;
+        // tripDistAccum_ in units of km/h × ms; 36000 km/h·ms = 0.01 km
+        tripDistAccum_ += (uint32_t)instruments.vehicleSpeed * deltaMs;
+        computed.tripDistance100 += tripDistAccum_ / 36000u;
+        tripDistAccum_ %= 36000u;
+    }
+    computed.elapsedKmSinceStart = (uint16_t)(computed.tripDistance100 / 100u);
     computed.elapsedKmSinceStartUpdated = true;
 
-    computed.fuelBurnedSinceStart =
-        abs((int)instruments.fuelLevelStart - (int)instruments.fuelLevel);
+    // ── EMA-smoothed fuel level (α=1/32, τ≈1.6 s at 50 ms) — 16-bit only ───
+    // smooth += (newX8 - smooth) >> 5  (arithmetic shift handles both directions)
+    if (instruments.fuelLevelUpdated)
+    {
+        uint16_t newX8 = (uint16_t)instruments.fuelLevel << 3u;
+        int16_t delta = (int16_t)newX8 - (int16_t)instruments.fuelLevelSmoothX8;
+        instruments.fuelLevelSmoothX8 =
+            (uint16_t)((int16_t)instruments.fuelLevelSmoothX8 + (delta >> 5));
+    }
+
+    // ── Fuel burned via smoothed level ──────────────────────────────────────
+    // burnedX8 in 1/8 L units; clamp to zero if smooth somehow exceeds start.
+    uint16_t startX8 = (uint16_t)instruments.fuelLevelStart * 8u;
+    uint16_t burnedX8 =
+        (instruments.fuelLevelSmoothX8 < startX8) ? (startX8 - instruments.fuelLevelSmoothX8) : 0u;
+    computed.fuelBurnedSinceStart = (uint8_t)(burnedX8 >> 3u);
     computed.fuelBurnedSinceStartUpdated = true;
 
-    // fuelPer100km ×10: burned*1000/km (e.g. 5L/60km → 83 = 8.3 L/100km)
-    computed.fuelPer100km = (computed.elapsedKmSinceStart > 0)
-                                ? (uint16_t)((uint32_t)computed.fuelBurnedSinceStart * 1000u /
-                                             computed.elapsedKmSinceStart)
-                                : 0u;
+    // ── fuelPer100km ×10 ────────────────────────────────────────────────────
+    // Real data once >1 km driven with actual fuel drop; otherwise estimate
+    // from RPM/speed: L/100km×10 ≈ (RPM/2)*5/speed — all 16-bit safe on AVR.
+    // Calibrated for ~1.4 L petrol: 2700 RPM at 100 km/h → ~6.7 L/100km.
+    if (burnedX8 > 0u && computed.tripDistance100 > 100u)
+    {
+        computed.fuelPer100km = (uint16_t)((uint32_t)burnedX8 * 12500u / computed.tripDistance100);
+    }
+    else if (instruments.vehicleSpeed > 17u)
+    {
+        // At speed>17 result fits uint16_t and stays below 999 (no overflow, no cap needed)
+        computed.fuelPer100km =
+            (uint16_t)instruments.engineRpm / 2u * 5u / instruments.vehicleSpeed;
+    }
+    else
+    {
+        computed.fuelPer100km = 0u;
+    }
     computed.fuelPer100kmUpdated = true;
 
-    // fuelPerHour ×10: burned*36000/sec (e.g. 5L/1800s → 100 = 10.0 L/h)
-    computed.fuelPerHour = (computed.elapsedSecondsSinceStart > 0)
-                               ? (uint16_t)((uint32_t)computed.fuelBurnedSinceStart * 36000u /
-                                            computed.elapsedSecondsSinceStart)
-                               : 0u;
+    // ── fuelPerHour ×10: burnedX8*4500/sec ──────────────────────────────────
+    // Derivation: (burnedX8/8 L) / secs * 3600 * 10 = burnedX8 * 4500 / secs
+    computed.fuelPerHour =
+        (computed.elapsedSecondsSinceStart > 0)
+            ? (uint16_t)((uint32_t)burnedX8 * 4500u / computed.elapsedSecondsSinceStart)
+            : 0u;
     computed.fuelPerHourUpdated = true;
 
-    // kmRemaining: estimated range at current L/100km rate; capped at 9999 for display
+    // ── kmRemaining: fuelLevelSmoothX8*125/fuelPer100km ─────────────────────
+    // Derivation: (smooth/8 L) / (fuelPer100km/10 L/100km) * 100
+    //           = smooth * 100 * 10 / (8 * fuelPer100km)
+    //           = smooth * 125 / fuelPer100km
     uint32_t kmR = (computed.fuelPer100km > 0)
-                       ? ((uint32_t)instruments.fuelLevel * 1000u / computed.fuelPer100km)
+                       ? ((uint32_t)instruments.fuelLevelSmoothX8 * 125u / computed.fuelPer100km)
                        : 0u;
     computed.kmRemaining = (uint16_t)(kmR > 9999u ? 9999u : kmR);
     computed.kmRemainingUpdated = true;

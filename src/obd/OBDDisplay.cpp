@@ -609,6 +609,7 @@ bool OBDDisplay::ensureConnected_()
     updateKwpOrSimulation_();
     signals_.instruments.odometerStart = signals_.instruments.odometer;
     signals_.instruments.fuelLevelStart = signals_.instruments.fuelLevel;
+    signals_.instruments.fuelLevelSmoothX8 = (uint16_t)signals_.instruments.fuelLevel * 8u;
     computeValues_();
     return true;
 }
