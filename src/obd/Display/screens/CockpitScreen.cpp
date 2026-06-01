@@ -112,7 +112,7 @@ static void renderCockpit17Big(const DisplayManager& dm, const OBDSignals& s)
     dm.printBig(0, 16, s.instruments.engineRpm);
     printBigTemp(dm, 0, 39, s.instruments.oilTemp, " O");
     printBigTemp(dm, 0, 55, s.instruments.coolantTemp, " C");
-    dm.printBigWithLabel(0, 78, s.instruments.fuelLevel, " L");
+    dm.printBigWithLabel(0, 78, s.instruments.fuelLevelSmoothX8 >> 3, " L");
     dm.printBigWithLabel(0, 94, s.instruments.ambientTemp, "AIR");
 }
 
@@ -193,7 +193,7 @@ static void renderSecondDashboard17(const DisplayManager& dm, const OBDSignals& 
         dm.printBig(0, 48, "---");
 
     dm.printBigScaled10(0, 64, (int16_t)s.computed.fuelPer100km, 'L');
-    dm.printBigWithLabel(0, 80, s.instruments.fuelLevel, " F");
+    dm.printBigWithLabel(0, 80, s.instruments.fuelLevelSmoothX8 >> 3, " F");
 }
 
 // ── Warning flash overlay (shown when a new warning fires) ────────────────────
