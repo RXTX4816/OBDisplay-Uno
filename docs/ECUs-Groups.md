@@ -622,7 +622,7 @@ Label file covers part numbers 1J?-920-??0/??1/??2/??5, tested with 1J0 920 900 
 |---|-------------|---------------|-------|
 | 1 | Vehicle speed | 0.0 km/h | |
 | 2 | Engine speed | 0 /min | |
-| 3 | Oil pressure indicator | 2 (`<min`, 0.9 bar) | Meaning of exact value unclear — probably an index (0, 1, 2) |
+| 3 | Oil pressure indicator | 31 (switch closed, normal) | Binary switch (<0.9 bar trip); VCDS shows OK/N.OK labels. Low-pressure encoded value unknown — not yet observed. |
 | 4 | Time | 21:50 | |
 
 **Group 2** — Distance / Fuel / Ambient temperature

@@ -93,8 +93,22 @@ void OBDSignals::computeWarnings(uint8_t ecuAddr)
 
     if (ecuAddr == 0x17)
     {
-        // Oil pressure: value 2 = "<min, 0.9 bar" confirmed; encoding uncertain, verify on car
-        if (instruments.oilPressureMinUpdated && instruments.oilPressureMin >= 2)
+        // Oil pressure switch: normal value = 31. Low-pressure encoded value unknown.
+        // Debounce 3 compute cycles to filter oil-slosh switch chatter.
+        if (instruments.oilPressureMinUpdated)
+        {
+            if (instruments.oilPressureMin != 31)
+            {
+                if (instruments.oilPressureLowCount < 3)
+                    instruments.oilPressureLowCount++;
+            }
+            else
+            {
+                if (instruments.oilPressureLowCount > 0)
+                    instruments.oilPressureLowCount--;
+            }
+        }
+        if (instruments.oilPressureLowCount >= 3)
             setWarn(warnings, WARN_OIL_PRES, 3);
         if (instruments.oilTempUpdated && instruments.oilTemp > 93)
             setWarn(warnings, WARN_OIL_HOT, 3);
