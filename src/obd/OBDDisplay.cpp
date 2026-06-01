@@ -2,6 +2,7 @@
 #include "OBDDisplay.h"
 #include "Buzzer.h"
 #include "../debug.h"
+#include "Display/screens/CockpitScreen.h"
 
 // AVR linker-defined heap bounds; must be at global scope for freeRam_().
 extern int __heap_start;
@@ -468,7 +469,7 @@ void OBDDisplay::update()
         if (simulationModeActive_)
         {
             connected_ = true;
-            menuState_.setCockpitMax(addrSelected_ == 0x01 ? 4u : addrSelected_ == 0x17 ? 2u : 0u);
+            menuState_.setCockpitMax(addrSelected_ == 0x01 ? 3u : addrSelected_ == 0x17 ? 1u : 0u);
         }
     }
 
@@ -593,7 +594,7 @@ bool OBDDisplay::ensureConnected_()
     // like the original sketch did.
     menuState_ = Input::MenuState(); // reset to defaults (Cockpit, screen 0)
     menuState_.markMenuChanged();
-    menuState_.setCockpitMax(addrSelected_ == 0x01 ? 4u : addrSelected_ == 0x17 ? 2u : 0u);
+    menuState_.setCockpitMax(addrSelected_ == 0x01 ? 3u : addrSelected_ == 0x17 ? 1u : 0u);
 
     // Seed one round of data so the very first cockpit frame drawn
     // after connect is fully populated without waiting for a manual
@@ -669,6 +670,8 @@ void OBDDisplay::computeValues_()
         signals_.warnings.hasNew = false;
         warningFlashUntilMs_ = millis() + 3000u;
         warningFlashPhase_ = true;
+        warningFlashPage_ = 0;
+        warningFlashSnapshot_ = signals_.warnings;
         beepWarning(signals_.warnings.maxLevel);
     }
 }
@@ -1189,18 +1192,8 @@ void OBDDisplay::updateDisplay_()
                     {
                         if (warningFlashPhase_)
                         {
-                            switch (signals_.warnings.maxLevel)
-                            {
-                                case 3:
-                                    display_.print(0, 7, F("!!!CRIT!!!"));
-                                    break;
-                                case 2:
-                                    display_.print(0, 7, F("!! CAUTION"));
-                                    break;
-                                default:
-                                    display_.print(0, 7, F("!  ALERT  "));
-                                    break;
-                            }
+                            renderWarningFlash(display_, warningFlashSnapshot_, warningFlashPage_);
+                            ++warningFlashPage_;
                         }
                         warningFlashPhase_ = !warningFlashPhase_;
                     }

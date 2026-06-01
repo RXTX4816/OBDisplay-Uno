@@ -38,7 +38,6 @@
 // ADDR_ENGINE (0x01), page 1 — OBD readiness bits (small font).
 // ADDR_ENGINE (0x01), page 2 — basic-setting status bits (small font).
 // ADDR_ENGINE (0x01), page 3 — engine diagnostics ScreenVM script (small font).
-// Both ECUs, last page — warning screen (small font).
 
 namespace obd
 {
@@ -71,6 +70,9 @@ static const char PROGMEM kBasicSettingLabels[8][9] = {
     "CoolWarm", "RPM<2000", "TBclosed", "LambdaOK",
     "Idle    ", "A/Coff  ", "Cat>300 ", "NoFault "
 };
+
+// Big-font severity labels for the warning flash overlay (4 chars each, index = maxLevel-1).
+static const char PROGMEM kSevFlash[3][5] = {"ALRT", "CAUT", "CRIT"};
 
 // Pre-formatted warning lines: 4-char severity prefix + 6-char name = 10 chars each.
 // Bit order is HIGH→MED→LOW so iterating forward prints most-severe first.
@@ -194,25 +196,56 @@ static void renderSecondDashboard17(const DisplayManager& dm, const OBDSignals& 
     dm.printBigWithLabel(0, 80, s.instruments.fuelLevel, " F");
 }
 
-// ── Warning screen (both ECUs, last page) ─────────────────────────────────────
-static void renderWarningScreen(const DisplayManager& dm, const WarningState& w)
+// ── Warning flash overlay (shown when a new warning fires) ────────────────────
+// Layout (64×128 px portrait):
+//   y=  0  severity label in big font, centered  ("CRIT" / "CAUT" / "ALRT")
+//   y= 48  first 5 chars of kWarnLines entry, centered
+//   y= 64  last  5 chars of kWarnLines entry, centered
+//   y=112  severity label again at the very bottom
+// flashPage selects which active warning to show; caller increments each "on" frame.
+void renderWarningFlash(const DisplayManager& dm, const WarningState& w, uint8_t flashPage)
 {
     if (w.bits == 0)
-    {
-        dm.print(0, 0, F("All clear"));
         return;
-    }
-    char line[11];
-    line[10] = '\0';
-    uint8_t row = 0;
-    for (uint8_t i = 0; i < WARN_COUNT && row < 16; ++i)
+
+    // Severity label — 4 chars × 12 px = 48 px; center at x = (64-48)/2 = 8
+    char sev[5];
+    sev[4] = '\0';
+    uint8_t sevIdx = (w.maxLevel >= 3) ? 2u : (w.maxLevel == 2) ? 1u : 0u;
+    memcpy_P(sev, kSevFlash[sevIdx], 4);
+    dm.printBig(8, 0, sev);
+    dm.printBig(8, 112, sev);
+
+    // Find the flashPage-th active warning (wrapping)
+    uint8_t activeCount = 0;
+    for (uint8_t i = 0; i < WARN_COUNT; ++i)
+        if (w.bits & ((uint16_t)1u << i))
+            ++activeCount;
+
+    uint8_t target = flashPage % activeCount;
+    uint8_t found = 0;
+    uint8_t warnIdx = 0;
+    for (uint8_t i = 0; i < WARN_COUNT; ++i)
     {
         if (!(w.bits & ((uint16_t)1u << i)))
             continue;
-        memcpy_P(line, kWarnLines[i], 10);
-        dm.print(0, row, line);
-        ++row;
+        if (found == target)
+        {
+            warnIdx = i;
+            break;
+        }
+        ++found;
     }
+
+    // kWarnLines entry is 10 chars; split into 2 rows of 5.
+    // 5 chars × 12 px = 60 px; center at x = (64-60)/2 = 2
+    // 2 rows × 16 px = 32 px; vertical center: (128-32)/2 = 48
+    char half[6];
+    half[5] = '\0';
+    memcpy_P(half, kWarnLines[warnIdx], 5);
+    dm.printBig(2, 48, half);
+    memcpy_P(half, kWarnLines[warnIdx] + 5, 5);
+    dm.printBig(2, 64, half);
 }
 
 // ── Main dispatch ─────────────────────────────────────────────────────────────
@@ -238,9 +271,6 @@ void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelecte
                 runScript(kCockpit01S3Script, ctx, dm);
                 break;
             }
-            case 4:
-                renderWarningScreen(dm, signals.warnings);
-                break;
             default:
                 renderCockpit01Big(dm, signals);
                 break;
@@ -255,9 +285,6 @@ void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelecte
                 break;
             case 1:
                 renderSecondDashboard17(dm, signals);
-                break;
-            case 2:
-                renderWarningScreen(dm, signals.warnings);
                 break;
             default:
                 renderCockpit17Big(dm, signals);
