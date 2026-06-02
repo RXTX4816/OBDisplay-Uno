@@ -181,7 +181,6 @@ struct OBDSignals
     void reset();
     void compute(uint32_t nowMs, uint32_t connectTimeStart);
     void computeWarnings(uint8_t ecuAddr);
-    void updateSimulation();
 
     uint32_t prevComputeMs_ = 0xFFFFFFFFu; // 0xFFFFFFFF = uninitialized sentinel
     uint32_t tripDistAccum_ = 0;           // sub-unit accumulator (km/h × ms, mod 36000)

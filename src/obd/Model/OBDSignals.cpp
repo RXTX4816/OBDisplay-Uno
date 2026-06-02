@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "OBDSignals.h"
+#include "../../Config.h"
 
 namespace obd
 {
@@ -158,7 +159,7 @@ void OBDSignals::computeWarnings(uint8_t ecuAddr)
         }
         if (instruments.oilPressureLowCount >= 3)
             setWarn(warnings, WARN_OIL_PRES, 3);
-        if (instruments.oilTempUpdated && instruments.oilTemp > 93)
+        if (instruments.oilTempUpdated && instruments.oilTemp > WARN_OIL_TEMP_HIGH_C)
             setWarn(warnings, WARN_OIL_HOT, 3);
         if (instruments.oilLevelOkUpdated && instruments.oilLevelOk == 0)
             setWarn(warnings, WARN_OIL_LVL, 2);
@@ -166,38 +167,38 @@ void OBDSignals::computeWarnings(uint8_t ecuAddr)
         if (instruments.coolantTempUpdated)
         {
             uint8_t ct = instruments.coolantTemp;
-            if (ct > 93)
+            if (ct > WARN_COOLANT_HIGH_C)
                 setWarn(warnings, WARN_COOL_HOT, 3);
-            if (ct < 40)
+            if (ct < WARN_COOLANT_COLD_C)
                 setWarn(warnings, WARN_VERY_COLD, 2);
-            if (ct < 75)
+            if (ct < WARN_COOLANT_WARM_C)
                 setWarn(warnings, WARN_COLD_ENG, 1);
         }
         // Fuel: gate once, cache value, run both threshold checks
         if (instruments.fuelLevelUpdated)
         {
             uint8_t fl = instruments.fuelLevel;
-            if (fl < 4)
+            if (fl < WARN_FUEL_CRIT_L)
                 setWarn(warnings, WARN_FUEL_CRIT, 2);
-            if (fl < 8)
+            if (fl < WARN_FUEL_LOW_L)
                 setWarn(warnings, WARN_FUEL_LOW, 1);
         }
     }
     else if (ecuAddr == 0x01)
     {
-        if (engine.voltageUpdated && engine.voltage < 120)
+        if (engine.voltageUpdated && engine.voltage < WARN_VOLTAGE_LOW_X10)
             setWarn(warnings, WARN_LOW_VOLT, 2);
-        if (engine.engineLoadUpdated && engine.engineLoad > 90)
+        if (engine.engineLoadUpdated && engine.engineLoad > WARN_ENGINE_LOAD_HIGH)
             setWarn(warnings, WARN_HIGH_LOAD, 1);
         // Coolant proxy: gate once, cache, run all three threshold checks
         if (engine.tempUnknown2Updated)
         {
             uint8_t t2 = engine.tempUnknown2;
-            if (t2 > 93)
+            if (t2 > WARN_COOLANT_HIGH_C)
                 setWarn(warnings, WARN_COOL_HOT, 3);
-            if (t2 < 40)
+            if (t2 < WARN_COOLANT_COLD_C)
                 setWarn(warnings, WARN_VERY_COLD, 2);
-            if (t2 < 75)
+            if (t2 < WARN_COOLANT_WARM_C)
                 setWarn(warnings, WARN_COLD_ENG, 1);
         }
     }
@@ -205,57 +206,6 @@ void OBDSignals::computeWarnings(uint8_t ecuAddr)
     // hasNew fires only when new bits appear (not when warnings clear)
     if (warnings.bits != prevBits && (warnings.bits & ~prevBits) != 0)
         warnings.hasNew = true;
-}
-
-void OBDSignals::updateSimulation()
-{
-    InstrumentSignals& i = instruments;
-
-    // Helper functions similar to simulate_values_helper in old code
-    struct SimHelper
-    {
-        static void simulateUint8(uint8_t& val, uint8_t amount, bool& up, bool& updated,
-                                  uint8_t maxVal, uint8_t minVal = 0)
-        {
-            if (up)
-                val += amount;
-            else
-                val -= amount;
-            updated = true;
-            if (up && val >= maxVal)
-                up = false;
-            else if (!up && val <= minVal)
-                up = true;
-        }
-
-        static void simulateUint16(uint16_t& val, uint8_t amount, bool& up, bool& updated,
-                                   uint16_t maxVal, uint16_t minVal = 0)
-        {
-            if (up)
-                val += amount;
-            else
-                val -= amount;
-            updated = true;
-            if (up && val >= maxVal)
-                up = false;
-            else if (!up && val <= minVal)
-                up = true;
-        }
-    };
-
-    static bool speedUp = true;
-    static bool rpmUp = true;
-    static bool coolantUp = true;
-    static bool oilTempUp = true;
-    static bool oilLevelUp = true;
-    static bool fuelLevelUp = true;
-
-    SimHelper::simulateUint16(i.vehicleSpeed, 1, speedUp, i.vehicleSpeedUpdated, (uint16_t)200);
-    SimHelper::simulateUint16(i.engineRpm, 87, rpmUp, i.engineRpmUpdated, (uint16_t)7100);
-    SimHelper::simulateUint8(i.coolantTemp, 1, coolantUp, i.coolantTempUpdated, (uint8_t)160);
-    SimHelper::simulateUint8(i.oilTemp, 1, oilTempUp, i.oilTempUpdated, (uint8_t)160);
-    SimHelper::simulateUint8(i.oilLevelOk, 1, oilLevelUp, i.oilLevelOkUpdated, (uint8_t)8);
-    SimHelper::simulateUint8(i.fuelLevel, 1, fuelLevelUp, i.fuelLevelUpdated, (uint8_t)57);
 }
 
 } // namespace Model

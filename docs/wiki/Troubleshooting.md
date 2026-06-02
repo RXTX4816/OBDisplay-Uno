@@ -27,7 +27,6 @@
 
 - Confirm the ECU address and measurement group mapping for your specific ECU. The default mapping targets the instruments cluster (`0x17`) of a 1J platform VW with a Marelli 1.6 16V engine ECU (`0x01`). Other ECUs have different group contents.
 - Use a VCDS or equivalent KWP tool to record raw group data and compare against what `KWPSensorDecode.cpp` expects.
-- In simulation mode (SIM at startup) the firmware generates synthetic signals — connect to ECU mode for real data.
 
 ## Flash too full
 
@@ -49,4 +48,4 @@
 
 ## ECU emulator connection issues
 
-When using [OBDisplay-Emu](https://github.com/RXTX4816/OBDisplay-Emu) for bench testing, ensure the emulator is in ECU mode and that SIM mode is **not** selected on OBDisplay at startup. SIM mode generates local synthetic data and never talks to the serial port.
+When using [OBDisplay-Emu](https://github.com/RXTX4816/OBDisplay-Emu) for bench testing, verify the baud rate and ECU address match what the emulator expects, and confirm K-Line wiring is correct.

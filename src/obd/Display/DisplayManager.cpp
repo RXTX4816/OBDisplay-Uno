@@ -119,18 +119,6 @@ void DisplayManager::printBig(uint8_t x_px, uint8_t y_px, uint16_t val) const
     display_.printBig(x_px, y_px, buf);
 }
 
-void DisplayManager::printBig(uint8_t x_px, uint8_t y_px, uint16_t val, char suffix) const
-{
-    char buf[12];
-    uint8_t i = 0;
-    utoa(val, buf, 10);
-    while (buf[i] != '\0')
-        ++i;
-    buf[i++] = suffix;
-    buf[i] = '\0';
-    display_.printBig(x_px, y_px, buf);
-}
-
 void DisplayManager::printBig(uint8_t x_px, uint8_t y_px, int16_t val, char suffix) const
 {
     char buf[12];

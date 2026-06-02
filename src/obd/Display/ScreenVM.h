@@ -87,7 +87,6 @@ enum FieldId : uint8_t
     FLD_DBG_ADDR,
     FLD_DBG_BAUD,
     FLD_DBG_ATT,
-    FLD_DBG_SIM,
     FLD_DBG_RAM,
     // Context
     FLD_KWP_MODE,

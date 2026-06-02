@@ -56,13 +56,12 @@ Power on with **SELECT held** → auto-setup: skips the menus and connects immed
 
 Power on normally → interactive setup:
 
-1. **Connect mode** — LEFT = ECU (real car), RIGHT = SIM (simulation mode, no car needed)
-2. **Baud rate** — LEFT/RIGHT to cycle (1200 / 2400 / 4800 / 9600 / 10400), SELECT to confirm
-3. **ECU address** — LEFT = `0x01` (engine), RIGHT = `0x17` (instruments)
-4. **SELECT** to start the connection
+1. **Baud rate** — LEFT/RIGHT to cycle (1200 / 2400 / 4800 / 9600 / 10400), SELECT to confirm
+2. **ECU address** — LEFT/RIGHT to cycle supported addresses, SELECT to confirm
+3. **Auto-reconnect** — LEFT = off (manual), RIGHT = on (auto)
 
 Once connected the Cockpit screen appears and data updates live.
 
 ## ECU emulator (bench testing)
 
-[OBDisplay-Emu](https://github.com/RXTX4816/OBDisplay-Emu) turns an Arduino Mega into a KWP-1281 ECU. Use SIM mode at startup when bench testing without a car.
+[OBDisplay-Emu](https://github.com/RXTX4816/OBDisplay-Emu) turns an Arduino Mega into a KWP-1281 ECU emulator for bench testing without a car.

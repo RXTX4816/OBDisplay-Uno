@@ -20,13 +20,27 @@ Cockpit  ←→  Experimental  ←→  Debug  ←→  DTC  ←→  Settings
 
 ---
 
+## Warning flash
+
+When a new warning condition is detected (oil pressure, overheating, low fuel, etc.) the display briefly interrupts any screen with a flashing overlay for ~3 seconds:
+
+```
+CRIT          ← severity (CRIT / CAUT / ALRT)
+
+!!! OIL PR    ← warning name, split across two rows
+```
+
+The overlay alternates on/off at ~177 ms intervals. If multiple warnings fire simultaneously, the flash cycles through them. After 3 seconds the normal screen resumes.
+
+---
+
 ## Cockpit
 
 Live sensor data displayed in a pixel-doubled big font (12 px/char, 16 px/row). No SELECT action — data updates automatically every ~177 ms.
 
 ### Instruments cluster (address `0x17`)
 
-One screen, six values stacked vertically:
+**Screen 0** — main dashboard, six values:
 
 ```
 130
@@ -45,8 +59,28 @@ One screen, six values stacked vertically:
 | 1 | Engine RPM | `NNNN` | |
 | 2 | Oil temperature | `NN O` | Shows `-WARN-` at ≥ 100 °C |
 | 3 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C |
-| 4 | Fuel level | `NN L` | |
+| 4 | Fuel level | `NN L` | Smoothed (EMA filtered) |
 | 5 | Ambient temperature | `NNAIR` | |
+
+**Screen 1** — trip computer dashboard:
+
+```
+130
+99 O
+99 C
+450K
+8.3L
+33 F
+```
+
+| Row | Field | Format | Notes |
+|---|---|---|---|
+| 0 | Vehicle speed | `NNN` km/h | |
+| 1 | Oil temperature | `NN O` | Shows `-WARN-` at ≥ 100 °C |
+| 2 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C |
+| 3 | Estimated range | `NNNK` km | Shows `---` until fuel burn data is available |
+| 4 | Fuel consumption | `N.NL` L/100 km | |
+| 5 | Fuel level | `NN F` | Smoothed |
 
 ### Engine ECU (address `0x01`)
 
@@ -133,7 +167,6 @@ Grp: 3        (measurement group being polled)
 Adr: 0x17     (ECU address)
 Baud:9600     (baud rate)
 Att: 0        (connection attempt count)
-Sim: N        (simulation mode active?)
 RAM: 834      (estimated free RAM, bytes)
 ```
 

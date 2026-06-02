@@ -100,8 +100,6 @@ static int32_t getFieldInt(FieldId fid, const ScreenCtx& ctx)
             return d ? (int32_t)d->baud : 0;
         case FLD_DBG_ATT:
             return d ? (int32_t)d->attempts : 0;
-        case FLD_DBG_SIM:
-            return d ? (int32_t)d->sim : 0;
         case FLD_DBG_RAM:
             return d ? (int32_t)d->freeRam : 0;
         // Context

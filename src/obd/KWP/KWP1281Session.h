@@ -25,8 +25,7 @@ class KWP1281Session
 
     void setConfig(uint16_t baudRate, uint8_t ecuAddr);
 
-    bool connectToEcu(bool simulationMode, bool autoSetup, uint16_t& baudRate,
-                      const uint8_t& addrSelected);
+    bool connectToEcu(bool autoSetup, uint16_t& baudRate, const uint8_t& addrSelected);
 
     void disconnect();
 

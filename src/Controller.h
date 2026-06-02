@@ -11,7 +11,6 @@ class Controller
     Controller();
 
     void setup();
-    void loop();
 
     static void taskKwp();
     static void taskInput();

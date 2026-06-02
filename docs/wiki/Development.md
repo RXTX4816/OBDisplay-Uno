@@ -28,7 +28,7 @@ src/
     │       ├── DTCScreen
     │       └── SettingsScreen
     ├── Model/
-    │   ├── OBDSignals.h/cpp      # Signal structs, simulation mode, computed stats
+    │   ├── OBDSignals.h/cpp      # Signal structs, computed stats, warning state
     │   └── DTCStore.h/cpp        # DTC code storage (up to 16 codes)
     └── Input/
         ├── ButtonInput.h/cpp     # Button polling with debounce and auto-repeat

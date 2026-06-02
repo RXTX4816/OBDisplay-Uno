@@ -33,21 +33,23 @@ namespace KWP
 enum FormulaType : uint8_t
 {
     F_AB_C = 0,
-    F_BK_CA,
-    F_ABS_BK_CA,
-    F_B,
-    F_B_A,
-    F_AK_B, // v = a*c1 + b  (F_B_AK merged here: b+a*c1 is identical)
-    F_LINEAR,
-    F_SPECIAL,
+    F_BK_CA = 1,
+    // 2 was F_ABS_BK_CA — now encoded as F_BK_CA with F_ABS_FLAG set
+    F_B = 3,
+    F_B_A = 4,
+    F_AK_B = 5, // v = a*c1 + b  (F_B_AK merged here: b+a*c1 is identical)
+    F_LINEAR = 6,
+    F_SPECIAL = 7,
 };
+// Bit 6 of typeAndC2: absolute-value flag for F_BK_CA (replaces F_ABS_BK_CA).
+static constexpr uint8_t F_ABS_FLAG = 0x40;
 
-// c2_idx values (bits[7:4] of typeAndC2) → actual c2 for BK_CA formula types.
+// c2_idx values (bits[5:4] of typeAndC2) → actual c2 for BK_CA formula types.
 static const uint8_t kC2[4] PROGMEM = {0, 100, 127, 128};
 
 struct __attribute__((packed)) KWPEntry
 {
-    uint8_t typeAndC2; // bits[3:0]=FormulaType, bits[7:4]=c2_idx
+    uint8_t typeAndC2; // bits[2:0]=FormulaType, bits[5:4]=c2_idx, bit[6]=F_ABS_FLAG
     int16_t c1_s;      // c1 × 1000 (e.g. 0.2 → 200, 1.421 → 1421)
 };
 
@@ -57,15 +59,15 @@ struct __attribute__((packed)) KWPEntry
 // k=25,40,42,43,53 → F_LINEAR (handled in computeFormula with hardcoded integer c2/c3).
 static const KWPEntry kwp_table[71] PROGMEM = {
     /* 0  unused  */ {F_SPECIAL, 0},
-    /* 1  rpm     */ {F_AB_C, 200},                // 0.2
-    /* 2  %%      */ {F_AB_C, 2},                  // 0.002
-    /* 3  Deg     */ {F_AB_C, 2},                  // 0.002
-    /* 4  ATDC    */ {(2 << 4) | F_ABS_BK_CA, 10}, // 0.01, c2=127
-    /* 5  °C      */ {(1 << 4) | F_BK_CA, 100},    // 0.1,  c2=100
-    /* 6  V       */ {F_AB_C, 1},                  // 0.001
-    /* 7  km/h    */ {F_AB_C, 10},                 // 0.01
-    /* 8  raw     */ {F_AB_C, 100},                // 0.1
-    /* 9  Deg     */ {(2 << 4) | F_BK_CA, 20},     // 0.02, c2=127
+    /* 1  rpm     */ {F_AB_C, 200},                         // 0.2
+    /* 2  %%      */ {F_AB_C, 2},                           // 0.002
+    /* 3  Deg     */ {F_AB_C, 2},                           // 0.002
+    /* 4  ATDC    */ {(2 << 4) | F_ABS_FLAG | F_BK_CA, 10}, // 0.01, c2=127, abs
+    /* 5  °C      */ {(1 << 4) | F_BK_CA, 100},             // 0.1,  c2=100
+    /* 6  V       */ {F_AB_C, 1},                           // 0.001
+    /* 7  km/h    */ {F_AB_C, 10},                          // 0.01
+    /* 8  raw     */ {F_AB_C, 100},                         // 0.1
+    /* 9  Deg     */ {(2 << 4) | F_BK_CA, 20},              // 0.02, c2=127
     /* 10 WARM    */ {F_SPECIAL, 0},
     /* 11 lambda  */ {F_SPECIAL, 0},
     /* 12 Ohm     */ {F_AB_C, 1},             // 0.001
@@ -83,7 +85,7 @@ static const KWPEntry kwp_table[71] PROGMEM = {
     /* 24 A       */ {F_AB_C, 1},      // 0.001
     /* 25 g/s     */ {F_LINEAR, 1421}, // 1.421, c2/c3 hardcoded in dispatch
     /* 26 C       */ {F_B_A, 0},
-    /* 27 °       */ {(3 << 4) | F_ABS_BK_CA, 10}, // 0.01, c2=128
+    /* 27 °       */ {(3 << 4) | F_ABS_FLAG | F_BK_CA, 10}, // 0.01, c2=128, abs
     /* 28 raw     */ {F_B_A, 0},
     /* 29 Kennfd  */ {F_SPECIAL, 0},
     /* 30 Dk/w    */ {F_AB_C, 83},   // 0.083333 ≈ 83/1000
@@ -129,13 +131,77 @@ static const KWPEntry kwp_table[71] PROGMEM = {
     /* 70 m/s2    */ {F_SPECIAL, 0},           // (256*a+b)*0.192
 };
 
+// ---------------------------------------------------------------------------
+// Unit string table — replaces the large switch(k) in processKwpMeasurement.
+// kUnitIdx[k] → index into kUnitStrs (0 = empty / unassigned).
+// ---------------------------------------------------------------------------
+static const char kU_empty[] PROGMEM = "";
+static const char kU_rpm[] PROGMEM = "rpm";
+static const char kU_pct[] PROGMEM = "%%";
+static const char kU_deg[] PROGMEM = "Deg";
+static const char kU_atdc[] PROGMEM = "ATDC";
+static const char kU_degC[] PROGMEM = "\xB0"
+                                      "C";
+static const char kU_V[] PROGMEM = "V";
+static const char kU_kmh[] PROGMEM = "km/h";
+static const char kU_sp[] PROGMEM = " ";
+static const char kU_ohm[] PROGMEM = "Ohm";
+static const char kU_bar[] PROGMEM = "bar";
+static const char kU_ms[] PROGMEM = "ms";
+static const char kU_mbar[] PROGMEM = "mbar";
+static const char kU_l[] PROGMEM = "l";
+static const char kU_A[] PROGMEM = "A";
+static const char kU_gs[] PROGMEM = "g/s";
+static const char kU_C[] PROGMEM = "C";
+static const char kU_degSym[] PROGMEM = "\xB0";
+static const char kU_degkw[] PROGMEM = "Degk/w";
+static const char kU_kW[] PROGMEM = "kW";
+static const char kU_lh[] PROGMEM = "l/h";
+static const char kU_km[] PROGMEM = "km";
+static const char kU_mgh[] PROGMEM = "mg/h";
+static const char kU_Ah[] PROGMEM = "Ah";
+static const char kU_Kw[] PROGMEM = "Kw";
+static const char kU_Nm[] PROGMEM = "Nm";
+static const char kU_count[] PROGMEM = "count";
+static const char kU_s[] PROGMEM = "s";
+static const char kU_hm[] PROGMEM = "h:m";
+static const char kU_WSC[] PROGMEM = "WSC";
+static const char kU_sec[] PROGMEM = "sec";
+static const char kU_S[] PROGMEM = "S";
+static const char kU_mm[] PROGMEM = "mm";
+static const char kU_degs[] PROGMEM = "deg/s";
+static const char kU_ms2[] PROGMEM = "m/s2";
+
+// clang-format off
+static PGM_P const kUnitStrs[] PROGMEM = {
+    kU_empty, kU_rpm, kU_pct,  kU_deg,  kU_atdc, kU_degC, kU_V,    kU_kmh,  // 0-7
+    kU_sp,    kU_ohm, kU_bar,  kU_ms,   kU_mbar, kU_l,    kU_A,    kU_gs,   // 8-15
+    kU_C,     kU_degSym, kU_degkw, kU_kW, kU_lh, kU_km,  kU_mgh,  kU_Ah,   // 16-23
+    kU_Kw,    kU_Nm,  kU_count, kU_s,   kU_hm,  kU_WSC,  kU_sec,  kU_S,    // 24-31
+    kU_mm,    kU_degs, kU_ms2,                                                // 32-34
+};
+
+// One byte per k-value (0–70): index into kUnitStrs[] above.
+static const uint8_t kUnitIdx[71] PROGMEM = {
+//  0    1    2    3    4    5    6    7    8    9
+    0,   1,   2,   3,   4,   5,   6,   7,   8,   3,  //  0- 9
+    0,   8,   9,   3,  10,  11,   0,   0,  12,  13,  // 10-19
+    2,   6,  11,   2,  14,  15,  16,  17,   8,   0,  // 20-29
+   18,   5,   0,   2,  19,  20,  21,   8,  18,  22,  // 30-39
+   14,  23,  24,   6,  28,   8,  18,  11,   8,  22,  // 40-49
+   12,  22,  25,  15,  26,  27,  29,  29,   0,   0,  // 50-59
+   30,   0,  31,   0,   9,  32,   0,   0,  33,  10,  // 60-69
+   34,                                                 // 70
+};
+// clang-format on
+
 // Apply the tabulated formula for measurement type k.
 // Returns value ×10 as int32_t (e.g. 1230 = 123.0).
 static int32_t computeFormula(uint8_t k, byte a, byte b)
 {
     const KWPEntry* e = &kwp_table[k];
     uint8_t raw = pgm_read_byte(&e->typeAndC2);
-    FormulaType t = (FormulaType)(raw & 0x0F);
+    FormulaType t = (FormulaType)(raw & 0x07);
     int16_t c1s = (int16_t)pgm_read_word(&e->c1_s);
 
     // All formulae: v_x10 = (c1_s/1000) * formula_result * 10
@@ -147,15 +213,9 @@ static int32_t computeFormula(uint8_t k, byte a, byte b)
 
         case F_BK_CA:
         {
-            int16_t c2 = (int16_t)pgm_read_byte(&kC2[raw >> 4]);
-            return (int32_t)c1s * ((int16_t)b - c2) * a / 100;
-        }
-
-        case F_ABS_BK_CA:
-        {
-            int16_t c2 = (int16_t)pgm_read_byte(&kC2[raw >> 4]);
+            int16_t c2 = (int16_t)pgm_read_byte(&kC2[(raw >> 4) & 0x03]);
             int16_t d = (int16_t)b - c2;
-            if (d < 0)
+            if ((raw & F_ABS_FLAG) && d < 0)
                 d = -d;
             return (int32_t)c1s * d * a / 100;
         }
@@ -356,146 +416,12 @@ void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte
         }
     }
 
-    // Unit string assignment (k=10 already set units above).
-    if (k != 10)
+    // Unit string lookup via PROGMEM table (k=10 already set units above).
+    if (k != 10 && k < 71)
     {
-        switch (k)
-        {
-            case 1:
-                units = F("rpm");
-                break;
-            case 2:
-            case 20:
-            case 23:
-            case 33:
-                units = F("%%");
-                break;
-            case 3:
-            case 9:
-            case 13:
-                units = F("Deg");
-                break;
-            case 4:
-                units = F("ATDC");
-                break;
-            case 5:
-            case 31:
-                units = F("\xB0"
-                          "C");
-                break;
-            case 6:
-            case 21:
-            case 43:
-                units = F("V");
-                break;
-            case 7:
-                units = F("km/h");
-                break;
-            case 8:
-            case 11:
-            case 28:
-            case 37:
-            case 45:
-            case 48:
-                units = F(" ");
-                break;
-            case 12:
-                units = F("Ohm");
-                break;
-            case 14:
-                units = F("bar");
-                break;
-            case 15:
-            case 22:
-            case 47:
-                units = F("ms");
-                break;
-            case 18:
-            case 50:
-                units = F("mbar");
-                break;
-            case 19:
-                units = F("l");
-                break;
-            case 24:
-            case 40:
-                units = F("A");
-                break;
-            case 25:
-            case 53:
-                units = F("g/s");
-                break;
-            case 26:
-                units = F("C");
-                break;
-            case 27:
-                units = F("\xB0");
-                break;
-            case 30:
-            case 38:
-            case 46:
-                units = F("Degk/w");
-                break;
-            case 34:
-                units = F("kW");
-                break;
-            case 35:
-                units = F("l/h");
-                break;
-            case 36:
-                units = F("km");
-                break;
-            case 39:
-            case 49:
-            case 51:
-                units = F("mg/h");
-                break;
-            case 41:
-                units = F("Ah");
-                break;
-            case 42:
-                units = F("Kw");
-                break;
-            case 52:
-                units = F("Nm");
-                break;
-            case 54:
-                units = F("count");
-                break;
-            case 55:
-                units = F("s");
-                break;
-            case 44:
-                units = F("h:m");
-                break;
-            case 56:
-            case 57:
-                units = F("WSC");
-                break;
-            case 60:
-                units = F("sec");
-                break;
-            case 62:
-                units = F("S");
-                break;
-            case 64:
-                units = F("Ohm");
-                break;
-            case 65:
-                units = F("mm");
-                break;
-            case 68:
-                units = F("deg/s");
-                break;
-            case 69:
-                units = F("bar");
-                break;
-            case 70:
-                units = F("m/s2");
-                break;
-            default:
-                break;
-        }
+        uint8_t uidx = pgm_read_byte(&kUnitIdx[k]);
+        if (uidx != 0)
+            units = reinterpret_cast<__FlashStringHelper*>(pgm_read_word(&kUnitStrs[uidx]));
     }
 
     // Update experimental group arrays — only for the group currently being displayed,

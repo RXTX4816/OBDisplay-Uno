@@ -20,10 +20,14 @@ class OBDDisplay
     OBDDisplay(uint8_t rxPin, uint8_t txPin, ::Display& display);
 
     void begin();
-    void update();
+
+    // Called from the scheduler tasks (see Controller.cpp):
+    void updateKwp();     // every loop iteration (INTERVAL_KWP_MS = 0)
+    void updateCompute(); // every INTERVAL_COMPUTE_MS
+    void updateDisplay(); // every INTERVAL_DISPLAY_MS
 
     // Called from the scheduler input task to latch pressed buttons at a
-    // high frequency, independently of the main update() cycle.
+    // high frequency, independently of the display update cycle.
     void pollButtons();
 
     bool isConnected() const { return connected_; }
@@ -37,7 +41,6 @@ class OBDDisplay
     Input::MenuState menuState_;
     Input::ButtonInput buttons_;
 
-    bool simulationModeActive_;
     bool autoSetup_;
     uint16_t baudRate_;
     uint8_t addrSelected_;
@@ -70,8 +73,9 @@ class OBDDisplay
     bool lastConnectionFailed_ = false;
     uint16_t connectionAttempts_ = 0;
     uint32_t connectTimeStart_;
-    uint32_t displayFrameTimestamp_;
     uint32_t buttonTimeoutUntil_;
+
+    bool displayDirty_ = false; // set by updateKwp/Compute; cleared after each display frame
 
     // Warning flash overlay: replaces cockpit view for ~3 s when a new warning fires.
     // warningFlashSnapshot_ latches the state at trigger time so the flash keeps showing
@@ -98,10 +102,11 @@ class OBDDisplay
     void startupAnimation_();
     void runSetupFlow_(uint8_t startStage = 0);
     void showWaitingScreen_();
+    void drawSetupHeader_(bool showBaud, bool showAddr, bool showBack);
     static int16_t freeRam_();
     void resetState_();
     bool ensureConnected_();
-    void updateKwpOrSimulation_();
+    void pollEcu_();
     void computeValues_();
     void handleInput_();
     void updateDisplay_();

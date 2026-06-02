@@ -20,21 +20,26 @@ void Controller::setup()
     DBGV(DBG_CTRL_STEP, 3);
 }
 
-void Controller::loop()
+void Controller::taskKwp()
 {
-    if (obdDisplay_ != nullptr)
-    {
-        obdDisplay_->update();
-    }
+    if (instance_ != nullptr && instance_->obdDisplay_ != nullptr)
+        instance_->obdDisplay_->updateKwp();
 }
 
-void Controller::taskKwp() {}
 void Controller::taskInput()
 {
     if (instance_ != nullptr && instance_->obdDisplay_ != nullptr)
-    {
         instance_->obdDisplay_->pollButtons();
-    }
 }
-void Controller::taskCompute() {}
-void Controller::taskDisplay() {}
+
+void Controller::taskCompute()
+{
+    if (instance_ != nullptr && instance_->obdDisplay_ != nullptr)
+        instance_->obdDisplay_->updateCompute();
+}
+
+void Controller::taskDisplay()
+{
+    if (instance_ != nullptr && instance_->obdDisplay_ != nullptr)
+        instance_->obdDisplay_->updateDisplay();
+}
