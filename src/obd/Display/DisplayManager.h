@@ -49,7 +49,8 @@ class DisplayManager
     void renderDtcMenu(uint8_t cursor, bool showActive, uint8_t showPage, int8_t dtcCount,
                        const Model::DTCStore& dtcStore);
     void renderSettings(uint8_t cursor, int kwpModeInt, bool autoReconnect,
-                        const char (*ecuLines)[11], uint8_t ecuLineCount);
+                        const char (*ecuLines)[11], uint8_t ecuLineCount, uint8_t addrSelected = 0,
+                        uint8_t fuelL = 0);
     void renderDebug(const DebugInfo& di, int kwpModeInt);
 
     void print(uint8_t x, uint8_t y, const __FlashStringHelper* s) const;

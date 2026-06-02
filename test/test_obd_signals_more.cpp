@@ -20,12 +20,12 @@ void test_compute_realistic_trip()
     signals.instruments.fuelLevelSmoothX8 = (uint16_t)(50u * 8u); // 5 L burned
 
     // Prime prevComputeMs_ with the start time
-    signals.compute(0, 0); // first call: initializes prevComputeMs_
+    signals.compute(0, 0, 0x17, 0); // first call: initializes prevComputeMs_
 
     // One big step: 3600 s at 100 km/h
     const uint32_t startMs = 0;
     const uint32_t nowMs = 3600UL * 1000UL;
-    signals.compute(nowMs, startMs);
+    signals.compute(nowMs, startMs, 0x17, 0);
 
     TEST_ASSERT_EQUAL_UINT32(3600, signals.computed.elapsedSecondsSinceStart);
     // 100 km/h × 3600 s = 100 km → tripDistance100 ≈ 10000
@@ -148,8 +148,8 @@ void test_signals_zero_time_elapsed()
     signals.instruments.fuelLevelSmoothX8 = (uint16_t)(75u * 8u); // 5 L burned
 
     // Call compute with zero elapsed time (both calls at t=0)
-    signals.compute(0, 0); // initializes prevComputeMs_
-    signals.compute(0, 0);
+    signals.compute(0, 0, 0x17, 0); // initializes prevComputeMs_
+    signals.compute(0, 0, 0x17, 0);
 
     TEST_ASSERT_EQUAL_UINT32(0, signals.computed.elapsedSecondsSinceStart);
     TEST_ASSERT_EQUAL_UINT32(0, signals.computed.tripDistance100);
@@ -168,8 +168,8 @@ void test_signals_fuel_consumption_calculation()
     signals.instruments.fuelLevelSmoothX8 = (uint16_t)(40u * 8u); // 10 L burned
 
     const uint32_t twoHoursMs = 2UL * 3600UL * 1000UL;
-    signals.compute(0, 0);                  // prime prevComputeMs_
-    signals.compute(twoHoursMs, 0);
+    signals.compute(0, 0, 0x17, 0);                  // prime prevComputeMs_
+    signals.compute(twoHoursMs, 0, 0x17, 0);
 
     TEST_ASSERT_EQUAL_UINT32(2 * 3600, signals.computed.elapsedSecondsSinceStart);
     // tripDistance100 ≈ 20000 (200 km)
@@ -197,8 +197,8 @@ void test_speed_integration_accumulates_distance()
         (uint16_t)signals.instruments.fuelLevel * 8u;
 
     // Prime, then drive 1 hour
-    signals.compute(0, 0);
-    signals.compute(3600UL * 1000UL, 0);
+    signals.compute(0, 0, 0x17, 0);
+    signals.compute(3600UL * 1000UL, 0, 0x17, 0);
 
     // 100 km/h × 3600 s = 100 km = tripDistance100 10000
     TEST_ASSERT_TRUE(signals.computed.tripDistance100 >= 9990 &&
@@ -219,8 +219,8 @@ void test_fuel_ema_smooths_spike()
     signals.instruments.fuelLevel = 50;
     signals.instruments.fuelLevelUpdated = true;
 
-    signals.compute(0, 0);   // prime
-    signals.compute(50, 0);  // one 50 ms step
+    signals.compute(0, 0, 0x17, 0);   // prime
+    signals.compute(50, 0, 0x17, 0);  // one 50 ms step
 
     // After one EMA step: smooth = (320*31 + 400) >> 5 = (9920 + 400) / 32 = 10320/32 = 322
     // i.e. moved only ~2/320 = 0.6% toward the spike
@@ -238,9 +238,9 @@ void test_fuelper100km_uses_smooth_distance()
     signals.instruments.fuelLevelStart = 50;
     signals.instruments.fuelLevelSmoothX8 = (uint16_t)(45u * 8u); // 5 L burned
 
-    signals.compute(0, 0); // prime
+    signals.compute(0, 0, 0x17, 0); // prime
     // 100 km/h × 2160 s = 60 km
-    signals.compute(2160UL * 1000UL, 0);
+    signals.compute(2160UL * 1000UL, 0, 0x17, 0);
 
     // tripDistance100 ≈ 6000; burnedX8 = 5*8 = 40
     // fuelPer100km = 40 * 12500 / 6000 = 500000/6000 ≈ 83 → 8.3 L/100km

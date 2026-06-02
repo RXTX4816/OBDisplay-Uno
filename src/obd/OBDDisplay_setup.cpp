@@ -5,9 +5,30 @@
 
 #include <avr/pgmspace.h>
 #include <stdlib.h> // ltoa
+#include <EEPROM.h>
 
 namespace obd
 {
+
+// EEPROM layout (first 2 bytes):
+//   Byte 0: magic 0xA5 (indicates initialized)
+//   Byte 1: fuel level in L when last set from 0x17 (0 = never set)
+static constexpr uint8_t kEepromMagic = 0xA5;
+static constexpr uint8_t kEepromAddrMagic = 0;
+static constexpr uint8_t kEepromAddrFuel = 1;
+
+uint8_t readEepromFuel()
+{
+    if (EEPROM.read(kEepromAddrMagic) != kEepromMagic)
+        return 0;
+    return EEPROM.read(kEepromAddrFuel);
+}
+
+void writeEepromFuel(uint8_t liters)
+{
+    EEPROM.update(kEepromAddrMagic, kEepromMagic);
+    EEPROM.update(kEepromAddrFuel, liters);
+}
 
 using namespace Display;
 using namespace KWP;
@@ -356,7 +377,11 @@ bool OBDDisplay::ensureConnected_()
     // like the original sketch did.
     menuState_ = Input::MenuState(); // reset to defaults (Cockpit, screen 0)
     menuState_.markMenuChanged();
-    menuState_.setCockpitMax(addrSelected_ == 0x01 ? 3u : addrSelected_ == 0x17 ? 2u : 0u);
+    menuState_.setCockpitMax(addrSelected_ == 0x01 ? 5u : addrSelected_ == 0x17 ? 2u : 0u);
+
+    // Seed fuel start from EEPROM for 0x01 trip computer
+    if (addrSelected_ == 0x01)
+        fuelStartL_ = readEepromFuel();
 
     // Seed one round of data so the very first cockpit frame drawn
     // after connect is fully populated without waiting for a manual

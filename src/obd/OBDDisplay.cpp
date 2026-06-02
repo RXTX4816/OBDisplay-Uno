@@ -204,26 +204,60 @@ void OBDDisplay::pollEcu_()
             break;
         case Mode::ReadSensors:
         default:
-            for (uint8_t g = 1; g <= 3; ++g)
+            if (addrSelected_ == 0x01)
             {
-                if (!kwp_.readSensorsGroup(g, signals_))
+                // ── 0x01 group rotation ─────────────────────────────────────────
+                // Fast (every cycle): groups 1 + 5  → RPM/lambda/coolant-proxy + speed/load
+                // Medium (every 3rd): group 4       → voltage/coolant/intake temp
+                // Slow (every 6th):   group 3       → pressure/tbAngle/steeringAngle
+                // Diagnostic (staggered via %90):   misfire, lambda detail, throttle sensors
+                // Readiness (every 60th): group 100
+                static uint8_t gr01Ctr = 0;
+                ++gr01Ctr;
+
+#define POLL01(g)                                                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        if (!kwp_.readSensorsGroup((g), signals_))                                                 \
+        {                                                                                          \
+            kwp_.disconnect();                                                                     \
+            connected_ = false;                                                                    \
+            return;                                                                                \
+        }                                                                                          \
+    } while (0)
+
+                POLL01(1);
+                POLL01(5);
+
+                if (gr01Ctr % 3 == 0)
+                    POLL01(4);
+
+                if (gr01Ctr % 6 == 0)
+                    POLL01(3);
+
+                // Readiness (group 100): once per ~60 fast cycles (~2 min)
+                // or immediately if requested (user navigated to readiness page)
                 {
-                    kwp_.disconnect();
-                    connected_ = false;
-                    break;
+                    static uint8_t g100Ctr = 0;
+                    if (requestReadiness_ || ++g100Ctr >= 60)
+                    {
+                        g100Ctr = 0;
+                        requestReadiness_ = false;
+                        kwp_.readSensorsGroup(100, signals_);
+                    }
                 }
+#undef POLL01
             }
-            // Group 100 (OBD readiness) changes rarely — poll once per ~60 cycles (~2 min)
-            if (connected_ && addrSelected_ == 0x01)
+            else
             {
-                static uint8_t g100Ctr = 0;
-                if (++g100Ctr >= 60)
+                // All other ECUs: poll groups 1–3 every cycle (unchanged)
+                for (uint8_t g = 1; g <= 3; ++g)
                 {
-                    g100Ctr = 0;
-                    if (!kwp_.readSensorsGroup(100, signals_))
+                    if (!kwp_.readSensorsGroup(g, signals_))
                     {
                         kwp_.disconnect();
                         connected_ = false;
+                        break;
                     }
                 }
             }
@@ -233,7 +267,7 @@ void OBDDisplay::pollEcu_()
 
 void OBDDisplay::computeValues_()
 {
-    signals_.compute(millis(), connectTimeStart_);
+    signals_.compute(millis(), connectTimeStart_, addrSelected_, fuelStartL_);
     signals_.computeWarnings(addrSelected_);
     if (signals_.warnings.hasNew)
     {
@@ -321,7 +355,20 @@ void OBDDisplay::updateDisplay_()
 
             case MenuId::Settings:
                 display_.renderSettings(settingsMenuCursor_, static_cast<int>(kwpMode_),
-                                        autoReconnect_, kwp_.ecuLinesData(), kwp_.ecuLineCount());
+                                        autoReconnect_, kwp_.ecuLinesData(), kwp_.ecuLineCount(),
+                                        addrSelected_, signals_.instruments.fuelLevel);
+                if (dtcStatusType_ == 3)
+                {
+                    if (now < dtcStatusUntil_)
+                    {
+                        display_.print(0, 9, F("Fuel:Savd"));
+                    }
+                    else
+                    {
+                        dtcStatusUntil_ = 0;
+                        dtcStatusType_ = 0;
+                    }
+                }
                 break;
 
             case MenuId::Debug:

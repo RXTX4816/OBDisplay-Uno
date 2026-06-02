@@ -602,6 +602,19 @@ signal_mapping:
                             break;
                     }
                     break;
+                case 5:
+                    switch (idx)
+                    {
+                        case 1:
+                            setU16(signals.engine.engineLoad, signals.engine.engineLoadUpdated,
+                                   (uint16_t)(v / 10));
+                            break;
+                        case 2:
+                            setU16(signals.instruments.vehicleSpeed,
+                                   signals.instruments.vehicleSpeedUpdated, (uint16_t)(v / 10));
+                            break;
+                    }
+                    break;
                 case 6:
                     switch (idx)
                     {

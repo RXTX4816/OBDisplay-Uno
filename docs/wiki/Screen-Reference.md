@@ -84,45 +84,110 @@ Live sensor data displayed in a pixel-doubled big font (12 px/char, 16 px/row). 
 
 ### Engine ECU (address `0x01`)
 
-**Screen 0** — eight values stacked vertically (big font):
+Groups polled every cycle: **1** (RPM, coolant-proxy, lambda, basic-setting bits) and **5** (vehicle speed, engine load). Groups **4** (voltage, coolant, intake air) and **3** (pressure, throttle angle) are polled on a slower rotation.
+
+**Screen 0** — main dashboard (big font):
 
 ```
 120
 1200
-99 O
-99 C
-20%
+88 C
+35%
 5.5T
-12V
-5%
+12.3V
+3%
+24I
 ```
 
-| Row | Field | Format | Notes |
+| Row | Field | Source | Notes |
 |---|---|---|---|
-| 0 | Vehicle speed | `NNN` km/h | |
-| 1 | Engine RPM | `NNNN` | |
-| 2 | Oil temperature | `NN O` | Shows `-WARN-` at ≥ 100 °C |
-| 3 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C |
-| 4 | Engine load | `NN%` | |
-| 5 | Throttle body angle | `N.NT` | ×10 fixed-point |
-| 6 | Battery voltage | `NNV` | |
-| 7 | Lambda | `NN%` | |
+| 0 | Vehicle speed | Group 5 | km/h |
+| 1 | Engine RPM | Group 1 | |
+| 2 | Coolant temperature | Group 4 | `NN C`; `-WARN-` at ≥ 100 °C |
+| 3 | Engine load | Group 5/6 | `NN%` |
+| 4 | Throttle body angle | Group 3 | `N.NT` ×10 |
+| 5 | Battery voltage | Group 4 | `NN.NV` |
+| 6 | Lambda controller | Group 1 | `NN%`; spec −15 to +15 % |
+| 7 | Intake air temperature | Group 4 | `NNI` °C |
 
-**Screen 1** — error bits (small font):
+**Screen 1** — OBD readiness bits (small font). Polled automatically every ~2 minutes. Navigating to this screen triggers an immediate poll.
 
 ```
-TBa: xxxxx  STa: xxxxx
-mb:  xxxx
-bits:
-xxxxxxxx
+EGR   PASS
+O2Htr PASS
+O2Sns FAIL
+A/C   PASS
+2Air  PASS
+Evap  PASS
+CtHtr PASS
+Cat   PASS
 ```
 
-| Field | Meaning |
-|---|---|
-| `TBa` | Throttle body angle |
-| `STa` | Steering angle |
-| `mb` | Manifold pressure (mbar) |
-| `bits` | Engine error flags (8 bits: EGR / O2 heat / O2 / AC / SAI / EVAP / cat heat / cat) |
+1 = FAIL (test not complete), 0 = PASS.
+
+**Screen 2** — basic-setting requirement bits (small font). Shows whether conditions for ECU basic settings are currently met (Y/N).
+
+| Bit | Label | Meaning |
+|---|---|---|
+| 7 | `CoolWarm` | Coolant above 80 °C |
+| 6 | `RPM<2000` | Engine speed below 2000 rpm |
+| 5 | `TBclosed` | Throttle valve closed |
+| 4 | `LambdaOK` | Lambda regulation active |
+| 3 | `Idle` | Idle state active |
+| 2 | `A/Coff` | A/C compressor off |
+| 1 | `Cat>300` | Catalyst above 300 °C |
+| 0 | `NoFault` | No self-diagnosis malfunction |
+
+**Screen 3** — engine diagnostics (small font):
+
+```
+V:  12.3
+Co: 88
+IA: 24
+Ld: 35
+mb: 1012
+L1: 3
+L2: -1
+```
+
+| Label | Field | Notes |
+|---|---|---|
+| `V:` | Battery voltage | ×10, displayed as X.X V |
+| `Co:` | Coolant temperature | °C (group 4) |
+| `IA:` | Intake air temperature | °C (group 4) |
+| `Ld:` | Engine load | % |
+| `mb:` | Manifold pressure | mbar (group 3) |
+| `L1:` | Lambda controller (group 1) | % |
+| `L2:` | Heights correction lambda (group 6) | % |
+
+**Screen 4** — trip computer (big font):
+
+```
+8.3L
+8.4H
+450K
+12 B
+```
+
+| Row | Field | Notes |
+|---|---|---|
+| 0 | Fuel per 100 km | `X.XL`; `---L` until driving |
+| 1 | Fuel per hour | `X.XH` L/hr |
+| 2 | km remaining | `NNNK`; `---K` until fuel start set (see Settings→Fuel) |
+| 3 | Fuel burned | `NN B` L since session start |
+
+The fuel algorithm computes consumption from `RPM × engine load` (calibrated for ~1.4 L petrol; see `ENGINE01_FUEL_DENOM` in `Config.h`).
+
+**Screen 5** — bar gauges:
+
+Four vertical bars (fills from bottom):
+
+| Bar | Field | Range | Tick |
+|---|---|---|---|
+| C | Coolant °C | 0–120 | 90 °C |
+| L | Engine load | 0–100 % | 80 % |
+| λ | Lambda % | −15 to +15 % | 0 % |
+| V | Battery V | 10.0–16.0 V | 12.0 V |
 
 ---
 
@@ -246,6 +311,14 @@ Settings
 
 >Exit
  KWP: Sens
+ AutoRcn: Y
+```
+
+When connected to the **instruments cluster (0x17)** an additional item appears:
+
+```
+>Fuel: 33L
+ MID=save
 ```
 
 UP/DOWN moves the cursor. SELECT acts on the highlighted item.
@@ -254,6 +327,24 @@ UP/DOWN moves the cursor. SELECT acts on the highlighted item.
 |---|---|
 | **Exit** | Ends the ECU session cleanly and returns to the startup setup menu |
 | **KWP:** | Cycles the KWP mode: `ACK` → `Grp` → `Sens` → `ACK` … |
+| **AutoRcn:** | Toggles auto-reconnect Y/N |
+| **Fuel:** | *(0x17 only)* Saves the current 0x17 fuel sensor reading to EEPROM as the fuel start level for the 0x01 trip computer. Press SELECT when the tank is known (e.g. just filled up). |
+
+### Setting up range calculation (0x01 trip computer)
+
+The 0x01 engine ECU computes fuel consumption from RPM and engine load but has no fuel level sensor. To enable the km-remaining display on 0x01 screen 4:
+
+1. Fill up the tank.
+2. Connect to the **instruments cluster** (`0x17`) — this has the real fuel level sensor.
+3. Navigate to **Settings** (RIGHT from Cockpit).
+4. Navigate DOWN to the `Fuel:` item — it shows the current sensor reading.
+5. Press **SELECT** to save that reading to EEPROM.
+6. Switch ECU to **0x01** (Settings → Exit, then change address).
+7. Screen 4 (trip computer) will now show `---K` until the engine has been running a moment, then update the km-remaining estimate.
+
+Repeat after every fill-up. The value persists across power cycles.
+
+> **Calibration note**: If the L/100km readout seems consistently off, adjust `ENGINE01_FUEL_DENOM` in `Config.h`. Higher → lower reading; lower → higher reading.
 
 ### KWP modes
 
