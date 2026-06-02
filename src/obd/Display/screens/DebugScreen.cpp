@@ -17,8 +17,7 @@ static const uint8_t PROGMEM kDebugScript[] = {
     SO_LABEL,  0, 5, 4, 'A','d','r',':',   SO_HEX_U8,  4, 5, FLD_DBG_ADDR,
     SO_LABEL,  0, 6, 5, 'B','a','u','d',':', SO_U16,   5, 6, FLD_DBG_BAUD,
     SO_LABEL,  0, 7, 4, 'A','t','t',':',   SO_U8,      4, 7, FLD_DBG_ATT,
-    SO_LABEL,  0, 8, 4, 'S','i','m',':',   SO_BOOL_YN, 4, 8, FLD_DBG_SIM,
-    SO_LABEL,  0, 9, 4, 'R','A','M',':',   SO_U16,     4, 9, FLD_DBG_RAM,
+    SO_LABEL,  0, 8, 4, 'R','A','M',':',   SO_U16,     4, 8, FLD_DBG_RAM,
     SO_END
 };
 // clang-format on

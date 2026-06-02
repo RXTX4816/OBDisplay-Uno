@@ -123,10 +123,27 @@ static void renderCockpit01Big(const DisplayManager& dm, const OBDSignals& s)
     dm.printBig(0, 16, s.instruments.engineRpm);
     printBigTemp(dm, 0, 32, s.instruments.oilTemp, " O");
     printBigTemp(dm, 0, 48, s.instruments.coolantTemp, " C");
-    dm.printBig(0, 64, s.engine.engineLoad, '%');
+    dm.printBig(0, 64, (int16_t)s.engine.engineLoad, '%');
     dm.printBigScaled10(0, 80, s.engine.tbAngle, 'T');
     dm.printBigVoltage(0, 96, s.engine.voltage);
     dm.printBig(0, 112, (int16_t)s.engine.lambda, '%');
+}
+
+// Shared helper for both bit-field screens (readiness + basic-setting).
+// labelTable: PROGMEM array, labelWidth bytes per entry (no null needed).
+// xVal: column for the pass/fail indicator. errorBits: 1=FAIL/0=PASS vs 1=Y/0=N.
+static void renderBitField(const DisplayManager& dm, const void* labelTable, uint8_t labelWidth,
+                           uint8_t xVal, uint8_t bits, bool errorBits)
+{
+    char label[9];
+    for (uint8_t i = 0; i < 8; ++i)
+    {
+        memcpy_P(label, (PGM_P)labelTable + (uint16_t)i * labelWidth, labelWidth);
+        label[labelWidth] = '\0';
+        dm.print(0, i, label);
+        bool bit = (bits >> (7 - i)) & 1;
+        dm.print(xVal, i, errorBits ? (bit ? F("FAIL") : F("PASS")) : (bit ? F("Y") : F("N")));
+    }
 }
 
 // ── 0x01 page 1: OBD readiness bits ─────────────────────────────────────────
@@ -139,24 +156,14 @@ static void renderReadinessScreen(const DisplayManager& dm, const OBDSignals& s)
         return;
     }
     // Bits in group 100 value 1: 1=FAIL, 0=PASS
-    const bool bits[8] = {
-        s.engine.exhaustGasRecirculationError,
-        s.engine.oxygenSensorHeatingError,
-        s.engine.oxygenSensorError,
-        s.engine.airConditioningError,
-        s.engine.secondaryAirInjectionError,
-        s.engine.evaporativeEmissionsError,
-        s.engine.catalystHeatingError,
-        s.engine.catalyticConverter,
-    };
-    for (uint8_t i = 0; i < 8; ++i)
-    {
-        char label[6];
-        memcpy_P(label, kReadinessLabels[i], 5);
-        label[5] = '\0';
-        dm.print(0, i, label);
-        dm.print(6, i, bits[i] ? F("FAIL") : F("PASS"));
-    }
+    const uint8_t bits =
+        ((uint8_t)s.engine.exhaustGasRecirculationError << 7) |
+        ((uint8_t)s.engine.oxygenSensorHeatingError << 6) |
+        ((uint8_t)s.engine.oxygenSensorError << 5) | ((uint8_t)s.engine.airConditioningError << 4) |
+        ((uint8_t)s.engine.secondaryAirInjectionError << 3) |
+        ((uint8_t)s.engine.evaporativeEmissionsError << 2) |
+        ((uint8_t)s.engine.catalystHeatingError << 1) | ((uint8_t)s.engine.catalyticConverter << 0);
+    renderBitField(dm, kReadinessLabels, 5, 6, bits, true);
 }
 
 // ── 0x01 page 2: basic-setting requirement bits ───────────────────────────────
@@ -168,16 +175,7 @@ static void renderBasicSettingScreen(const DisplayManager& dm, const OBDSignals&
         dm.print(0, 1, F("not read"));
         return;
     }
-    uint8_t b = s.engine.basicSettingBits;
-    for (uint8_t i = 0; i < 8; ++i)
-    {
-        char label[9];
-        memcpy_P(label, kBasicSettingLabels[i], 8);
-        label[8] = '\0';
-        dm.print(0, i, label);
-        // Bit 7 is first label, bit 0 is last
-        dm.print(9, i, (b & (0x80u >> i)) ? F("Y") : F("N"));
-    }
+    renderBitField(dm, kBasicSettingLabels, 8, 9, s.engine.basicSettingBits, false);
 }
 
 // ── 0x17 page 1: second big dashboard ────────────────────────────────────────

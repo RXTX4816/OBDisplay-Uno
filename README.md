@@ -28,7 +28,6 @@ Pre-built firmware is available on the [Releases](https://github.com/RXTX4816/OB
 - 56-case sensor decode table (full VW/Audi KWP-1281 measurement type table)
 - Read and clear DTC fault codes
 - SH1107 64×128 OLED display (GME64128-02), portrait orientation — pixel-doubled cockpit font, text-only rendering with batch I2C transfers
-- Simulation mode for testing without a car
 - Cooperative task scheduler (TaskScheduler) to prevent ECU timeouts
 
 ## Hardware

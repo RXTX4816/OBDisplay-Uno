@@ -40,26 +40,6 @@ void test_compute_realistic_trip()
                      signals.computed.fuelPer100km <= 55);
 }
 
-void test_update_simulation_changes_values()
-{
-    OBDSignals signals;
-    signals.reset();
-
-    // Call updateSimulation a few times and ensure some values toggle/update
-    const uint8_t iterations = 5;
-    for (uint8_t i = 0; i < iterations; ++i) {
-        signals.updateSimulation();
-    }
-
-    // After simulation steps, updated flags should be set and values non-zero
-    TEST_ASSERT_TRUE(signals.instruments.vehicleSpeedUpdated);
-    TEST_ASSERT_TRUE(signals.instruments.engineRpmUpdated);
-    TEST_ASSERT_TRUE(signals.instruments.coolantTempUpdated);
-    TEST_ASSERT_TRUE(signals.instruments.oilTempUpdated);
-    TEST_ASSERT_TRUE(signals.instruments.oilLevelOkUpdated);
-    TEST_ASSERT_TRUE(signals.instruments.fuelLevelUpdated);
-}
-
 // ---- DTCStore tests ----
 
 void test_dtc_store_reset()
@@ -279,7 +259,6 @@ int main(int argc, char **argv)
     RUN_TEST(test_signals_zero_time_elapsed);
     RUN_TEST(test_compute_realistic_trip);
     RUN_TEST(test_signals_fuel_consumption_calculation);
-    RUN_TEST(test_update_simulation_changes_values);
     RUN_TEST(test_speed_integration_accumulates_distance);
     RUN_TEST(test_fuel_ema_smooths_spike);
     RUN_TEST(test_fuelper100km_uses_smooth_distance);

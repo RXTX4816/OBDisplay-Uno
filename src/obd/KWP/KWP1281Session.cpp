@@ -365,10 +365,8 @@ bool KWP1281Session::perform5BaudInit_()
     return true;
 }
 
-bool KWP1281Session::connectToEcu(bool simulationMode, bool autoSetup, uint16_t& baudRate,
-                                  const uint8_t& addrSelected)
+bool KWP1281Session::connectToEcu(bool autoSetup, uint16_t& baudRate, const uint8_t& addrSelected)
 {
-    (void)simulationMode;
     (void)autoSetup;
 
     lastConnectError_ = 0;

@@ -52,5 +52,4 @@ void loop()
             t.next = (t.interval == 0) ? 0 : now + t.interval;
         }
     }
-    controller.loop();
 }

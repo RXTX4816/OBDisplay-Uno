@@ -23,7 +23,6 @@ struct DebugInfo
     uint8_t addr;      // ECU address selected
     uint16_t baud;     // baud rate selected
     uint8_t group;     // current KWP group
-    bool sim;          // simulation mode active
     int16_t freeRam;   // estimated free RAM (bytes)
 };
 
@@ -64,7 +63,6 @@ class DisplayManager
     // 2× pixel-doubled printing at raw pixel coordinates.
     // printBig: integer value, optionally with a single-char or string suffix label.
     void printBig(uint8_t x_px, uint8_t y_px, uint16_t val) const;
-    void printBig(uint8_t x_px, uint8_t y_px, uint16_t val, char suffix) const;
     void printBig(uint8_t x_px, uint8_t y_px, int16_t val, char suffix) const;
     void printBig(uint8_t x_px, uint8_t y_px, const char* s) const;
     void printBigWithLabel(uint8_t x_px, uint8_t y_px, uint16_t val, const char* label) const;
