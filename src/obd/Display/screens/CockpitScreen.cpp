@@ -119,17 +119,18 @@ static void renderCockpit17Big(const DisplayManager& dm, const OBDSignals& s)
     dm.printBigWithLabel(0, 94, s.instruments.ambientTemp, "AIR");
 }
 
-// ── 0x01 page 0: existing big dashboard ──────────────────────────────────────
+// ── 0x01 page 0: big dashboard (fixed to use actual 0x01 fields) ─────────────
+// Row layout (128 px):  speed RPM coolant load tbAngle voltage lambda intakeAir
 static void renderCockpit01Big(const DisplayManager& dm, const OBDSignals& s)
 {
-    dm.printBig(0, 0, s.instruments.vehicleSpeed);
-    dm.printBig(0, 16, s.instruments.engineRpm);
-    printBigTemp(dm, 0, 32, s.instruments.oilTemp, " O");
-    printBigTemp(dm, 0, 48, s.instruments.coolantTemp, " C");
-    dm.printBig(0, 64, (int16_t)s.engine.engineLoad, '%');
-    dm.printBigScaled10(0, 80, s.engine.tbAngle, 'T');
-    dm.printBigVoltage(0, 96, s.engine.voltage);
-    dm.printBig(0, 112, (int16_t)s.engine.lambda, '%');
+    dm.printBig(0, 0, s.instruments.vehicleSpeed);            // group 5 idx 2 [fixed]
+    dm.printBig(0, 16, s.instruments.engineRpm);              // group 1 idx 0
+    printBigTemp(dm, 0, 32, s.engine.tempUnknown2, " C");     // group 4 idx 2: coolant
+    dm.printBig(0, 48, (int16_t)s.engine.engineLoad, '%');    // group 5/6 idx 1 [fixed]
+    dm.printBigScaled10(0, 64, s.engine.tbAngle, 'T');        // group 3 idx 2
+    dm.printBigVoltage(0, 80, s.engine.voltage);              // group 4 idx 1 [fixed]
+    dm.printBig(0, 96, (int16_t)s.engine.lambda, '%');        // group 1 idx 2
+    dm.printBig(0, 112, (int16_t)s.engine.tempUnknown3, 'I'); // group 4 idx 3: intake air
 }
 
 // Shared helper for both bit-field screens (readiness + basic-setting).
@@ -196,6 +197,55 @@ static void renderSecondDashboard17(const DisplayManager& dm, const OBDSignals& 
     dm.printBigScaled10(0, 64, (int16_t)s.computed.fuelPer100km, 'L');
     dm.printBigWithLabel(0, 80, s.instruments.fuelLevelSmoothX8 >> 3, " F");
     dm.printBigWithLabel(0, 96, ((uint16_t)s.instruments.oilLevelOk * 100u) / 255u, " %");
+}
+
+static void drawBarGauge(const DisplayManager& dm, uint8_t barX, uint8_t val, uint8_t maxVal,
+                         uint8_t tickY, const char* label);
+
+// ── 0x01 page 4: trip computer ───────────────────────────────────────────────
+// kmRemaining is non-zero only if fuel level was stored via 0x17 Settings→Fuel.
+static void renderTripPage01(const DisplayManager& dm, const OBDSignals& s)
+{
+    // L/100km ×10 → display as X.X
+    if (s.computed.fuelPer100km > 0)
+        dm.printBigScaled10(0, 0, (int16_t)s.computed.fuelPer100km, 'L');
+    else
+        dm.printBig(0, 0, "---L");
+
+    // L/hr ×10 → display as X.X
+    if (s.computed.fuelPerHour > 0)
+        dm.printBigScaled10(0, 16, (int16_t)s.computed.fuelPerHour, 'H');
+    else
+        dm.printBig(0, 16, "---H");
+
+    // km remaining (0 = no fuel start set)
+    if (s.computed.kmRemaining > 0)
+        dm.printBigWithLabel(0, 32, s.computed.kmRemaining, "K");
+    else
+        dm.printBig(0, 32, "---K");
+
+    // L burned this session
+    dm.printBigWithLabel(0, 48, s.computed.fuelBurnedSinceStart, " B");
+}
+
+// ── 0x01 page 5: 4-bar gauges ─────────────────────────────────────────────────
+// Bars: coolant °C | engine load % | lambda % (offset +15) | voltage ×10
+// Lambda bar: maps -15..+15% → 0..30 range, tick at centre (0%)
+static void renderBarsPage01(const DisplayManager& dm, const OBDSignals& s)
+{
+    // coolant: group 4, 0–120 °C, tick at 90 °C → fillH=84, tickY=28
+    drawBarGauge(dm, 2, s.engine.tempUnknown2, 120, 28, "C");
+    // engine load: 0–100 %, tick at 80 % → tickY = 112 - (112*80/100) = 22
+    drawBarGauge(dm, 18, (uint8_t)s.engine.engineLoad, 100, 22, "L");
+    // lambda: -15 to +15 % mapped to 0–30, tick at 0 % (centre) → tickY=56
+    int8_t lam = s.engine.lambda;
+    uint8_t lamBar = (lam < -15) ? 0u : (lam > 15) ? 30u : (uint8_t)(lam + 15);
+    drawBarGauge(dm, 34, lamBar, 30, 56, "%");
+    // voltage ×10: range 100–160 (10.0–16.0V), tick at 120 (12.0V)
+    // scale: val-100, max=60; tick: 120-100=20 → tickY = 112 - 112*20/60 = 112-37 = 75
+    uint16_t vraw = s.engine.voltage;
+    uint8_t vbar = (vraw < 100u) ? 0u : (vraw > 160u) ? 60u : (uint8_t)(vraw - 100u);
+    drawBarGauge(dm, 50, vbar, 60, 75, "V");
 }
 
 // ── 0x17 page 2: 4-bar gauge ─────────────────────────────────────────────────
@@ -306,6 +356,7 @@ void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelecte
 {
     if (addrSelected == 0x01)
     {
+        ScreenCtx ctx{&signals, nullptr, 0, 0};
         switch (screen)
         {
             case 0:
@@ -318,11 +369,14 @@ void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelecte
                 renderBasicSettingScreen(dm, signals);
                 break;
             case 3:
-            {
-                ScreenCtx ctx{&signals, nullptr, 0, 0};
                 runScript(kCockpit01S3Script, ctx, dm);
                 break;
-            }
+            case 4:
+                renderTripPage01(dm, signals);
+                break;
+            case 5:
+                renderBarsPage01(dm, signals);
+                break;
             default:
                 renderCockpit01Big(dm, signals);
                 break;

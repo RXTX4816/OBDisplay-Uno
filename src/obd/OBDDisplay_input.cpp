@@ -82,11 +82,18 @@ void OBDDisplay::handleInput_()
                 if (btns & BTN_MASK_UP)
                 {
                     menuState_.nextScreen(mid);
+                    // When landing on readiness page (screen 1, 0x01), trigger immediate poll
+                    if (mid == MenuId::Cockpit && addrSelected_ == 0x01 &&
+                        menuState_.screen(MenuId::Cockpit) == 1)
+                        requestReadiness_ = true;
                     any = true;
                 }
                 else if (btns & BTN_MASK_DOWN)
                 {
                     menuState_.prevScreen(mid);
+                    if (mid == MenuId::Cockpit && addrSelected_ == 0x01 &&
+                        menuState_.screen(MenuId::Cockpit) == 1)
+                        requestReadiness_ = true;
                     any = true;
                 }
                 break;
@@ -245,14 +252,22 @@ void OBDDisplay::handleInput_()
                 }
                 break;
             case MenuId::Settings:
+            {
+                // 4 items on 0x17 (adds Fuel EEPROM), 3 items on other ECUs
+                const uint8_t settingsItemCount = (addrSelected_ == 0x17) ? 4u : 3u;
+                const bool onFuelItem = (settingsMenuCursor_ == 3 && addrSelected_ == 0x17);
+
                 if (btns & BTN_MASK_UP)
                 {
-                    settingsMenuCursor_ = (settingsMenuCursor_ + 2) % 3;
+                    settingsMenuCursor_ =
+                        (settingsMenuCursor_ + settingsItemCount - 1u) % settingsItemCount;
+                    menuState_.markScreenChanged();
                     any = true;
                 }
                 else if (btns & BTN_MASK_DOWN)
                 {
-                    settingsMenuCursor_ = (settingsMenuCursor_ + 1) % 3;
+                    settingsMenuCursor_ = (settingsMenuCursor_ + 1u) % settingsItemCount;
+                    menuState_.markScreenChanged();
                     any = true;
                 }
                 else if (btns & BTN_MASK_MID)
@@ -267,7 +282,7 @@ void OBDDisplay::handleInput_()
                         actions.toggleKwpMode = true;
                         any = true;
                     }
-                    else
+                    else if (settingsMenuCursor_ == 2)
                     {
                         autoReconnect_ = !autoReconnect_;
                         if (!autoReconnect_)
@@ -275,8 +290,18 @@ void OBDDisplay::handleInput_()
                         menuState_.markScreenChanged();
                         any = true;
                     }
+                    else if (onFuelItem)
+                    {
+                        // Save current 0x17 fuel sensor reading to EEPROM
+                        writeEepromFuel(signals_.instruments.fuelLevel);
+                        dtcStatusUntil_ = millis() + 2000u;
+                        dtcStatusType_ = 3; // fuel saved confirmation
+                        menuState_.markScreenChanged();
+                        any = true;
+                    }
                 }
                 break;
+            }
         }
     }
 

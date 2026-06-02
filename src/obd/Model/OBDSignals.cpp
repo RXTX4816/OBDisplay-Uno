@@ -44,22 +44,26 @@ void OBDSignals::reset()
     warnings = WarningState{};
     prevComputeMs_ = 0xFFFFFFFFu;
     tripDistAccum_ = 0;
+    fuelBurnAccum01_ = 0;
+    fuelBurnedX8_01_ = 0;
 }
 
-void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart)
+void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuAddr,
+                         uint8_t fuelStartL)
 {
     computed.elapsedSecondsSinceStart = (nowMs - connectTimeStart) / 1000;
     computed.elapsedSecondsSinceStartUpdated = true;
 
     // ── Speed-integrated trip distance ──────────────────────────────────────
     // Guard first call: sentinel 0xFFFFFFFF means prevComputeMs_ is uninitialized.
+    uint32_t deltaMs = 0;
     if (prevComputeMs_ == 0xFFFFFFFFu)
     {
         prevComputeMs_ = nowMs;
     }
     else
     {
-        uint32_t deltaMs = nowMs - prevComputeMs_;
+        deltaMs = nowMs - prevComputeMs_;
         prevComputeMs_ = nowMs;
         // tripDistAccum_ in units of km/h × ms; 36000 km/h·ms = 0.01 km
         tripDistAccum_ += (uint32_t)instruments.vehicleSpeed * deltaMs;
@@ -69,69 +73,125 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart)
     computed.elapsedKmSinceStart = (uint16_t)(computed.tripDistance100 / 100u);
     computed.elapsedKmSinceStartUpdated = true;
 
-    // ── EMA-smoothed fuel level — 16-bit only ────────────────────────────────
-    // Asymmetric: downward α=1/64 (slosh resistance), upward α=1/32 (fast recovery).
-    // C++ arithmetic right-shift truncates positive values toward zero, so small positive
-    // deltas give step=0 and the EMA never recovers upward — add a +1 floor to fix this.
-    if (instruments.fuelLevelUpdated)
+    if (ecuAddr == 0x17)
     {
-        uint16_t newX8 = (uint16_t)instruments.fuelLevel << 3u;
-        int16_t delta = (int16_t)newX8 - (int16_t)instruments.fuelLevelSmoothX8;
-        int16_t step = (delta < 0) ? (delta >> 6) : (delta >> 5);
-        if (step == 0 && delta != 0)
-            step = (delta < 0) ? -1 : 1;
-        instruments.fuelLevelSmoothX8 = (uint16_t)((int16_t)instruments.fuelLevelSmoothX8 + step);
+        // ── EMA-smoothed fuel level — 16-bit only ───────────────────────────
+        // Asymmetric: downward α=1/64 (slosh resistance), upward α=1/32 (fast recovery).
+        // C++ arithmetic right-shift truncates positive values toward zero, so small
+        // positive deltas can yield step=0 and the EMA never recovers upward — add a
+        // ±1 floor for non-zero deltas.
+        if (instruments.fuelLevelUpdated)
+        {
+            uint16_t newX8 = (uint16_t)instruments.fuelLevel << 3u;
+            int16_t delta = (int16_t)newX8 - (int16_t)instruments.fuelLevelSmoothX8;
+            int16_t step = (delta < 0) ? (delta >> 6) : (delta >> 5);
+            if (step == 0 && delta != 0)
+                step = (delta < 0) ? -1 : 1;
+            instruments.fuelLevelSmoothX8 =
+                (uint16_t)((int16_t)instruments.fuelLevelSmoothX8 + step);
+        }
+
+        // ── Fuel burned via smoothed level ──────────────────────────────────
+        // burnedX8 in 1/8 L units; clamp to zero if smooth somehow exceeds start.
+        uint16_t startX8 = (uint16_t)instruments.fuelLevelStart * 8u;
+        uint16_t burnedX8 = (instruments.fuelLevelSmoothX8 < startX8)
+                                ? (startX8 - instruments.fuelLevelSmoothX8)
+                                : 0u;
+        computed.fuelBurnedSinceStart = (uint8_t)(burnedX8 >> 3u);
+        computed.fuelBurnedSinceStartUpdated = true;
+
+        // ── fuelPer100km ×10 ────────────────────────────────────────────────
+        // Real data once >10 km driven with actual fuel drop; otherwise estimate from
+        // RPM/speed. 10 km minimum: fuel sensor has 1 L precision — at ≤10 L/100km
+        // you need 10 km before consuming a full sensor step, so shorter trips yield
+        // nonsensical values (e.g. 1 L sensor noise over 1 km → 100+ L/100km).
+        // Capped at 300 (30.0 L/100km) as a safety net for any edge-case transient.
+        if (burnedX8 > 0u && computed.tripDistance100 > 1000u)
+        {
+            uint16_t candidate =
+                (uint16_t)((uint32_t)burnedX8 * 12500u / computed.tripDistance100);
+            computed.fuelPer100km = (candidate > 300u) ? 300u : candidate;
+        }
+        else if (instruments.vehicleSpeed > 17u)
+        {
+            computed.fuelPer100km =
+                (uint16_t)instruments.engineRpm / 10u * 23u / instruments.vehicleSpeed;
+        }
+        else
+        {
+            computed.fuelPer100km = 0u;
+        }
+        computed.fuelPer100kmUpdated = true;
+
+        // ── fuelPerHour ×10: burnedX8*4500/sec ───────────────────────────────
+        computed.fuelPerHour =
+            (computed.elapsedSecondsSinceStart > 0)
+                ? (uint16_t)((uint32_t)burnedX8 * 4500u / computed.elapsedSecondsSinceStart)
+                : 0u;
+        computed.fuelPerHourUpdated = true;
+
+        // ── kmRemaining: fuelLevelSmoothX8*125/fuelPer100km ──────────────────
+        uint32_t kmR =
+            (computed.fuelPer100km > 0u)
+                ? ((uint32_t)instruments.fuelLevelSmoothX8 * 125u / computed.fuelPer100km)
+                : 0u;
+        computed.kmRemaining = (uint16_t)(kmR > 9999u ? 9999u : kmR);
+        computed.kmRemainingUpdated = true;
     }
-
-    // ── Fuel burned via smoothed level ──────────────────────────────────────
-    // burnedX8 in 1/8 L units; clamp to zero if smooth somehow exceeds start.
-    uint16_t startX8 = (uint16_t)instruments.fuelLevelStart * 8u;
-    uint16_t burnedX8 =
-        (instruments.fuelLevelSmoothX8 < startX8) ? (startX8 - instruments.fuelLevelSmoothX8) : 0u;
-    computed.fuelBurnedSinceStart = (uint8_t)(burnedX8 >> 3u);
-    computed.fuelBurnedSinceStartUpdated = true;
-
-    // ── fuelPer100km ×10 ────────────────────────────────────────────────────
-    // Real data once >10 km driven with actual fuel drop; otherwise estimate from
-    // RPM/speed. 10 km minimum: fuel sensor has 1 L precision — at ≤10 L/100km
-    // you need 10 km before consuming a full sensor step, so shorter trips yield
-    // nonsensical values (e.g. 1 L sensor noise over 1 km → 100+ L/100km).
-    // Capped at 300 (30.0 L/100km) as a safety net for any edge-case transient.
-    // Calibrated for ~1.4 L petrol: 2700 RPM at 100 km/h → ~6.2 L/100km.
-    // uint16_t safe: RPM/10*23 max ≈ 6500/10*23 = 14950 < 65535.
-    if (burnedX8 > 0u && computed.tripDistance100 > 1000u)
+    else if (ecuAddr == 0x01)
     {
-        uint16_t candidate = (uint16_t)((uint32_t)burnedX8 * 12500u / computed.tripDistance100);
-        computed.fuelPer100km = (candidate > 300u) ? 300u : candidate;
-    }
-    else if (instruments.vehicleSpeed > 17u)
-    {
-        computed.fuelPer100km =
-            (uint16_t)instruments.engineRpm / 10u * 23u / instruments.vehicleSpeed;
-    }
-    else
-    {
-        computed.fuelPer100km = 0u;
-    }
-    computed.fuelPer100kmUpdated = true;
+        // ── Fuel flow from RPM × load (ENGINE01_FUEL_DENOM calibration) ─────
+        // fuelPerHour ×10 = RPM × engineLoad / DENOM
+        uint16_t fph = 0;
+        if (engine.engineLoad > 0 && instruments.engineRpm > 0)
+        {
+            uint32_t raw =
+                (uint32_t)instruments.engineRpm * engine.engineLoad / ENGINE01_FUEL_DENOM;
+            fph = (raw > 0xFFFFu) ? 0xFFFFu : (uint16_t)raw;
+        }
+        computed.fuelPerHour = fph;
+        computed.fuelPerHourUpdated = true;
 
-    // ── fuelPerHour ×10: burnedX8*4500/sec ──────────────────────────────────
-    // Derivation: (burnedX8/8 L) / secs * 3600 * 10 = burnedX8 * 4500 / secs
-    computed.fuelPerHour =
-        (computed.elapsedSecondsSinceStart > 0)
-            ? (uint16_t)((uint32_t)burnedX8 * 4500u / computed.elapsedSecondsSinceStart)
-            : 0u;
-    computed.fuelPerHourUpdated = true;
+        // ── Fuel burn integration ×8 ─────────────────────────────────────────
+        // 1 unit of fuelBurnedX8_01_ = 0.125 L
+        // fuelBurnAccum01_ accumulates fph * deltaMs; threshold = 4,500,000 per unit
+        // Derivation: 1 L/hr×10 × 1 ms × 8 / (10 × 3,600,000 ms/hr) = 1/4,500,000
+        fuelBurnAccum01_ += (uint32_t)fph * deltaMs;
+        while (fuelBurnAccum01_ >= 4500000UL)
+        {
+            fuelBurnedX8_01_++;
+            fuelBurnAccum01_ -= 4500000UL;
+        }
+        computed.fuelBurnedSinceStart = (uint8_t)(fuelBurnedX8_01_ >> 3u);
+        computed.fuelBurnedSinceStartUpdated = true;
 
-    // ── kmRemaining: fuelLevelSmoothX8*125/fuelPer100km ─────────────────────
-    // Derivation: (smooth/8 L) / (fuelPer100km/10 L/100km) * 100
-    //           = smooth * 100 * 10 / (8 * fuelPer100km)
-    //           = smooth * 125 / fuelPer100km
-    uint32_t kmR = (computed.fuelPer100km > 0)
-                       ? ((uint32_t)instruments.fuelLevelSmoothX8 * 125u / computed.fuelPer100km)
-                       : 0u;
-    computed.kmRemaining = (uint16_t)(kmR > 9999u ? 9999u : kmR);
-    computed.kmRemainingUpdated = true;
+        // ── fuelPer100km ×10 = fuelPerHour × 100 / speed ────────────────────
+        if (instruments.vehicleSpeed > 5u && fph > 0u)
+        {
+            uint32_t f100 = (uint32_t)fph * 100u / instruments.vehicleSpeed;
+            computed.fuelPer100km = (f100 > 0xFFFFu) ? 0xFFFFu : (uint16_t)f100;
+        }
+        else
+        {
+            computed.fuelPer100km = 0u;
+        }
+        computed.fuelPer100kmUpdated = true;
+
+        // ── kmRemaining from EEPROM fuel start ──────────────────────────────
+        // fuelStartL set from 0x17 EEPROM at connect time; 0 = not set
+        if (fuelStartL > 0u && computed.fuelPer100km > 0u)
+        {
+            uint8_t burned = computed.fuelBurnedSinceStart;
+            uint8_t remaining = (burned < fuelStartL) ? (fuelStartL - burned) : 0u;
+            uint32_t kmRem = (uint32_t)remaining * 1000u / computed.fuelPer100km;
+            computed.kmRemaining = (uint16_t)(kmRem > 9999u ? 9999u : kmRem);
+        }
+        else
+        {
+            computed.kmRemaining = 0u;
+        }
+        computed.kmRemainingUpdated = true;
+    }
 }
 
 // Helper: set a warning bit and update maxLevel
@@ -204,7 +264,7 @@ void OBDSignals::computeWarnings(uint8_t ecuAddr)
             setWarn(warnings, WARN_LOW_VOLT, 2);
         if (engine.engineLoadUpdated && engine.engineLoad > WARN_ENGINE_LOAD_HIGH)
             setWarn(warnings, WARN_HIGH_LOAD, 1);
-        // Coolant proxy: gate once, cache, run all three threshold checks
+        // Coolant proxy from group 4: gate once, cache, run all threshold checks
         if (engine.tempUnknown2Updated)
         {
             uint8_t t2 = engine.tempUnknown2;

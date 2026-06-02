@@ -180,11 +180,13 @@ struct OBDSignals
     WarningState warnings;
 
     void reset();
-    void compute(uint32_t nowMs, uint32_t connectTimeStart);
+    void compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuAddr, uint8_t fuelStartL);
     void computeWarnings(uint8_t ecuAddr);
 
     uint32_t prevComputeMs_ = 0xFFFFFFFFu; // 0xFFFFFFFF = uninitialized sentinel
     uint32_t tripDistAccum_ = 0;           // sub-unit accumulator (km/h × ms, mod 36000)
+    uint32_t fuelBurnAccum01_ = 0;         // sub-unit fuel burn accumulator (0x01)
+    uint16_t fuelBurnedX8_01_ = 0;         // ×8 L burned this session (0x01)
 };
 
 } // namespace Model

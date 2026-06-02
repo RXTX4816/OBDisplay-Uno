@@ -312,9 +312,11 @@ void DisplayManager::renderDtcMenu(uint8_t cursor, bool showActive, uint8_t show
 }
 
 void DisplayManager::renderSettings(uint8_t cursor, int kwpModeInt, bool autoReconnect,
-                                    const char (*ecuLines)[11], uint8_t ecuLineCount)
+                                    const char (*ecuLines)[11], uint8_t ecuLineCount,
+                                    uint8_t addrSelected, uint8_t fuelL)
 {
-    renderSettingsScreen(*this, cursor, kwpModeInt, autoReconnect, ecuLines, ecuLineCount);
+    renderSettingsScreen(*this, cursor, kwpModeInt, autoReconnect, ecuLines, ecuLineCount,
+                         addrSelected, fuelL);
 }
 
 void DisplayManager::renderDebug(const DebugInfo& di, int kwpModeInt)

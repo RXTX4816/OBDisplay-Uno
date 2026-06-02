@@ -14,6 +14,10 @@
 namespace obd
 {
 
+// EEPROM fuel level helpers — implemented in OBDDisplay_setup.cpp
+uint8_t readEepromFuel();
+void writeEepromFuel(uint8_t liters);
+
 class OBDDisplay
 {
   public:
@@ -62,7 +66,14 @@ class OBDDisplay
     int8_t dtcStatusValue_ = -1;  // dtcCount for type 1
 
     // Settings menu state
-    uint8_t settingsMenuCursor_ = 0; // 0=Exit, 1=KWP Mode
+    uint8_t settingsMenuCursor_ = 0; // 0=Exit, 1=KWP Mode, 2=AutoRcn, 3=Fuel (0x17 only)
+
+    // 0x01 fuel tracking
+    uint8_t fuelStartL_ = 0; // fuel level at session start (from EEPROM, L)
+
+    // Readiness immediate-poll request: set from input handler when user
+    // navigates to the readiness page; cleared after the next group-100 poll.
+    bool requestReadiness_ = false;
 
     bool autoReconnect_ = true;
     uint8_t reconnectAttempts_ = 0;

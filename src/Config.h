@@ -54,3 +54,16 @@ static constexpr uint8_t WARN_OIL_LVL_LOW_RAW = 115; // <45% of 255
 // ── Bar gauge (0x17 page 2) ───────────────────────────────────────────────────
 // Maximum fuel tank capacity in litres — adjust to match your vehicle.
 static constexpr uint8_t FUEL_TANK_MAX_LITERS = 55;
+
+// ── 0x01 engine ECU fuel model ────────────────────────────────────────────────
+// fuelPerHour ×10 = RPM × engineLoad / ENGINE01_FUEL_DENOM
+// Calibrate: at cruise (2700 RPM, 35% load → ~8 L/hr) → DENOM ≈ 1181, use 1200.
+// If displayed L/100km reads 10% high, raise DENOM by 10%; if 10% low, lower it.
+static constexpr uint16_t ENGINE01_FUEL_DENOM = 1200;
+
+// ── 0x01 additional warning thresholds ───────────────────────────────────────
+// Lambda controller % — spec range -15 to +15%.
+static constexpr int8_t WARN_LAMBDA_LEAN_PCT = 10;  // above this → lean warning
+static constexpr int8_t WARN_LAMBDA_RICH_PCT = -10; // below this → rich warning
+// Intake air temperature °C.
+static constexpr uint8_t WARN_INTAKE_HOT_C = 50;
