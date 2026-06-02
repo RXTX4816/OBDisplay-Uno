@@ -142,7 +142,7 @@ static void renderBitField(const DisplayManager& dm, const void* labelTable, uin
     char label[9];
     for (uint8_t i = 0; i < 8; ++i)
     {
-        memcpy_P(label, (PGM_P)labelTable + (uint16_t)i * labelWidth, labelWidth);
+        memcpy_P(label, (PGM_P)labelTable + (uint16_t)i * (labelWidth + 1u), labelWidth);
         label[labelWidth] = '\0';
         dm.print(0, i, label);
         bool bit = (bits >> (7 - i)) & 1;
