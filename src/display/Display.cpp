@@ -323,6 +323,32 @@ void Display::printBig(uint8_t x_px, uint8_t y_px, int32_t n)
     printBig(x_px, y_px, buf);
 }
 
+void Display::drawBar(uint8_t x, uint8_t y, uint8_t w, uint8_t h)
+{
+    if (entryCount_ >= kMaxEntries)
+        return;
+    TextEntry& e = entries_[entryCount_++];
+    e.x = x;
+    e.line = y;
+    e.scale = 3;
+    e.text[0] = (char)w;
+    e.text[1] = (char)h;
+    markDirty();
+}
+
+void Display::drawBarClear(uint8_t x, uint8_t y, uint8_t w, uint8_t h)
+{
+    if (entryCount_ >= kMaxEntries)
+        return;
+    TextEntry& e = entries_[entryCount_++];
+    e.x = x;
+    e.line = y;
+    e.scale = 4;
+    e.text[0] = (char)w;
+    e.text[1] = (char)h;
+    markDirty();
+}
+
 // cppcheck-suppress functionStatic
 void Display::drawChar2xToPage(uint8_t x, uint8_t y, char c, uint8_t page, uint8_t* pageBuf)
 {
@@ -420,6 +446,32 @@ void Display::flush()
                     drawChar2xToPage(x, y, *s++, page, pageBuf);
                     x += 12; // 10px glyph + 2px gap
                 }
+            }
+            else if (e.scale == 3 || e.scale == 4)
+            {
+                // scale=3: fill rect (set pixels); scale=4: clear rect (clear pixels).
+                // e.line = top y, e.text[0] = width, e.text[1] = height.
+                uint8_t by = e.line;
+                uint8_t bw = (uint8_t)e.text[0];
+                uint8_t bh = (uint8_t)e.text[1];
+                uint8_t pageStart = (uint8_t)(page << 3);
+                uint16_t byEnd = (uint16_t)by + bh;
+                if (by >= pageStart + 8u || byEnd <= pageStart)
+                    continue;
+                uint8_t yLo = by > pageStart ? by : pageStart;
+                uint8_t yHi = (byEnd < pageStart + 8u) ? (uint8_t)byEnd : (uint8_t)(pageStart + 8u);
+                uint8_t mask = 0;
+                for (uint8_t iy = yLo; iy < yHi; ++iy)
+                    mask |= (uint8_t)(1u << (iy & 7u));
+                uint8_t xEnd = x + bw;
+                if (xEnd > 64u)
+                    xEnd = 64u;
+                if (e.scale == 3)
+                    for (uint8_t ix = x; ix < xEnd; ++ix)
+                        pageBuf[ix] |= mask;
+                else
+                    for (uint8_t ix = x; ix < xEnd; ++ix)
+                        pageBuf[ix] &= (uint8_t)~mask;
             }
             else
             {

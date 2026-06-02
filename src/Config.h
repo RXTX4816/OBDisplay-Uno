@@ -47,3 +47,10 @@ static constexpr uint8_t WARN_FUEL_LOW_L = 8;
 static constexpr uint16_t WARN_VOLTAGE_LOW_X10 = 120;
 // Engine load in % (×1 integer).
 static constexpr uint8_t WARN_ENGINE_LOAD_HIGH = 90;
+// Oil level raw ECU value (0–255; 255 = full).
+static constexpr uint8_t WARN_OIL_LVL_CRIT_RAW = 51; // <20% of 255
+static constexpr uint8_t WARN_OIL_LVL_LOW_RAW = 115; // <45% of 255
+
+// ── Bar gauge (0x17 page 2) ───────────────────────────────────────────────────
+// Maximum fuel tank capacity in litres — adjust to match your vehicle.
+static constexpr uint8_t FUEL_TANK_MAX_LITERS = 55;

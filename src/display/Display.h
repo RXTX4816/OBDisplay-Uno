@@ -53,6 +53,10 @@ class Display
     void printBig(uint8_t x_px, uint8_t y_px, const char* s);
     void printBig(uint8_t x_px, uint8_t y_px, int32_t n);
 
+    // Filled and cleared rectangles (pixel coordinates).
+    void drawBar(uint8_t x, uint8_t y, uint8_t w, uint8_t h);
+    void drawBarClear(uint8_t x, uint8_t y, uint8_t w, uint8_t h);
+
     static constexpr uint8_t WIDTH = 64; // portrait pixels
     static constexpr uint8_t HEIGHT = 128;
     static constexpr uint8_t COLS = 10; // 64 / 6 ≈ 10 text columns

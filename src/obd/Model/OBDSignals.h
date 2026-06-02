@@ -146,21 +146,22 @@ struct ComputedStats
 };
 
 // Warning bitmask bits are ordered HIGH→MED→LOW so a forward iteration renders by severity.
-// bit 0–2: HIGH  bit 3–6: MED  bit 7–9: LOW
+// bit 0–3: HIGH  bit 4–6: MED  bit 7–10: LOW
 enum WarnBit : uint8_t
 {
     WARN_OIL_PRES =
         0, // HIGH: oilPressureMin != 31 (normal=31; low=unknown) sustained 3 reads (0x17)
-    WARN_OIL_HOT = 1,   // HIGH: oilTemp > 93°C (0x17)
-    WARN_COOL_HOT = 2,  // HIGH: coolantTemp > 93°C (both)
-    WARN_OIL_LVL = 3,   // MED:  oilLevelOk == 0 (0x17)
-    WARN_LOW_VOLT = 4,  // MED:  engine.voltage < 120 (12.0 V) (0x01)
-    WARN_FUEL_CRIT = 5, // MED:  fuelLevel < 4 L (0x17)
-    WARN_VERY_COLD = 6, // MED:  coolantTemp < 40°C (both)
-    WARN_HIGH_LOAD = 7, // LOW:  engineLoad > 90% (0x01)
-    WARN_FUEL_LOW = 8,  // LOW:  fuelLevel < 8 L (0x17)
-    WARN_COLD_ENG = 9,  // LOW:  coolantTemp < 75°C (both)
-    WARN_COUNT = 10,
+    WARN_OIL_HOT = 1,      // HIGH: oilTemp > 93°C (0x17)
+    WARN_COOL_HOT = 2,     // HIGH: coolantTemp > 93°C (both)
+    WARN_OIL_LVL = 3,      // HIGH: oilLevelOk < 20% (raw < 51) (0x17)
+    WARN_LOW_VOLT = 4,     // MED:  engine.voltage < 120 (12.0 V) (0x01)
+    WARN_FUEL_CRIT = 5,    // MED:  fuelLevel < 4 L (0x17)
+    WARN_VERY_COLD = 6,    // MED:  coolantTemp < 40°C (both)
+    WARN_HIGH_LOAD = 7,    // LOW:  engineLoad > 90% (0x01)
+    WARN_FUEL_LOW = 8,     // LOW:  fuelLevel < 8 L (0x17)
+    WARN_COLD_ENG = 9,     // LOW:  coolantTemp < 75°C (both)
+    WARN_OIL_LVL_LOW = 10, // LOW:  oilLevelOk < 45% (raw < 115) (0x17)
+    WARN_COUNT = 11,
 };
 
 struct WarningState

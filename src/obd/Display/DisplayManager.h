@@ -60,6 +60,10 @@ class DisplayManager
     void print(uint8_t x, uint8_t y, int32_t value, uint8_t decimals, uint8_t width = 0) const;
     void clearRegion(uint8_t x, uint8_t y, uint8_t width);
 
+    // Filled and cleared rectangles (pixel coordinates).
+    void drawBar(uint8_t x, uint8_t y, uint8_t w, uint8_t h) const;
+    void drawBarClear(uint8_t x, uint8_t y, uint8_t w, uint8_t h) const;
+
     // 2× pixel-doubled printing at raw pixel coordinates.
     // printBig: integer value, optionally with a single-char or string suffix label.
     void printBig(uint8_t x_px, uint8_t y_px, uint16_t val) const;
