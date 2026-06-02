@@ -108,8 +108,7 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuA
         // Capped at 300 (30.0 L/100km) as a safety net for any edge-case transient.
         if (burnedX8 > 0u && computed.tripDistance100 > 1000u)
         {
-            uint16_t candidate =
-                (uint16_t)((uint32_t)burnedX8 * 12500u / computed.tripDistance100);
+            uint16_t candidate = (uint16_t)((uint32_t)burnedX8 * 12500u / computed.tripDistance100);
             computed.fuelPer100km = (candidate > 300u) ? 300u : candidate;
         }
         else if (instruments.vehicleSpeed > 17u)
