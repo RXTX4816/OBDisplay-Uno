@@ -107,6 +107,16 @@ void DisplayManager::print(uint8_t x, uint8_t y, int32_t value, uint8_t /*decima
     print(x, y, tmp, width);
 }
 
+void DisplayManager::drawBar(uint8_t x, uint8_t y, uint8_t w, uint8_t h) const
+{
+    display_.drawBar(x, y, w, h);
+}
+
+void DisplayManager::drawBarClear(uint8_t x, uint8_t y, uint8_t w, uint8_t h) const
+{
+    display_.drawBarClear(x, y, w, h);
+}
+
 void DisplayManager::printBig(uint8_t x_px, uint8_t y_px, const char* s) const
 {
     display_.printBig(x_px, y_px, s);

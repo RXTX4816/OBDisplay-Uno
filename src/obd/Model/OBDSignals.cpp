@@ -161,8 +161,14 @@ void OBDSignals::computeWarnings(uint8_t ecuAddr)
             setWarn(warnings, WARN_OIL_PRES, 3);
         if (instruments.oilTempUpdated && instruments.oilTemp > WARN_OIL_TEMP_HIGH_C)
             setWarn(warnings, WARN_OIL_HOT, 3);
-        if (instruments.oilLevelOkUpdated && instruments.oilLevelOk == 0)
-            setWarn(warnings, WARN_OIL_LVL, 2);
+        if (instruments.oilLevelOkUpdated)
+        {
+            uint8_t ol = instruments.oilLevelOk;
+            if (ol < WARN_OIL_LVL_CRIT_RAW)
+                setWarn(warnings, WARN_OIL_LVL, 3);
+            if (ol < WARN_OIL_LVL_LOW_RAW)
+                setWarn(warnings, WARN_OIL_LVL_LOW, 1);
+        }
         // Coolant: gate once, cache value, run all three threshold checks
         if (instruments.coolantTempUpdated)
         {

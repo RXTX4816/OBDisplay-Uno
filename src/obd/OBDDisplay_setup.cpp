@@ -356,7 +356,7 @@ bool OBDDisplay::ensureConnected_()
     // like the original sketch did.
     menuState_ = Input::MenuState(); // reset to defaults (Cockpit, screen 0)
     menuState_.markMenuChanged();
-    menuState_.setCockpitMax(addrSelected_ == 0x01 ? 3u : addrSelected_ == 0x17 ? 1u : 0u);
+    menuState_.setCockpitMax(addrSelected_ == 0x01 ? 3u : addrSelected_ == 0x17 ? 2u : 0u);
 
     // Seed one round of data so the very first cockpit frame drawn
     // after connect is fully populated without waiting for a manual

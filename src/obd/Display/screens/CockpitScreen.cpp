@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "CockpitScreen.h"
 #include "../ScreenVM.h"
+#include "../../../Config.h"
 #include <avr/pgmspace.h>
 #include <string.h>
 
@@ -17,13 +18,14 @@
 //   y= 78   fuel level (L)         e.g. "33 L"
 //   y= 94   ambient temperature    e.g. "20AIR"
 //
-// ADDR_INSTRUMENTS (0x17), page 1 — second dashboard, 6 rows (96 px):
+// ADDR_INSTRUMENTS (0x17), page 1 — second dashboard, 7 rows (112 px):
 //   y=  0   speed       e.g. "130"
 //   y= 16   oil temp    e.g. "95 O"  / "-WARN-" if >=100
 //   y= 32   coolant     e.g. "88 C"  / "-WARN-" if >=100
 //   y= 48   km remain   e.g. "450K"  / "---" if no data
 //   y= 64   L/100km     e.g. "8.3L"
 //   y= 80   fuel level  e.g. "33 F"
+//   y= 96   oil level   e.g. "50 %"  (0–255 → 0–100%)
 //
 // ADDR_ENGINE (0x01), page 0 — 8 rows (exactly 126 px of 128):
 //   y=  0   speed         e.g. "120"
@@ -77,16 +79,17 @@ static const char PROGMEM kSevFlash[3][5] = {"ALRT", "CAUT", "CRIT"};
 // Pre-formatted warning lines: 4-char severity prefix + 6-char name = 10 chars each.
 // Bit order is HIGH→MED→LOW so iterating forward prints most-severe first.
 static const char PROGMEM kWarnLines[WARN_COUNT][10] = {
-    "!!! OIL PR", // 0 WARN_OIL_PRES  HIGH
-    "!!! OIL HT", // 1 WARN_OIL_HOT   HIGH
-    "!!! COOLNT", // 2 WARN_COOL_HOT  HIGH
-    "!!  OIL LV", // 3 WARN_OIL_LVL   MED
-    "!!  LO VLT", // 4 WARN_LOW_VOLT  MED
-    "!!  FL CRT", // 5 WARN_FUEL_CRIT MED
-    "!!  V COLD", // 6 WARN_VERY_COLD MED
-    "!   HILOAD", // 7 WARN_HIGH_LOAD LOW
-    "!   FL LOW", // 8 WARN_FUEL_LOW  LOW
-    "!   CLD EG", // 9 WARN_COLD_ENG  LOW
+    "!!! OIL PR", // 0  WARN_OIL_PRES     HIGH
+    "!!! OIL HT", // 1  WARN_OIL_HOT      HIGH
+    "!!! COOLNT", // 2  WARN_COOL_HOT     HIGH
+    "!!! OIL LV", // 3  WARN_OIL_LVL      HIGH (<20%)
+    "!!  LO VLT", // 4  WARN_LOW_VOLT     MED
+    "!!  FL CRT", // 5  WARN_FUEL_CRIT    MED
+    "!!  V COLD", // 6  WARN_VERY_COLD    MED
+    "!   HILOAD", // 7  WARN_HIGH_LOAD    LOW
+    "!   FL LOW", // 8  WARN_FUEL_LOW     LOW
+    "!   CLD EG", // 9  WARN_COLD_ENG     LOW
+    "!   OIL LV", // 10 WARN_OIL_LVL_LOW  LOW (<45%)
 };
 
 // clang-format on
@@ -192,6 +195,57 @@ static void renderSecondDashboard17(const DisplayManager& dm, const OBDSignals& 
 
     dm.printBigScaled10(0, 64, (int16_t)s.computed.fuelPer100km, 'L');
     dm.printBigWithLabel(0, 80, s.instruments.fuelLevelSmoothX8 >> 3, " F");
+    dm.printBigWithLabel(0, 96, ((uint16_t)s.instruments.oilLevelOk * 100u) / 255u, " %");
+}
+
+// ── 0x17 page 2: 4-bar gauge ─────────────────────────────────────────────────
+//
+// Layout (64×128 px portrait):
+//   4 zones × 16 px each.  Bar: 12 px wide, 2 px left margin in zone.
+//   Bar area: y = 0–111 (112 px), fills from bottom.
+//   Tick line: 2 px tall at midpoint.  Label (big font): y = 114.
+//
+//   Bar 0 — coolant °C  x= 2  range 0–120  tick@90 → y=28
+//   Bar 1 — oil °C      x=18  range 0–120  tick@90 → y=28
+//   Bar 2 — oil level % x=34  range 0–100  tick@50 → y=56
+//   Bar 3 — fuel L      x=50  range 0–FUEL_TANK_MAX_LITERS  tick@50% → y=56
+static void drawBarGauge(const DisplayManager& dm, uint8_t barX, uint8_t val, uint8_t maxVal,
+                         uint8_t tickY, const char* label)
+{
+    static constexpr uint8_t kBarAreaH = 112;
+    static constexpr uint8_t kBarW = 12;
+    static constexpr uint8_t kLabelY = 114;
+
+    if (val > maxVal)
+        val = maxVal;
+    uint8_t fillH = (uint8_t)((uint16_t)val * kBarAreaH / maxVal);
+    uint8_t fillTop = kBarAreaH - fillH;
+
+    if (fillH > 0)
+        dm.drawBar(barX, fillTop, kBarW, fillH);
+
+    // Tick: clear notch when inside fill, filled line when in empty area.
+    if (fillTop <= tickY)
+        dm.drawBarClear(barX, tickY, kBarW, 2);
+    else
+        dm.drawBar(barX, tickY, kBarW, 2);
+
+    dm.printBig(barX, kLabelY, label);
+}
+
+static void renderBarsPage17(const DisplayManager& dm, const OBDSignals& s)
+{
+    // coolant: 0–120 °C, tick at 90 °C (fillH=84 → tickY=28)
+    drawBarGauge(dm, 2, s.instruments.coolantTemp, 120, 28, "C");
+    // oil temp: 0–120 °C, tick at 90 °C
+    drawBarGauge(dm, 18, s.instruments.oilTemp, 120, 28, "O");
+    // oil level: raw 0–255 mapped to 0–100 %, tick at 50 % (tickY=56)
+    uint8_t oilPct = (uint8_t)(((uint16_t)s.instruments.oilLevelOk * 100u) / 255u);
+    drawBarGauge(dm, 34, oilPct, 100, 56, "L");
+    // fuel: smoothed litres 0–FUEL_TANK_MAX_LITERS, tick at 50 % (tickY=56)
+    uint16_t smoothL = s.instruments.fuelLevelSmoothX8 >> 3u;
+    uint8_t fuelL = smoothL > FUEL_TANK_MAX_LITERS ? FUEL_TANK_MAX_LITERS : (uint8_t)smoothL;
+    drawBarGauge(dm, 50, fuelL, FUEL_TANK_MAX_LITERS, 56, "F");
 }
 
 // ── Warning flash overlay (shown when a new warning fires) ────────────────────
@@ -283,6 +337,9 @@ void renderCockpitScreen(DisplayManager& dm, uint8_t screen, uint8_t addrSelecte
                 break;
             case 1:
                 renderSecondDashboard17(dm, signals);
+                break;
+            case 2:
+                renderBarsPage17(dm, signals);
                 break;
             default:
                 renderCockpit17Big(dm, signals);
