@@ -69,14 +69,18 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart)
     computed.elapsedKmSinceStart = (uint16_t)(computed.tripDistance100 / 100u);
     computed.elapsedKmSinceStartUpdated = true;
 
-    // ── EMA-smoothed fuel level (α=1/32, τ≈1.6 s at 50 ms) — 16-bit only ───
-    // smooth += (newX8 - smooth) >> 5  (arithmetic shift handles both directions)
+    // ── EMA-smoothed fuel level — 16-bit only ────────────────────────────────
+    // Asymmetric: downward α=1/64 (slosh resistance), upward α=1/32 (fast recovery).
+    // C++ arithmetic right-shift truncates positive values toward zero, so small positive
+    // deltas give step=0 and the EMA never recovers upward — add a +1 floor to fix this.
     if (instruments.fuelLevelUpdated)
     {
         uint16_t newX8 = (uint16_t)instruments.fuelLevel << 3u;
         int16_t delta = (int16_t)newX8 - (int16_t)instruments.fuelLevelSmoothX8;
-        instruments.fuelLevelSmoothX8 =
-            (uint16_t)((int16_t)instruments.fuelLevelSmoothX8 + (delta >> 5));
+        int16_t step = (delta < 0) ? (delta >> 6) : (delta >> 5);
+        if (step == 0 && delta != 0)
+            step = (delta < 0) ? -1 : 1;
+        instruments.fuelLevelSmoothX8 = (uint16_t)((int16_t)instruments.fuelLevelSmoothX8 + step);
     }
 
     // ── Fuel burned via smoothed level ──────────────────────────────────────
@@ -88,18 +92,22 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart)
     computed.fuelBurnedSinceStartUpdated = true;
 
     // ── fuelPer100km ×10 ────────────────────────────────────────────────────
-    // Real data once >1 km driven with actual fuel drop; otherwise estimate
-    // from RPM/speed: L/100km×10 ≈ (RPM/2)*5/speed — all 16-bit safe on AVR.
-    // Calibrated for ~1.4 L petrol: 2700 RPM at 100 km/h → ~6.7 L/100km.
-    if (burnedX8 > 0u && computed.tripDistance100 > 100u)
+    // Real data once >10 km driven with actual fuel drop; otherwise estimate from
+    // RPM/speed. 10 km minimum: fuel sensor has 1 L precision — at ≤10 L/100km
+    // you need 10 km before consuming a full sensor step, so shorter trips yield
+    // nonsensical values (e.g. 1 L sensor noise over 1 km → 100+ L/100km).
+    // Capped at 300 (30.0 L/100km) as a safety net for any edge-case transient.
+    // Calibrated for ~1.4 L petrol: 2700 RPM at 100 km/h → ~6.2 L/100km.
+    // uint16_t safe: RPM/10*23 max ≈ 6500/10*23 = 14950 < 65535.
+    if (burnedX8 > 0u && computed.tripDistance100 > 1000u)
     {
-        computed.fuelPer100km = (uint16_t)((uint32_t)burnedX8 * 12500u / computed.tripDistance100);
+        uint16_t candidate = (uint16_t)((uint32_t)burnedX8 * 12500u / computed.tripDistance100);
+        computed.fuelPer100km = (candidate > 300u) ? 300u : candidate;
     }
     else if (instruments.vehicleSpeed > 17u)
     {
-        // At speed>17 result fits uint16_t and stays below 999 (no overflow, no cap needed)
         computed.fuelPer100km =
-            (uint16_t)instruments.engineRpm / 2u * 5u / instruments.vehicleSpeed;
+            (uint16_t)instruments.engineRpm / 10u * 23u / instruments.vehicleSpeed;
     }
     else
     {
