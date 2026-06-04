@@ -155,6 +155,10 @@ void OBDDisplay::runSetupFlow_(uint8_t startStage)
                 };
                 drawBaud();
 
+                // Wait for any lingering button press from the previous screen to clear.
+                while (digitalRead(BTN_PIN_MID) == LOW)
+                    delay(10);
+
                 bool done = false;
                 while (!done)
                 {
