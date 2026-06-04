@@ -348,6 +348,8 @@ void renderWarningFlash(const DisplayManager& dm, const WarningState& w, uint8_t
     uint8_t cnt = 0;
     for (uint8_t i = 0; i < WARN_COUNT; ++i)
         cnt += (uint8_t)((w.bits >> i) & 1u);
+    if (cnt == 0)
+        return;
 
     uint8_t rem = flashPage % cnt;
     uint8_t warnIdx = 0;
