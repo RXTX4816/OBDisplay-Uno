@@ -1,15 +1,15 @@
 # OBDisplay-Uno
 
 [![CI/CD](https://github.com/RXTX4816/OBDisplay-Uno/actions/workflows/ci.yml/badge.svg)](https://github.com/RXTX4816/OBDisplay-Uno/actions)
-[![Flash:](https://img.shields.io/badge/flash-97.2%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
 [![RAM:](https://img.shields.io/badge/RAM-48.4%25_of_2048B-green)](https://github.com/RXTX4816/OBDisplay-Uno)
-[![Flash (debug):](https://img.shields.io/badge/flash_(debug)-98.4%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
-[![RAM (debug):](https://img.shields.io/badge/RAM_(debug)-48.4%25_of_2048B-yellow)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![Flash:](https://img.shields.io/badge/flash-97.2%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
 [![MCU: ATmega328P](https://img.shields.io/badge/MCU-ATmega328P-blue)](https://www.microchip.com/en-us/product/atmega328p)
+[![RAM (debug):](https://img.shields.io/badge/RAM_(debug)-48.4%25_of_2048B-green)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![Flash (debug):](https://img.shields.io/badge/flash_(debug)-99.7%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
 
 KWP-1281 K-Line trip computer for Arduino Uno with SH1107 OLED display (64×128 portrait).
 
-Reads live sensor data and fault codes from VAG vehicles (Golf Mk4, Bora, Jetta, ~1998–2006) that use the K-Line OBD interface and the KWP-1281 protocol.
+Reads live sensor data and fault codes from VAG vehicles (Audi, Golf Mk4, Bora, Jetta, ~1998–2006) that use the K-Line OBD interface and the KWP-1281 protocol.
 
 ## Showcase
 
@@ -28,7 +28,6 @@ Pre-built firmware is available on the [Releases](https://github.com/RXTX4816/OB
 - 56-case sensor decode table (full VW/Audi KWP-1281 measurement type table)
 - Read and clear DTC fault codes
 - SH1107 64×128 OLED display (GME64128-02), portrait orientation — pixel-doubled cockpit font, text-only rendering with batch I2C transfers
-- Cooperative task scheduler (TaskScheduler) to prevent ECU timeouts
 
 ## Hardware
 
