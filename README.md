@@ -13,7 +13,7 @@ Reads live sensor data and fault codes from VAG vehicles (Audi, Golf Mk4, Bora, 
 
 ## Showcase
 
-![OBDisplay-Uno Showcase](assets/OBDisplay-Uno-Showcase.png)
+![OBDisplay-Uno Showcase](assets/showcase_1.6.0.jpg)
 
 ## Installation
 
