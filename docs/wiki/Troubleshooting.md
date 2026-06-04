@@ -30,9 +30,10 @@
 
 ## Flash too full
 
-- Production build (`pio run -e uno`) fits at ~96% flash. The debug build (`uno_debug`) reaches 100% on the standard Uno.
+- The production build (`pio run -e uno`) typically runs at ~92–97% flash depending on feature state. The debug build (`uno_debug`) is larger.
 - If you add features, monitor `pio run` output for flash/RAM percentages. RAM overflows cause silent crashes.
 - Disable `OBD_EXPERIMENTAL_SCREENS` if not needed — it saves meaningful flash.
+- `-fno-inline-small-functions` is **not safe** to add — it causes a stack overflow on the Settings screen.
 
 ## Upload fails / `avrdude` errors
 

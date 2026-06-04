@@ -4,31 +4,37 @@
 
 ```
 src/
-├── main.cpp                      # Arduino entry point, TaskScheduler setup
-├── Controller.h/cpp              # Application coordinator
+├── main.cpp                      # Arduino entry point, hand-rolled cooperative task loop
+├── Config.h                      # All user-tunable constants (pins, thresholds, intervals)
+├── Controller.h/cpp              # Application coordinator; wires tasks to OBDDisplay
 ├── debug.h                       # DBG() / DBGV() macros (OBD_DEBUG guard)
 ├── display/
-│   └── Display.h                 # SH1107 OLED wrapper (SSD1306Ascii, I2C)
+│   └── Display.h/cpp             # SH1107 OLED driver (no-framebuffer, on-demand I2C)
 ├── scheduler/
-│   └── TaskConfig.h              # Task intervals
+│   └── TaskConfig.h              # Task interval constants
 ├── serial/
 │   └── NewSoftwareSerial.h/cpp   # Software serial for K-Line
 └── obd/
     ├── OBDDisplay.h/cpp          # Main state machine (Setup → WaitingForConnect → Running)
+    ├── OBDDisplay_input.cpp      # Button handling and menu action dispatch
+    ├── OBDDisplay_setup.cpp      # Startup animation, setup flow, connect/reconnect logic
+    ├── Buzzer.h                  # Optional buzzer stub (reserved for future use)
     ├── KWP/
     │   ├── KWP1281Session.h/cpp  # Protocol: 5-baud init, blocks, keepalive, DTC
     │   ├── KWPSensorDecode.h/cpp # 56-case measurement type decode + signal mapping
     │   └── KWPBlocks.h           # Protocol constants
     ├── Display/
     │   ├── DisplayManager.h/cpp  # Screen routing by MenuId
+    │   ├── ScreenVM.h/cpp        # Bytecode VM for PROGMEM-driven screen layouts
     │   └── screens/              # One .h/.cpp pair per screen
-    │       ├── CockpitScreen
+    │       ├── CockpitScreen     # 0x17 (4 screens) and 0x01 (7 screens)
     │       ├── ExperimentalScreen
     │       ├── DebugScreen
     │       ├── DTCScreen
-    │       └── SettingsScreen
+    │       ├── SettingsScreen
+    │       └── ScreenHelpers.h
     ├── Model/
-    │   ├── OBDSignals.h/cpp      # Signal structs, computed stats, warning state
+    │   ├── OBDSignals.h/cpp      # Signal structs, computed stats, warning state (11 warnings)
     │   └── DTCStore.h/cpp        # DTC code storage (up to 16 codes)
     └── Input/
         ├── ButtonInput.h/cpp     # Button polling with debounce and auto-repeat

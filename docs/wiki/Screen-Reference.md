@@ -10,6 +10,8 @@ The display is a 64×128 px portrait panel. When connected, content is organised
 SELECT              context action (varies per screen)
 ```
 
+UP/DOWN auto-repeat after ~400 ms initial delay, then every ~120 ms.
+
 ### Menu order
 
 ```
@@ -40,7 +42,9 @@ Live sensor data displayed in a pixel-doubled big font (12 px/char, 16 px/row). 
 
 ### Instruments cluster (address `0x17`)
 
-**Screen 0** — main dashboard, six values:
+Four screens, navigated with UP/DOWN.
+
+**Screen 0** — main dashboard:
 
 ```
 130
@@ -62,7 +66,7 @@ Live sensor data displayed in a pixel-doubled big font (12 px/char, 16 px/row). 
 | 4 | Fuel level | `NN L` | Smoothed (EMA filtered) |
 | 5 | Ambient temperature | `NNAIR` | |
 
-**Screen 1** — trip computer dashboard:
+**Screen 1** — second dashboard:
 
 ```
 130
@@ -71,6 +75,7 @@ Live sensor data displayed in a pixel-doubled big font (12 px/char, 16 px/row). 
 450K
 8.3L
 33 F
+50 %
 ```
 
 | Row | Field | Format | Notes |
@@ -78,11 +83,33 @@ Live sensor data displayed in a pixel-doubled big font (12 px/char, 16 px/row). 
 | 0 | Vehicle speed | `NNN` km/h | |
 | 1 | Oil temperature | `NN O` | Shows `-WARN-` at ≥ 100 °C |
 | 2 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C |
-| 3 | Estimated range | `NNNK` km | Shows `---` until fuel burn data is available |
-| 4 | Fuel consumption | `N.NL` L/100 km | |
+| 3 | Estimated range | `NNNK` km | Shows `---` if no fuel consumption data |
+| 4 | Fuel consumption | `N.NL` L/100 km | Shows `---` until driving |
 | 5 | Fuel level | `NN F` | Smoothed |
+| 6 | Oil level | `NN %` | ECU raw 0–255 mapped to 0–100 % |
+
+**Screen 2** — bar gauges:
+
+Four vertical bars (fill from bottom):
+
+| Bar | Field | Range | Tick |
+|---|---|---|---|
+| C | Coolant °C | 0–120 | 90 °C |
+| O | Oil temp °C | 0–120 | 90 °C |
+| L | Oil level % | 0–100 | 50 % |
+| F | Fuel level L | 0–`FUEL_TANK_MAX_LITERS` | 50 % |
+
+`FUEL_TANK_MAX_LITERS` defaults to 55 L; adjust in `Config.h` for your vehicle.
+
+**Screen 3** — warning summary (small font):
+
+Lists every active warning as a two-word label (e.g. `OIL PRES`, `FUEL LOW`), or `ALL OK` if none are active. Updates at ~177 ms.
+
+---
 
 ### Engine ECU (address `0x01`)
+
+Seven screens, navigated with UP/DOWN.
 
 Groups polled every cycle: **1** (RPM, coolant-proxy, lambda, basic-setting bits) and **5** (vehicle speed, engine load). Groups **4** (voltage, coolant, intake air) and **3** (pressure, throttle angle) are polled on a slower rotation.
 
@@ -94,7 +121,7 @@ Groups polled every cycle: **1** (RPM, coolant-proxy, lambda, basic-setting bits
 88 C
 35%
 5.5T
-12.3V
+12V
 3%
 24I
 ```
@@ -104,9 +131,9 @@ Groups polled every cycle: **1** (RPM, coolant-proxy, lambda, basic-setting bits
 | 0 | Vehicle speed | Group 5 | km/h |
 | 1 | Engine RPM | Group 1 | |
 | 2 | Coolant temperature | Group 4 | `NN C`; `-WARN-` at ≥ 100 °C |
-| 3 | Engine load | Group 5/6 | `NN%` |
+| 3 | Engine load | Group 5 | `NN%` |
 | 4 | Throttle body angle | Group 3 | `N.NT` ×10 |
-| 5 | Battery voltage | Group 4 | `NN.NV` |
+| 5 | Battery voltage | Group 4 | `NNV` (integer V only) |
 | 6 | Lambda controller | Group 1 | `NN%`; spec −15 to +15 % |
 | 7 | Intake air temperature | Group 4 | `NNI` °C |
 
@@ -180,14 +207,18 @@ The fuel algorithm computes consumption from `RPM × engine load` (calibrated fo
 
 **Screen 5** — bar gauges:
 
-Four vertical bars (fills from bottom):
+Four vertical bars (fill from bottom):
 
 | Bar | Field | Range | Tick |
 |---|---|---|---|
 | C | Coolant °C | 0–120 | 90 °C |
 | L | Engine load | 0–100 % | 80 % |
-| λ | Lambda % | −15 to +15 % | 0 % |
+| % | Lambda % | −15 to +15 % | 0 % |
 | V | Battery V | 10.0–16.0 V | 12.0 V |
+
+**Screen 6** — warning summary (small font):
+
+Lists every active warning as a two-word label, or `ALL OK` if none. Updates at ~177 ms.
 
 ---
 
@@ -216,6 +247,8 @@ U4: UUUUUU
 - **U1–U4** — unit string for each slot (e.g. `km/h`, `rpm`, `°C`)
 
 **SELECT** toggles between slot pairs: slots 0/1 ↔ slots 2/3.
+
+Entering this menu automatically switches KWP mode to ReadGroup; leaving restores the previous mode.
 
 ---
 
@@ -310,7 +343,7 @@ The status byte indicates how the fault was recorded:
 Settings
 
 >Exit
- KWP: Sens
+ KWP: Grp
  AutoRcn: Y
 ```
 
@@ -321,12 +354,14 @@ When connected to the **instruments cluster (0x17)** an additional item appears:
  MID=save
 ```
 
+Below the menu the ECU identification string captured from the KWP connect blocks is displayed.
+
 UP/DOWN moves the cursor. SELECT acts on the highlighted item.
 
 | Item | SELECT action |
 |---|---|
 | **Exit** | Ends the ECU session cleanly and returns to the startup setup menu |
-| **KWP:** | Cycles the KWP mode: `ACK` → `Grp` → `Sens` → `ACK` … |
+| **KWP:** | Cycles the KWP mode: `ACK` → `Grp` → `Sensor` → `ACK` … |
 | **AutoRcn:** | Toggles auto-reconnect Y/N |
 | **Fuel:** | *(0x17 only)* Saves the current 0x17 fuel sensor reading to EEPROM as the fuel start level for the 0x01 trip computer. Press SELECT when the tank is known (e.g. just filled up). |
 
@@ -352,6 +387,6 @@ Repeat after every fill-up. The value persists across power cycles.
 |---|---|---|
 | `ACK` | Acknowledge only | Sends keepalive blocks only — no sensor data is read. Useful to hold a session open without loading the ECU. |
 | `Grp` | Read Group | Reads measurement groups sequentially (groups 1, 2, 3, …). This is the normal operating mode. |
-| `Sens` | Read Sensors | Reads individual sensor channels. Slower than group mode but more granular. |
+| `Sensor` | Read Sensors | Reads individual sensor channels. Slower than group mode but more granular. |
 
 Changing the mode takes effect on the next KWP cycle without disconnecting.

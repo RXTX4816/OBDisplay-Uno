@@ -48,7 +48,7 @@ See **[Hardware Setup](https://github.com/RXTX4816/OBDisplay-Uno/wiki/Hardware-S
 
 ## Operation
 
-See **[Operation](https://github.com/RXTX4816/OBDisplay-Uno/wiki/Operation)** for startup, navigation, and screen overviews, or **[Screen Reference](https://github.com/RXTX4816/OBDisplay-Uno/wiki/Screen-Reference)** for per-screen layouts and button actions.
+See **[Operation](https://github.com/RXTX4816/OBDisplay-Uno/wiki/Operation)** for a quick reference, or **[Screen Reference](https://github.com/RXTX4816/OBDisplay-Uno/wiki/Screen-Reference)** for per-screen layouts and button actions.
 
 ## ECU addresses and measurement groups
 

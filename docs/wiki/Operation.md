@@ -1,90 +1,54 @@
 # Operation
 
-## Navigation
+> For full screen layouts, field tables, and DTC decoding see [Screen Reference](Screen-Reference).
+
+## Buttons
 
 | Button | Action |
 |---|---|
 | LEFT / RIGHT | Previous / next menu |
 | UP / DOWN | Previous / next screen within the current menu |
-| SELECT | Context action (varies per menu — see below) |
+| SELECT (MID) | Context action (varies per screen) |
 
-Menu order: **Cockpit → Experimental → Debug → DTC → Settings**
+UP/DOWN auto-repeat after ~400 ms, then every ~120 ms.
 
-## Cockpit screen
-
-Pixel-doubled big font, portrait 64×128. All fields update at ~177 ms intervals. SELECT has no action.
-
-### ADDR_INSTRUMENTS `0x17` — one screen
+## Menu order
 
 ```
-130        speed (km/h)
-2200       RPM
-
-99 O       oil temp (°C)  ← -WARN- at ≥ 100
-99 C       coolant (°C)   ← -WARN- at ≥ 100
-
-33 L       fuel level (L)
-20AIR      ambient (°C)
+Cockpit  ←→  Experimental  ←→  Debug  ←→  DTC  ←→  Settings
 ```
 
-### ADDR_ENGINE `0x01` — two screens (UP/DOWN)
+> Experimental and Debug only appear in `uno_debug` builds.
 
-**Screen 0:**
+## Cockpit screens
 
-```
-120        speed (km/h)
-1200       RPM
-99 O       oil temp       ← -WARN- at ≥ 100
-99 C       coolant        ← -WARN- at ≥ 100
-20%        engine load
-5.5T       throttle body angle
-12V        battery voltage
-5%         lambda
-```
+### `0x17` Instruments cluster — 4 screens
 
-**Screen 1** (error bits, small font):
-
-```
-TBa: xxxxx  STa: xxxxx
-mb:  xxxx
-bits:
-xxxxxxxx
-```
-
-### Other addresses
-
-For addresses without a dedicated layout (`0x03`, `0x08`, `0x19`, `0x46`) the cockpit screen shows the address and "no data". Use the Experimental screen to browse raw measurement groups for those ECUs.
-
-## Experimental screen
-
-Shows raw measurement group values. SELECT toggles between measurement slots 0/1 and 2/3.
-
-## Debug screen
-
-Internal diagnostic readouts (only present in `uno_debug` builds with `OBD_EXPERIMENTAL_SCREENS` defined).
-
-## DTC screen
-
-| Screen | SELECT action |
+| Screen | Content |
 |---|---|
-| DTC screen 0 | Read fault codes from ECU |
-| DTC screen 1 | Clear fault codes on ECU |
+| 0 | Main dashboard: speed, RPM, oil temp, coolant, fuel level, ambient |
+| 1 | Second dashboard: speed, oil/coolant temps, km remaining, L/100km, fuel level, oil level % |
+| 2 | Bar gauges: coolant °C, oil temp °C, oil level %, fuel L |
+| 3 | Warning summary: lists all active warnings, or ALL OK |
 
-After reading, the count of stored DTCs is shown briefly. After clearing, a confirmation overlay appears.
+### `0x01` Engine ECU — 7 screens
 
-> **Caution:** Do not clear DTCs on address `0x15` (airbag) if an electrical fault is present — on some affected ECUs this can deploy the airbag.
-
-## Settings screen
-
-| Screen | SELECT action |
+| Screen | Content |
 |---|---|
-| Settings screen 0 | Exit ECU session and return to setup |
-| Settings screen 1 | Cycle KWP mode: ACK → GROUP → SENSOR |
+| 0 | Main dashboard: speed, RPM, coolant, load, throttle, voltage, lambda, intake air |
+| 1 | OBD readiness bits (PASS/FAIL, polled every ~2 min) |
+| 2 | Basic-setting requirement bits (Y/N) |
+| 3 | Engine diagnostics: voltage, coolant, intake air, load, manifold pressure, lambda ×2 |
+| 4 | Trip computer: L/100km, L/hr, km remaining, fuel burned |
+| 5 | Bar gauges: coolant °C, engine load %, lambda %, battery V |
+| 6 | Warning summary: lists all active warnings, or ALL OK |
 
-### KWP modes
+Other addresses show "no data" in Cockpit — use the Experimental menu to browse raw groups.
 
-| Mode | Behaviour |
-|---|---|
-| ACK | Keepalive only — no sensor data |
-| GROUP | Read measurement groups (most data) |
-| SENSOR | Full sensor read (slower, more detailed) |
+## DTC menu
+
+Cursor menu (UP/DOWN to move, SELECT to execute): **Read** → **Clear** → **Show**. Show opens a 4-DTCs-per-page list; UP/DOWN pages, SELECT returns.
+
+## Settings menu
+
+Cursor menu: **Exit** · **KWP:** (cycles ACK → Grp → Sensor) · **AutoRcn:** (Y/N) · **Fuel:** (0x17 only — saves fuel level to EEPROM for 0x01 trip computer range).
