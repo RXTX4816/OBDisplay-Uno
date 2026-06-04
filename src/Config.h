@@ -5,6 +5,12 @@
 
 #include <stdint.h>
 
+// ── Firmware version ──────────────────────────────────────────────────────────
+// Injected at build time by tools/inject_version.py from the git tag.
+#ifndef APP_VERSION
+#define APP_VERSION "dev"
+#endif
+
 // ── Cooperative task intervals (ms) ──────────────────────────────────────────
 // KWP is timing-critical; 0 = run every loop iteration.
 static constexpr uint16_t INTERVAL_KWP_MS = 0;

@@ -53,8 +53,8 @@ void OBDDisplay::begin()
 void OBDDisplay::startupAnimation_()
 {
     display_.clear();
-    display_.print(0, 6, F("O B D"));
-    display_.print(2, 8, F("DISPLAY"));
+    display_.print(0, 6, F("OBDisplay"));
+    display_.print(2, 8, F(APP_VERSION));
 
     uint32_t start = millis();
     while (millis() - start < 777)
