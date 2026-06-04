@@ -377,7 +377,7 @@ bool OBDDisplay::ensureConnected_()
     // like the original sketch did.
     menuState_ = Input::MenuState(); // reset to defaults (Cockpit, screen 0)
     menuState_.markMenuChanged();
-    menuState_.setCockpitMax(addrSelected_ == 0x01 ? 5u : addrSelected_ == 0x17 ? 2u : 0u);
+    menuState_.setCockpitMax(addrSelected_ == 0x01 ? 6u : addrSelected_ == 0x17 ? 3u : 0u);
 
     // Seed fuel start from EEPROM for 0x01 trip computer
     if (addrSelected_ == 0x01)
