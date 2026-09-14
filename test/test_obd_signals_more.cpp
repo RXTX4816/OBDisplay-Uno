@@ -248,6 +248,69 @@ void test_fuelper100km_uses_smooth_distance()
                      signals.computed.fuelPer100km <= 91);
 }
 
+// ---- Warning tests ----
+
+static bool oilHot(const OBDSignals& s)
+{
+    return (s.warnings.bits & (1u << WARN_OIL_HOT)) != 0;
+}
+
+static void setOilTemp(OBDSignals& s, uint8_t t)
+{
+    s.instruments.oilTemp = t;
+    s.instruments.oilTempUpdated = true;
+    s.computeWarnings(0x17);
+}
+
+void test_oil_hot_not_raised_up_to_110()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    for (uint8_t t = 90; t <= 110; ++t)
+    {
+        setOilTemp(signals, t);
+        TEST_ASSERT_FALSE(oilHot(signals));
+    }
+    TEST_ASSERT_FALSE(signals.warnings.hasNew);
+}
+
+void test_oil_hot_raised_when_threshold_value_is_skipped()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    setOilTemp(signals, 109);
+    TEST_ASSERT_FALSE(oilHot(signals));
+
+    // Jump straight past 111 — must still warn and trigger the flash
+    setOilTemp(signals, 115);
+    TEST_ASSERT_TRUE(oilHot(signals));
+    TEST_ASSERT_TRUE(signals.warnings.hasNew);
+    TEST_ASSERT_EQUAL_UINT8(3, signals.warnings.maxLevel);
+}
+
+void test_oil_hot_stays_until_below_111()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    setOilTemp(signals, 111);
+    TEST_ASSERT_TRUE(oilHot(signals));
+    signals.warnings.hasNew = false;
+
+    // Stays active (without re-flashing) while at or above 111
+    setOilTemp(signals, 118);
+    TEST_ASSERT_TRUE(oilHot(signals));
+    setOilTemp(signals, 111);
+    TEST_ASSERT_TRUE(oilHot(signals));
+    TEST_ASSERT_FALSE(signals.warnings.hasNew);
+
+    // Clears once under 111
+    setOilTemp(signals, 110);
+    TEST_ASSERT_FALSE(oilHot(signals));
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -262,6 +325,11 @@ int main(int argc, char **argv)
     RUN_TEST(test_speed_integration_accumulates_distance);
     RUN_TEST(test_fuel_ema_smooths_spike);
     RUN_TEST(test_fuelper100km_uses_smooth_distance);
+
+    // Warning tests
+    RUN_TEST(test_oil_hot_not_raised_up_to_110);
+    RUN_TEST(test_oil_hot_raised_when_threshold_value_is_skipped);
+    RUN_TEST(test_oil_hot_stays_until_below_111);
 
     // DTCStore tests
     RUN_TEST(test_dtc_store_reset);
