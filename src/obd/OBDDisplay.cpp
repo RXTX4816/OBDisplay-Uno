@@ -57,23 +57,23 @@ void OBDDisplay::startupAnimation_()
     display_.print(2, 8, F(APP_VERSION));
 
     uint32_t start = millis();
+    bool selectHeld = false;
     while (millis() - start < 777)
     {
         if (buttons_.isSelectPressed())
         {
-            autoSetup_ = true;
+            selectHeld = true;
             break;
         }
     }
 
-    // Mirror old AUTO_SETUP defaults when user holds SELECT during splash.
-    if (autoSetup_)
+    // A saved boot autoconnect preset skips the setup flow and connects directly.
+    // Holding SELECT during the splash ignores it and opens the setup instead.
+    uint8_t preset = selectHeld ? 0 : readEepromAutoConnect();
+    if (preset != 0)
     {
-        static constexpr uint8_t AUTO_SETUP_ADDRESS = 0x17; // ADDR_INSTRUMENTS
-        static constexpr uint16_t AUTO_SETUP_BAUD_RATE = 10400;
-        addrSelected_ = AUTO_SETUP_ADDRESS;
-        baudRate_ = AUTO_SETUP_BAUD_RATE;
-        kwp_.setConfig(baudRate_, addrSelected_);
+        applyPreset_(preset);
+        autoSetup_ = true;
     }
 
     dtcStore_.reset();
@@ -102,6 +102,7 @@ void OBDDisplay::updateKwp()
         // the user can step back through their settings.
         if (!autoReconnect_ && now >= buttonTimeoutUntil_ && digitalRead(BTN_PIN_UP) == LOW)
         {
+            autoSetup_ = false; // leave boot autoconnect so the setup stages are shown
             runSetupFlow_(3);
             showWaitingScreen_();
             buttonTimeoutUntil_ = millis() + BUTTON_TIMEOUT_MS;
@@ -280,7 +281,7 @@ void OBDDisplay::computeValues_()
     }
 }
 
-void OBDDisplay::pollButtons()
+uint8_t OBDDisplay::readButtons_()
 {
     uint8_t current = 0;
     if (digitalRead(BTN_PIN_RIGHT) == LOW)
@@ -293,6 +294,12 @@ void OBDDisplay::pollButtons()
         current |= BTN_MASK_DOWN;
     if (digitalRead(BTN_PIN_MID) == LOW)
         current |= BTN_MASK_MID;
+    return current;
+}
+
+void OBDDisplay::pollButtons()
+{
+    uint8_t current = readButtons_();
 
     // Latch only rising edges (0→1 transitions) so a held button never
     // re-fires after the debounce timeout expires.

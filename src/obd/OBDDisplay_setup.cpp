@@ -10,12 +10,16 @@
 namespace obd
 {
 
-// EEPROM layout (first 2 bytes):
+// EEPROM layout (first 3 bytes):
 //   Byte 0: magic 0xA5 (indicates initialized)
 //   Byte 1: fuel level in L when last set from 0x17 (0 = never set)
+//   Byte 2: boot autoconnect preset (0 = off, 1 = 0x01 @ 9600, 2 = 0x17 @ 10400)
 static constexpr uint8_t kEepromMagic = 0xA5;
 static constexpr uint8_t kEepromAddrMagic = 0;
 static constexpr uint8_t kEepromAddrFuel = 1;
+static constexpr uint8_t kEepromAddrAutoConnect = 2;
+
+static constexpr uint8_t kPresetCount = 3;
 
 uint8_t readEepromFuel()
 {
@@ -28,6 +32,13 @@ void writeEepromFuel(uint8_t liters)
 {
     EEPROM.update(kEepromAddrMagic, kEepromMagic);
     EEPROM.update(kEepromAddrFuel, liters);
+}
+
+// Independent of the magic byte: an erased cell (0xFF) reads as 0 = off.
+uint8_t readEepromAutoConnect()
+{
+    uint8_t preset = EEPROM.read(kEepromAddrAutoConnect);
+    return preset < kPresetCount ? preset : 0;
 }
 
 using namespace Display;
@@ -45,6 +56,18 @@ static const char kEcuN4[] PROGMEM = "CAN Gatway";
 static const char kEcuN5[] PROGMEM = "Cntr Conv.";
 static PGM_P const kEcuNames[] PROGMEM = {kEcuN0, kEcuN1, kEcuN2, kEcuN3, kEcuN4, kEcuN5};
 static constexpr uint8_t kEcuCount = 6;
+
+static const uint16_t kBaudRates[] = {1200, 2400, 4800, 9600, 10400};
+static constexpr uint8_t kBaudCount = 5;
+
+// Connection presets; the index is the value stored at kEepromAddrAutoConnect.
+// Stored as indices into kBaudRates / kEcuAddrs (index 0 = manual setup).
+static const uint8_t kPresetBaudIdx[kPresetCount] PROGMEM = {3, 3, 4}; // -, 9600, 10400
+static const uint8_t kPresetEcuIdx[kPresetCount] PROGMEM = {0, 0, 3};  // -, 0x01, 0x17
+static const char kPresetN0[] PROGMEM = "Manual/off";
+static const char kPresetN1[] PROGMEM = "0x01 9600";
+static const char kPresetN2[] PROGMEM = "0x17 10400";
+static PGM_P const kPresetNames[kPresetCount] PROGMEM = {kPresetN0, kPresetN1, kPresetN2};
 
 static const char kHexDigits[] PROGMEM = "0123456789ABCDEF";
 
@@ -111,7 +134,16 @@ void OBDDisplay::showWaitingScreen_()
     display_.flush();
 }
 
-void OBDDisplay::runSetupFlow_(uint8_t startStage)
+void OBDDisplay::applyPreset_(uint8_t preset)
+{
+    baudRate_ = kBaudRates[pgm_read_byte(&kPresetBaudIdx[preset])];
+    addrSelected_ = ecuAddrAt(pgm_read_byte(&kPresetEcuIdx[preset]));
+}
+
+// Setup stages: 0 = preset, 1 = baud rate, 2 = ECU address, 3 = auto-reconnect.
+// Every stage shares one loop: draw, debounce, wait for a button, act.
+// LEFT/RIGHT cycle, SELECT confirms, UP goes back one stage.
+void OBDDisplay::runSetupFlow_(uint8_t stage)
 {
     reconnectAttempts_ = 0;
     signals_.reset();
@@ -123,179 +155,127 @@ void OBDDisplay::runSetupFlow_(uint8_t startStage)
         return;
     }
 
-    static const uint16_t supportedBaudRates[5] = {1200, 2400, 4800, 9600, 10400};
-
-    // Track baud index across back-navigation; seed from current baudRate_ if valid.
-    uint8_t baudPtr = 3; // default 9600
-    for (uint8_t i = 0; i < 5; ++i)
-        if (supportedBaudRates[i] == baudRate_)
-        {
+    // Seed the cursors from the current selection (defaults: 9600, first ECU).
+    uint8_t preset = 0;
+    uint8_t baudPtr = 3;
+    for (uint8_t i = 0; i < kBaudCount; ++i)
+        if (kBaudRates[i] == baudRate_)
             baudPtr = i;
-            break;
-        }
+    uint8_t addrPtr = 0;
+    for (uint8_t i = 0; i < kEcuCount; ++i)
+        if (ecuAddrAt(i) == addrSelected_)
+            addrPtr = i;
 
-    uint8_t stage = startStage < 1 ? 1 : startStage;
+    // Wait for any button still held from the previous screen (SELECT on the
+    // splash or Settings→Exit, UP on the waiting screen) to be released.
+    while (readButtons_() != 0)
+        delay(10);
+
     while (stage <= 3)
     {
+        uint8_t* ptr = &preset;
+        uint8_t count = kPresetCount;
+
+        display_.beginBatch();
+        display_.clear();
         switch (stage)
         {
-            case 1: // Baud rate
+            case 0:
+                display_.print(0, 0, F("Preset:"));
+                display_.print(0, 1, F("< Sel >"));
+                display_.print(
+                    0, 2,
+                    reinterpret_cast<__FlashStringHelper*>(pgm_read_word(&kPresetNames[preset])));
+                display_.print(0, 4, F("DN:boot"));
+                display_.print(0, 5,
+                               reinterpret_cast<__FlashStringHelper*>(
+                                   pgm_read_word(&kPresetNames[readEepromAutoConnect()])));
+                break;
+            case 1:
+                ptr = &baudPtr;
+                count = kBaudCount;
+                drawSetupHeader_(false, false, true);
+                display_.print(0, 2, F("Baud:"));
+                display_.print(0, 3, F("< Sel >"));
+                display_.print(0, 4, (int32_t)kBaudRates[baudPtr]);
+                break;
+            case 2:
             {
-                char baudStr[8];
-                auto drawBaud = [&]()
-                {
-                    display_.beginBatch();
-                    display_.clear();
-                    drawSetupHeader_(false, false, true);
-                    display_.print(0, 2, F("Baud:"));
-                    ltoa((long)supportedBaudRates[baudPtr], baudStr, 10);
-                    display_.print(0, 3, F("< Sel >"));
-                    display_.print(0, 4, baudStr, 8);
-                    display_.endBatch();
-                };
-                drawBaud();
-
-                // Wait for any lingering button press from the previous screen to clear.
-                while (digitalRead(BTN_PIN_MID) == LOW)
-                    delay(10);
-
-                bool done = false;
-                while (!done)
-                {
-                    if (digitalRead(BTN_PIN_RIGHT) == LOW)
-                    {
-                        baudPtr = (baudPtr >= 4) ? 0 : static_cast<uint8_t>(baudPtr + 1);
-                        drawBaud();
-                        delay(333);
-                    }
-                    else if (digitalRead(BTN_PIN_LEFT) == LOW)
-                    {
-                        baudPtr = (baudPtr == 0) ? 4 : static_cast<uint8_t>(baudPtr - 1);
-                        drawBaud();
-                        delay(333);
-                    }
-                    else if (digitalRead(BTN_PIN_MID) == LOW)
-                    {
-                        baudRate_ = supportedBaudRates[baudPtr];
-                        delay(333);
-                        stage = 2;
-                        done = true;
-                    }
-                    delay(10);
-                }
+                ptr = &addrPtr;
+                count = kEcuCount;
+                uint8_t a = ecuAddrAt(addrPtr);
+                char buf[11];
+                drawSetupHeader_(true, false, true);
+                display_.print(0, 3, F("ECU Addr:"));
+                display_.print(0, 4, F("< Sel >"));
+                buf[0] = '0';
+                buf[1] = 'x';
+                buf[2] = (char)pgm_read_byte(&kHexDigits[(a >> 4) & 0xF]);
+                buf[3] = (char)pgm_read_byte(&kHexDigits[a & 0xF]);
+                buf[4] = '\0';
+                display_.print(0, 5, buf);
+                ecuNameAt(addrPtr, buf);
+                display_.print(0, 6, buf);
                 break;
             }
-            case 2: // ECU address
-            {
-                uint8_t prevAddr = addrSelected_;
-
-                // Seed addrPtr from the current selection.
-                uint8_t addrPtr = 0;
-                for (uint8_t i = 0; i < kEcuCount; ++i)
-                    if (ecuAddrAt(i) == addrSelected_)
-                    {
-                        addrPtr = i;
-                        break;
-                    }
-
-                char nameBuf[11];
-                char hexBuf[5]; // "0x01"
-                auto drawAddr = [&]()
-                {
-                    ecuNameAt(addrPtr, nameBuf);
-                    uint8_t a = ecuAddrAt(addrPtr);
-                    hexBuf[0] = '0';
-                    hexBuf[1] = 'x';
-                    hexBuf[2] = (char)pgm_read_byte(&kHexDigits[(a >> 4) & 0xF]);
-                    hexBuf[3] = (char)pgm_read_byte(&kHexDigits[a & 0xF]);
-                    hexBuf[4] = '\0';
-                    display_.beginBatch();
-                    display_.clear();
-                    drawSetupHeader_(true, false, true);
-                    display_.print(0, 3, F("ECU Addr:"));
-                    display_.print(0, 4, F("< Sel >"));
-                    display_.print(0, 5, hexBuf);
-                    display_.print(0, 6, nameBuf);
-                    display_.endBatch();
-                };
-                drawAddr();
-
-                bool done = false;
-                while (!done)
-                {
-                    if (digitalRead(BTN_PIN_UP) == LOW)
-                    {
-                        delay(333);
-                        stage = 1;
-                        done = true;
-                    }
-                    else if (digitalRead(BTN_PIN_RIGHT) == LOW)
-                    {
-                        addrPtr =
-                            (addrPtr >= kEcuCount - 1) ? 0 : static_cast<uint8_t>(addrPtr + 1);
-                        drawAddr();
-                        delay(333);
-                    }
-                    else if (digitalRead(BTN_PIN_LEFT) == LOW)
-                    {
-                        addrPtr = (addrPtr == 0) ? static_cast<uint8_t>(kEcuCount - 1)
-                                                 : static_cast<uint8_t>(addrPtr - 1);
-                        drawAddr();
-                        delay(333);
-                    }
-                    else if (digitalRead(BTN_PIN_MID) == LOW)
-                    {
-                        addrSelected_ = ecuAddrAt(addrPtr);
-                        delay(333);
-                        stage = 3;
-                        done = true;
-                    }
-                    delay(10);
-                }
-                if (addrSelected_ != prevAddr)
-                    reconnectAttempts_ = 0;
-                break;
-            }
-            case 3: // Auto-reconnect
-            {
-                display_.beginBatch();
-                display_.clear();
+            default:
                 drawSetupHeader_(true, true, true);
                 display_.print(0, 4, F("AutoRcn:"));
                 display_.print(0, 5, F("< N"));
                 display_.print(0, 6, F("  Y >"));
-                display_.endBatch();
-
-                for (;;)
-                {
-                    if (digitalRead(BTN_PIN_UP) == LOW)
-                    {
-                        delay(333);
-                        stage = 2;
-                        break;
-                    }
-                    if (digitalRead(BTN_PIN_RIGHT) == LOW)
-                    {
-                        autoReconnect_ = true;
-                        delay(333);
-                        stage = 4;
-                        break;
-                    }
-                    if (digitalRead(BTN_PIN_LEFT) == LOW)
-                    {
-                        autoReconnect_ = false;
-                        delay(333);
-                        stage = 4;
-                        break;
-                    }
-                }
-                break;
-            }
-            default:
-                stage = 4; // exit loop
                 break;
         }
+        display_.endBatch();
+
+        delay(333);
+        uint8_t btns;
+        while ((btns = readButtons_()) == 0)
+            delay(10);
+
+        if (btns & BTN_MASK_UP)
+        {
+            if (stage > 0)
+                --stage;
+        }
+        else if (stage == 3)
+        {
+            // Auto-reconnect: LEFT = off, RIGHT = on; either one finishes setup.
+            if (btns & (BTN_MASK_LEFT | BTN_MASK_RIGHT))
+            {
+                autoReconnect_ = (btns & BTN_MASK_RIGHT) != 0;
+                ++stage;
+            }
+        }
+        else if (btns & BTN_MASK_RIGHT)
+        {
+            *ptr = (uint8_t)((*ptr + 1u) % count);
+        }
+        else if (btns & BTN_MASK_LEFT)
+        {
+            *ptr = (uint8_t)((*ptr + count - 1u) % count);
+        }
+        else if (btns & BTN_MASK_DOWN)
+        {
+            // Preset screen: persist as boot autoconnect ("Manual/off" stores 0).
+            if (stage == 0)
+                EEPROM.update(kEepromAddrAutoConnect, preset);
+        }
+        else if (btns & BTN_MASK_MID)
+        {
+            if (stage == 0 && preset != 0)
+            {
+                // A preset fills in baud + address and skips to auto-reconnect.
+                baudPtr = pgm_read_byte(&kPresetBaudIdx[preset]);
+                addrPtr = pgm_read_byte(&kPresetEcuIdx[preset]);
+                stage = 2;
+            }
+            baudRate_ = kBaudRates[baudPtr];
+            if (stage >= 2)
+                addrSelected_ = ecuAddrAt(addrPtr);
+            ++stage;
+        }
     }
+    delay(333);
 
     kwp_.setConfig(baudRate_, addrSelected_);
 }

@@ -52,13 +52,26 @@ pio test -e native
 
 ## First use
 
-Power on with **SELECT held** → auto-setup: skips the menus and connects immediately at baud 10400, address `0x17` (instruments).
-
 Power on normally → interactive setup:
 
+0. **Preset** — LEFT/RIGHT to cycle `Manual/off` / `0x01 9600` (engine) / `0x17 10400` (instruments), SELECT to confirm. A preset fills in baud and address and jumps straight to auto-reconnect; `Manual/off` continues with the baud screen.
 1. **Baud rate** — LEFT/RIGHT to cycle (1200 / 2400 / 4800 / 9600 / 10400), SELECT to confirm
 2. **ECU address** — LEFT/RIGHT to cycle supported addresses, SELECT to confirm
 3. **Auto-reconnect** — LEFT = off (manual), RIGHT = on (auto)
+
+UP goes back one screen.
+
+### Boot autoconnect (saved in EEPROM)
+
+On the **Preset** screen, press **DOWN** to save the shown preset as boot autoconnect. The line under `DN:boot` shows what is currently saved.
+
+| Saved value (EEPROM byte 2) | Preset | Boot behaviour |
+|---|---|---|
+| `0` | `Manual/off` | Interactive setup (default) |
+| `1` | `0x01 9600` | Skips setup, connects to the engine ECU at 9600 baud |
+| `2` | `0x17 10400` | Skips setup, connects to the instruments cluster at 10400 baud |
+
+The setting persists across power cycles and takes priority on every boot. To change or disable it, **hold SELECT during power-on**: the saved preset is ignored for this boot and the setup opens. Then select another preset and press DOWN, or press DOWN on `Manual/off` to turn it off. The setup is also reachable via **Settings → Exit** while connected.
 
 Once connected the Cockpit screen appears and data updates live.
 

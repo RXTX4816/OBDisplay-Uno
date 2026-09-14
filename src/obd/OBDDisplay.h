@@ -17,6 +17,8 @@ namespace obd
 // EEPROM fuel level helpers — implemented in OBDDisplay_setup.cpp
 uint8_t readEepromFuel();
 void writeEepromFuel(uint8_t liters);
+// Boot autoconnect preset: 0 = off, 1 = 0x01 @ 9600, 2 = 0x17 @ 10400.
+uint8_t readEepromAutoConnect();
 
 class OBDDisplay
 {
@@ -112,6 +114,8 @@ class OBDDisplay
 
     void startupAnimation_();
     void runSetupFlow_(uint8_t startStage = 0);
+    void applyPreset_(uint8_t preset);
+    static uint8_t readButtons_(); // BTN_MASK_* bitmask of buttons currently held
     void showWaitingScreen_();
     void drawSetupHeader_(bool showBaud, bool showAddr, bool showBack);
     static int16_t freeRam_();
