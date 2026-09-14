@@ -151,7 +151,7 @@ enum WarnBit : uint8_t
 {
     WARN_OIL_PRES =
         0, // HIGH: oilPressureMin != 31 (normal=31; low=unknown) sustained 3 reads (0x17)
-    WARN_OIL_HOT = 1,      // HIGH: oilTemp > 93°C (0x17)
+    WARN_OIL_HOT = 1,      // HIGH: oilTemp > 110°C (0x17)
     WARN_COOL_HOT = 2,     // HIGH: coolantTemp > 93°C (both)
     WARN_OIL_LVL = 3,      // HIGH: oilLevelOk < 20% (raw < 51) (0x17)
     WARN_LOW_VOLT = 4,     // MED:  engine.voltage < 120 (12.0 V) (0x01)

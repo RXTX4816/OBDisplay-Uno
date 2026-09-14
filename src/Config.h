@@ -42,7 +42,8 @@ static constexpr uint8_t BTN_MASK_MID = 0x10;
 
 // ── Warning thresholds ────────────────────────────────────────────────────────
 // Temperatures in °C (×1 integer).
-static constexpr uint8_t WARN_OIL_TEMP_HIGH_C = 93;
+// Oil: warns from 111 °C — up to 110 °C is normal under sustained high RPM (highway).
+static constexpr uint8_t WARN_OIL_TEMP_HIGH_C = 110;
 static constexpr uint8_t WARN_COOLANT_HIGH_C = 93;
 static constexpr uint8_t WARN_COOLANT_COLD_C = 40; // below = very cold
 static constexpr uint8_t WARN_COOLANT_WARM_C = 75; // below = cold engine
