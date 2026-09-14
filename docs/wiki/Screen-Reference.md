@@ -61,7 +61,7 @@ Four screens, navigated with UP/DOWN.
 |---|---|---|---|
 | 0 | Vehicle speed | `NNN` km/h | |
 | 1 | Engine RPM | `NNNN` | |
-| 2 | Oil temperature | `NN O` | Shows `-WARN-` at ≥ 100 °C |
+| 2 | Oil temperature | `NN O` | Shows the number at ≥ 100 °C too (e.g. `105 O`) |
 | 3 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C |
 | 4 | Fuel level | `NN L` | Smoothed (EMA filtered) |
 | 5 | Ambient temperature | `NNAIR` | |
@@ -81,7 +81,7 @@ Four screens, navigated with UP/DOWN.
 | Row | Field | Format | Notes |
 |---|---|---|---|
 | 0 | Vehicle speed | `NNN` km/h | |
-| 1 | Oil temperature | `NN O` | Shows `-WARN-` at ≥ 100 °C |
+| 1 | Oil temperature | `NN O` | Shows the number at ≥ 100 °C too (e.g. `105 O`) |
 | 2 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C |
 | 3 | Estimated range | `NNNK` km | Shows `---` if no fuel consumption data |
 | 4 | Fuel consumption | `N.NL` L/100 km | Shows `---` until driving |
