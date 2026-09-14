@@ -38,7 +38,7 @@ Addresses without a dedicated cockpit layout show the raw group values from the 
 
 ## Supported baud rates
 
-1200, 2400, 4800, 9600, 10400 baud. Most VAG K-Line ECUs from this era use **10400 baud**. The auto-setup shortcut defaults to 10400.
+1200, 2400, 4800, 9600, 10400 baud. Most VAG K-Line ECUs from this era use **10400 baud**. The `0x17` preset uses 10400, the `0x01` preset 9600.
 
 ## Measurement groups
 
