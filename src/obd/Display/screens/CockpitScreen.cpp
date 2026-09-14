@@ -12,7 +12,7 @@
 //   y=  0   speed (km/h)          e.g. "130"
 //   y= 16   RPM                   e.g. "2200"
 //   [+7 px gap]
-//   y= 39   oil temperature        e.g. "99 O"  / "-WARN-" if >=100
+//   y= 39   oil temperature        e.g. "99 O"  / "105 O"
 //   y= 55   coolant temperature    e.g. "99 C"  / "-WARN-" if >=100
 //   [+7 px gap]
 //   y= 78   fuel level (L)         e.g. "33 L"
@@ -20,7 +20,7 @@
 //
 // ADDR_INSTRUMENTS (0x17), page 1 — second dashboard, 7 rows (112 px):
 //   y=  0   speed       e.g. "130"
-//   y= 16   oil temp    e.g. "95 O"  / "-WARN-" if >=100
+//   y= 16   oil temp    e.g. "95 O"  / "105 O"
 //   y= 32   coolant     e.g. "88 C"  / "-WARN-" if >=100
 //   y= 48   km remain   e.g. "450K"  / "---" if no data
 //   y= 64   L/100km     e.g. "8.3L"
@@ -98,9 +98,9 @@ static const char PROGMEM kWarnNames[WARN_COUNT][10] = {
 
 void initCockpitScreen(DisplayManager& /*dm*/, uint8_t /*screen*/, uint8_t /*addrSelected*/) {}
 
-// Temperatures only have room for 2 digits + 3-char label at 2x font.
-// If the value reaches 100+ the label would overflow the screen, so
-// warn the driver instead — a 3-digit temp is dangerous anyway.
+// Coolant at 100+ is dangerous, so show "-WARN-" instead of the number.
+// Oil temp is printed directly: 100–110 °C is normal under load and
+// "NNN O" (5 chars × 12 px = 60 px) still fits the 64 px width.
 static void printBigTemp(const DisplayManager& dm, uint8_t x, uint8_t y, uint8_t val,
                          const char* label)
 {
@@ -115,7 +115,7 @@ static void renderCockpit17Big(const DisplayManager& dm, const OBDSignals& s)
 {
     dm.printBig(0, 0, s.instruments.vehicleSpeed);
     dm.printBig(0, 16, s.instruments.engineRpm);
-    printBigTemp(dm, 0, 39, s.instruments.oilTemp, " O");
+    dm.printBigWithLabel(0, 39, s.instruments.oilTemp, " O");
     printBigTemp(dm, 0, 55, s.instruments.coolantTemp, " C");
     dm.printBigWithLabel(0, 78, s.instruments.fuelLevelSmoothX8 >> 3, " L");
     dm.printBigWithLabel(0, 94, s.instruments.ambientTemp, "AIR");
@@ -188,7 +188,7 @@ static void renderBasicSettingScreen(const DisplayManager& dm, const OBDSignals&
 static void renderSecondDashboard17(const DisplayManager& dm, const OBDSignals& s)
 {
     dm.printBig(0, 0, s.instruments.vehicleSpeed);
-    printBigTemp(dm, 0, 16, s.instruments.oilTemp, " O");
+    dm.printBigWithLabel(0, 16, s.instruments.oilTemp, " O");
     printBigTemp(dm, 0, 32, s.instruments.coolantTemp, " C");
 
     if (s.computed.fuelPer100km > 0)
