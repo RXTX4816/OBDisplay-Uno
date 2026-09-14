@@ -429,7 +429,10 @@ void Display::flush()
     // Render page-by-page
     for (uint8_t page = 0; page < 16; ++page)
     {
-        uint8_t pageBuf[64] = {0};
+        // 64 visible columns + 5 spare: a small-font glyph starting at x=60..63
+        // draws up to x+5 (unchecked in drawCharToPage). The spare bytes absorb
+        // the clipped columns instead of overwriting the stack; only 64 are sent.
+        uint8_t pageBuf[69] = {0};
 
         // Render all entries into this page
         for (uint8_t t = 0; t < entryCount_; ++t)
