@@ -34,6 +34,25 @@ CRIT          ← severity (CRIT / CAUT / ALRT)
 
 The overlay alternates on/off at ~177 ms intervals. If multiple warnings fire simultaneously, the flash cycles through them. After 3 seconds the normal screen resumes.
 
+## Warnings
+
+| Level | Label | Warning | Condition | ECU | Buzzer |
+|---|---|---|---|---|---|
+| 3 | CRIT | OIL PRES | Oil pressure switch low for 3 consecutive reads | 0x17 | 5 × 50 ms |
+| 3 | CRIT | OIL HOT | Oil temperature > 110 °C | 0x17 | 5 × 50 ms |
+| 3 | CRIT | COOL HOT | Coolant > 93 °C | 0x17, 0x01 | 5 × 50 ms |
+| 3 | CRIT | OIL LVL | Oil level < 45 % | 0x17 | 5 × 50 ms |
+| 2 | CAUT | LOW VOLT | Battery voltage < 12.0 V | 0x01 | 3 × 30 ms |
+| 2 | CAUT | FUEL CRIT | Fuel < 4 L | 0x17 | 3 × 30 ms |
+| 2 | CAUT | VERY COLD | Coolant < 40 °C | 0x17, 0x01 | 3 × 30 ms |
+| 1 | ALRT | HIGH LOAD | Engine load > 90 % | 0x01 | silent |
+| 1 | ALRT | FUEL LOW | Fuel < 8 L | 0x17 | silent |
+| 1 | ALRT | COLD ENG | Coolant < 75 °C | 0x17, 0x01 | silent |
+
+Thresholds are set in `src/Config.h`. The overlay severity label shows the highest active level.
+
+With the optional [buzzer](Hardware-Setup#buzzer-optional) wired, the beep pattern plays once when a warning appears, 40 ms apart, and follows the highest level among the warnings that *just appeared*. For example, FUEL LOW appearing while OIL HOT is already active stays silent. Warnings that stay active or clear do not beep. The pattern blocks the main loop for its duration (≤ ~0.4 s), well inside the ECU timeout.
+
 ---
 
 ## Cockpit

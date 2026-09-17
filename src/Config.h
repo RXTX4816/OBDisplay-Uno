@@ -33,6 +33,17 @@ static constexpr uint8_t BTN_PIN_LEFT = 6;
 static constexpr uint8_t BTN_PIN_RIGHT = 7;
 static constexpr uint8_t BTN_PIN_MID = 8;
 
+// ── Warning buzzer ────────────────────────────────────────────────────────────
+// Active buzzer (e.g. SFM-27): red → BUZZER_PIN, black → GND. Pin HIGH = sound.
+// Comment out BUZZER_PIN to build without a buzzer.
+#define BUZZER_PIN 10
+// Warning level N plays BUZZER_BEEP_COUNT[N-1] beeps of BUZZER_BEEP_MS[N-1] each.
+// Level 1 is silent (count 0) so minor warnings only show on screen.
+static constexpr uint8_t BUZZER_BEEP_COUNT[3] = {0, 3, 5};
+static constexpr uint8_t BUZZER_BEEP_MS[3] = {0, 30, 50};
+static constexpr uint8_t BUZZER_STARTUP_MS = 30; // single chirp at power-on
+static constexpr uint8_t BUZZER_GAP_MS = 40;
+
 // Button bitmask values for the pending-button latch.
 static constexpr uint8_t BTN_MASK_RIGHT = 0x01;
 static constexpr uint8_t BTN_MASK_LEFT = 0x02;
@@ -55,8 +66,7 @@ static constexpr uint16_t WARN_VOLTAGE_LOW_X10 = 120;
 // Engine load in % (×1 integer).
 static constexpr uint8_t WARN_ENGINE_LOAD_HIGH = 90;
 // Oil level raw ECU value (0–255; 255 = full).
-static constexpr uint8_t WARN_OIL_LVL_CRIT_RAW = 51; // <20% of 255
-static constexpr uint8_t WARN_OIL_LVL_LOW_RAW = 115; // <45% of 255
+static constexpr uint8_t WARN_OIL_LVL_RAW = 115; // <45% of 255 → critical
 
 // ── Bar gauge (0x17 page 2) ───────────────────────────────────────────────────
 // Maximum fuel tank capacity in litres — adjust to match your vehicle.

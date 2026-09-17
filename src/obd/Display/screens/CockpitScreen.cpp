@@ -85,14 +85,13 @@ static const char PROGMEM kWarnNames[WARN_COUNT][10] = {
     {'O','I','L', 0,  0,  'P','R','E','S', 0 }, // 0  OIL  PRES  HIGH
     {'O','I','L', 0,  0,  'H','O','T', 0,  0 }, // 1  OIL  HOT   HIGH
     {'C','O','O','L', 0,  'H','O','T', 0,  0 }, // 2  COOL HOT   HIGH
-    {'O','I','L', 0,  0,  'L','V','L', 0,  0 }, // 3  OIL  LVL   HIGH (<20%)
+    {'O','I','L', 0,  0,  'L','V','L', 0,  0 }, // 3  OIL  LVL   HIGH (<45%)
     {'L','O','W', 0,  0,  'V','O','L','T', 0 }, // 4  LOW  VOLT  MED
     {'F','U','E','L', 0,  'C','R','I','T', 0 }, // 5  FUEL CRIT  MED
     {'V','E','R','Y', 0,  'C','O','L','D', 0 }, // 6  VERY COLD  MED
     {'H','I','G','H', 0,  'L','O','A','D', 0 }, // 7  HIGH LOAD  LOW
     {'F','U','E','L', 0,  'L','O','W', 0,  0 }, // 8  FUEL LOW   LOW
     {'C','O','L','D', 0,  'E','N','G', 0,  0 }, // 9  COLD ENG   LOW
-    {'O','I','L', 0,  0,  'L','V','L', 0,  0 }, // 10 OIL  LVL   LOW (<45%)
 };
 
 // clang-format on

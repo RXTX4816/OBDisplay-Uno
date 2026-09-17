@@ -193,12 +193,15 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuA
     }
 }
 
-// Helper: set a warning bit and update maxLevel
-static inline void setWarn(WarningState& w, WarnBit bit, uint8_t level)
+// Helper: set a warning bit and update maxLevel (and newLevel if the bit was not set before)
+static inline void setWarn(WarningState& w, uint16_t prevBits, WarnBit bit, uint8_t level)
 {
-    w.bits |= (uint16_t)(1u << bit);
+    uint16_t mask = (uint16_t)(1u << bit);
+    w.bits |= mask;
     if (level > w.maxLevel)
         w.maxLevel = level;
+    if (!(prevBits & mask) && level > w.newLevel)
+        w.newLevel = level;
 }
 
 void OBDSignals::computeWarnings(uint8_t ecuAddr)
@@ -225,54 +228,48 @@ void OBDSignals::computeWarnings(uint8_t ecuAddr)
             }
         }
         if (instruments.oilPressureLowCount >= 3)
-            setWarn(warnings, WARN_OIL_PRES, 3);
+            setWarn(warnings, prevBits, WARN_OIL_PRES, 3);
         if (instruments.oilTempUpdated && instruments.oilTemp > WARN_OIL_TEMP_HIGH_C)
-            setWarn(warnings, WARN_OIL_HOT, 3);
-        if (instruments.oilLevelOkUpdated)
-        {
-            uint8_t ol = instruments.oilLevelOk;
-            if (ol < WARN_OIL_LVL_CRIT_RAW)
-                setWarn(warnings, WARN_OIL_LVL, 3);
-            if (ol < WARN_OIL_LVL_LOW_RAW)
-                setWarn(warnings, WARN_OIL_LVL_LOW, 1);
-        }
+            setWarn(warnings, prevBits, WARN_OIL_HOT, 3);
+        if (instruments.oilLevelOkUpdated && instruments.oilLevelOk < WARN_OIL_LVL_RAW)
+            setWarn(warnings, prevBits, WARN_OIL_LVL, 3);
         // Coolant: gate once, cache value, run all three threshold checks
         if (instruments.coolantTempUpdated)
         {
             uint8_t ct = instruments.coolantTemp;
             if (ct > WARN_COOLANT_HIGH_C)
-                setWarn(warnings, WARN_COOL_HOT, 3);
+                setWarn(warnings, prevBits, WARN_COOL_HOT, 3);
             if (ct < WARN_COOLANT_COLD_C)
-                setWarn(warnings, WARN_VERY_COLD, 2);
+                setWarn(warnings, prevBits, WARN_VERY_COLD, 2);
             if (ct < WARN_COOLANT_WARM_C)
-                setWarn(warnings, WARN_COLD_ENG, 1);
+                setWarn(warnings, prevBits, WARN_COLD_ENG, 1);
         }
         // Fuel: gate once, cache value, run both threshold checks
         if (instruments.fuelLevelUpdated)
         {
             uint8_t fl = instruments.fuelLevel;
             if (fl < WARN_FUEL_CRIT_L)
-                setWarn(warnings, WARN_FUEL_CRIT, 2);
+                setWarn(warnings, prevBits, WARN_FUEL_CRIT, 2);
             if (fl < WARN_FUEL_LOW_L)
-                setWarn(warnings, WARN_FUEL_LOW, 1);
+                setWarn(warnings, prevBits, WARN_FUEL_LOW, 1);
         }
     }
     else if (ecuAddr == 0x01)
     {
         if (engine.voltageUpdated && engine.voltage < WARN_VOLTAGE_LOW_X10)
-            setWarn(warnings, WARN_LOW_VOLT, 2);
+            setWarn(warnings, prevBits, WARN_LOW_VOLT, 2);
         if (engine.engineLoadUpdated && engine.engineLoad > WARN_ENGINE_LOAD_HIGH)
-            setWarn(warnings, WARN_HIGH_LOAD, 1);
+            setWarn(warnings, prevBits, WARN_HIGH_LOAD, 1);
         // Coolant proxy from group 4: gate once, cache, run all threshold checks
         if (engine.tempUnknown2Updated)
         {
             uint8_t t2 = engine.tempUnknown2;
             if (t2 > WARN_COOLANT_HIGH_C)
-                setWarn(warnings, WARN_COOL_HOT, 3);
+                setWarn(warnings, prevBits, WARN_COOL_HOT, 3);
             if (t2 < WARN_COOLANT_COLD_C)
-                setWarn(warnings, WARN_VERY_COLD, 2);
+                setWarn(warnings, prevBits, WARN_VERY_COLD, 2);
             if (t2 < WARN_COOLANT_WARM_C)
-                setWarn(warnings, WARN_COLD_ENG, 1);
+                setWarn(warnings, prevBits, WARN_COLD_ENG, 1);
         }
     }
 

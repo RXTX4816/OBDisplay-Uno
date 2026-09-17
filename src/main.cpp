@@ -3,6 +3,7 @@
 #include "Controller.h"
 #include "scheduler/TaskConfig.h"
 #include "debug.h"
+#include "obd/Buzzer.h"
 
 static Controller controller;
 
@@ -23,7 +24,9 @@ static SimpleTask tasks[] = {
 void setup()
 {
     pinMode(13, OUTPUT);
+    buzzerBegin();
     digitalWrite(13, HIGH);
+    buzzerBeep(1, BUZZER_STARTUP_MS); // startup chirp: buzzer is wired
     delay(500);
     digitalWrite(13, LOW);
 
