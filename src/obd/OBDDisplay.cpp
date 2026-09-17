@@ -277,7 +277,8 @@ void OBDDisplay::computeValues_()
         warningFlashPhase_ = true;
         warningFlashPage_ = 0;
         warningFlashSnapshot_ = signals_.warnings;
-        beepWarning(signals_.warnings.maxLevel);
+        beepWarning(signals_.warnings.newLevel);
+        signals_.warnings.newLevel = 0;
     }
 }
 

@@ -311,6 +311,45 @@ void test_oil_hot_stays_until_below_111()
     TEST_ASSERT_FALSE(oilHot(signals));
 }
 
+static void setOilLevel(OBDSignals &s, uint8_t raw)
+{
+    s.instruments.oilLevelOk = raw;
+    s.instruments.oilLevelOkUpdated = true;
+    s.computeWarnings(0x17);
+}
+
+void test_oil_level_below_45_percent_is_critical()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    setOilLevel(signals, 115);
+    TEST_ASSERT_EQUAL_UINT16(0, signals.warnings.bits);
+
+    setOilLevel(signals, 114);
+    TEST_ASSERT_TRUE(signals.warnings.bits & (1u << WARN_OIL_LVL));
+    TEST_ASSERT_EQUAL_UINT8(3, signals.warnings.newLevel);
+}
+
+void test_new_level_reflects_only_newly_fired_warnings()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    setOilTemp(signals, 115); // OIL HOT, level 3
+    TEST_ASSERT_EQUAL_UINT8(3, signals.warnings.newLevel);
+    signals.warnings.hasNew = false;
+    signals.warnings.newLevel = 0;
+
+    // Fuel low (level 1) fires while OIL HOT is still active
+    signals.instruments.fuelLevel = 7;
+    signals.instruments.fuelLevelUpdated = true;
+    setOilTemp(signals, 115);
+    TEST_ASSERT_TRUE(signals.warnings.hasNew);
+    TEST_ASSERT_EQUAL_UINT8(3, signals.warnings.maxLevel);
+    TEST_ASSERT_EQUAL_UINT8(1, signals.warnings.newLevel);
+}
+
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -330,6 +369,8 @@ int main(int argc, char **argv)
     RUN_TEST(test_oil_hot_not_raised_up_to_110);
     RUN_TEST(test_oil_hot_raised_when_threshold_value_is_skipped);
     RUN_TEST(test_oil_hot_stays_until_below_111);
+    RUN_TEST(test_oil_level_below_45_percent_is_critical);
+    RUN_TEST(test_new_level_reflects_only_newly_fired_warnings);
 
     // DTCStore tests
     RUN_TEST(test_dtc_store_reset);

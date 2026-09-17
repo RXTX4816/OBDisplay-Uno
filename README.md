@@ -28,6 +28,7 @@ Pre-built firmware is available on the [Releases](https://github.com/RXTX4816/OB
 - 56-case sensor decode table (full VW/Audi KWP-1281 measurement type table)
 - Read and clear DTC fault codes
 - SH1107 64×128 OLED display (GME64128-02), portrait orientation — pixel-doubled cockpit font, text-only rendering with batch I2C transfers
+- Optional warning buzzer: short beep patterns for medium and critical warnings, minor warnings stay silent
 
 ## Hardware
 
@@ -37,8 +38,9 @@ Needed are (estimated total cost: 10€-15€ depending on deals from chinese se
 - [KKL409 Autodia K-Line KWP1281 Diagnostic cable](https://www.aliexpress.com/w/wholesale-cable-diagnostic-kkl-409.html)
 - [1,3" 64x128 vertical GME64128-02 SH1107 monochrome OLED display](https://www.aliexpress.com/w/wholesale-1%252C3-inch-oled-64-128-vertical.html) 
 - [5-way joystick button](https://www.aliexpress.com/w/wholesale-5%2525252dway-joystick-button.html).
+- Optional: active buzzer for warning beeps, e.g. [SFM-27 3–24 V](https://www.aliexpress.com/w/wholesale-sfm-27-buzzer.html)
 
-See **[Hardware Setup](https://github.com/RXTX4816/OBDisplay-Uno/wiki/Hardware-Setup)** for the full pinout, OLED wiring, button configuration, and K-Line cable modification steps.
+See **[Hardware Setup](https://github.com/RXTX4816/OBDisplay-Uno/wiki/Hardware-Setup)** for the full pinout, OLED wiring, button configuration, buzzer wiring, and K-Line cable modification steps.
 
 [Guidance pictures](assets/) of my specific K-Line cable modifications in case you are unsure about where to cut and how the RX and TX lines traverse the AutoDia409 OBD adapter:
 

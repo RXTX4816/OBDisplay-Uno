@@ -8,6 +8,7 @@
 | Display | SH1107 64×128 OLED (GME64128-02), I2C address `0x3C` |
 | Buttons | 5-way navigation switch (UP/DOWN/LEFT/RIGHT/SELECT) |
 | K-Line interface | Modified KKL OBD-to-USB cable with FT232 MCU |
+| Buzzer (optional) | Active buzzer, e.g. SFM-27 (3–24 V DC, ≤ 20 mA) |
 
 ## Pinout
 
@@ -25,6 +26,7 @@ Pin 5               DOWN button (active LOW, INPUT_PULLUP)
 Pin 6               LEFT button (active LOW, INPUT_PULLUP)
 Pin 7               RIGHT button (active LOW, INPUT_PULLUP)
 Pin 8               SELECT button (active LOW, INPUT_PULLUP)
+Pin 10              Buzzer + (optional, HIGH = sound)
 ```
 
 Hardware UART (pins 0/1) is reserved for USB serial monitoring and programming. The K-Line interface uses Software Serial on pins 2/3 to avoid conflicts.
@@ -51,6 +53,22 @@ All five buttons wire between their Arduino pin and GND. Internal pull-ups are e
 - 50 ms debounce for directional buttons
 - 222 ms timeout on SELECT to prevent accidental re-triggers
 
+## Buzzer (optional)
+
+An **active** buzzer (one with its own oscillator, which sounds on plain DC) beeps when a new medium or critical warning appears. It is driven directly from pin 10; no resistor or transistor is needed as long as it draws ≤ 20 mA at 5 V (e.g. SFM-27).
+
+```
+Buzzer            Arduino Uno
+──────────────────────────────
+Red (+)       →   Pin 10
+Black (−)     →   GND
+```
+
+- If all GND header pins are taken, the ICSP header has one: the 2×3 block, pin 6. Pin 1 has the square solder pad on the underside; GND is the diagonally opposite corner.
+- **Passive** buzzers (only click on DC, e.g. 12085 42 Ω) are not supported by the firmware and would need a series resistor (≥ 220 Ω) to protect the pin.
+- A short chirp at power-on confirms the wiring.
+- Beep patterns and the pin are set in `src/Config.h` (`BUZZER_PIN`, `BUZZER_BEEP_COUNT`, `BUZZER_BEEP_MS`, `BUZZER_GAP_MS`). Comment out `BUZZER_PIN` to build without a buzzer. See [Screen Reference](Screen-Reference#warnings) for which warning plays which pattern.
+
 ## K-Line cable modification
 
 The K-Line interface uses a modified **KKL OBD-to-USB cable** (Autodia K409 or compatible). The FT232R/FT232RQ USB-to-serial chip is repurposed as a level shifter.
@@ -75,6 +93,7 @@ See `assets/` in the repository for photos of the modification.
 | FT232 board | ~50 mA |
 | Arduino Uno | ~30 mA |
 | SH1107 OLED | ~20 mA |
+| Buzzer (optional, while beeping) | ≤ 20 mA |
 | **Total** | **~150 mA** |
 
 When connected to a car, use a separate power source (USB power bank or 12V buck converter) to avoid ground loop issues through the OBD port.

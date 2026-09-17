@@ -18,7 +18,7 @@ src/
     ├── OBDDisplay.h/cpp          # Main state machine (Setup → WaitingForConnect → Running)
     ├── OBDDisplay_input.cpp      # Button handling and menu action dispatch
     ├── OBDDisplay_setup.cpp      # Startup animation, setup flow, connect/reconnect logic
-    ├── Buzzer.h                  # Optional buzzer stub (reserved for future use)
+    ├── Buzzer.h/cpp              # Optional active buzzer: warning beep patterns
     ├── KWP/
     │   ├── KWP1281Session.h/cpp  # Protocol: 5-baud init, blocks, keepalive, DTC
     │   ├── KWPSensorDecode.h/cpp # 56-case measurement type decode + signal mapping
@@ -34,7 +34,7 @@ src/
     │       ├── SettingsScreen
     │       └── ScreenHelpers.h
     ├── Model/
-    │   ├── OBDSignals.h/cpp      # Signal structs, computed stats, warning state (11 warnings)
+    │   ├── OBDSignals.h/cpp      # Signal structs, computed stats, warning state (10 warnings)
     │   └── DTCStore.h/cpp        # DTC code storage (up to 16 codes)
     └── Input/
         ├── ButtonInput.h/cpp     # Button polling with debounce and auto-repeat
