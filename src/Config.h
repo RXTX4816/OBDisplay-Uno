@@ -61,6 +61,15 @@ static constexpr uint8_t WARN_COOLANT_WARM_C = 75; // below = cold engine
 // Fuel level in L (×1 integer).
 static constexpr uint8_t WARN_FUEL_CRIT_L = 4;
 static constexpr uint8_t WARN_FUEL_LOW_L = 8;
+// Fuel warnings are evaluated on the EMA-smoothed level and must hold
+// continuously for this many compute cycles (50 ms each) before they fire.
+// Cornering and uneven roads slosh the tank sender by several litres; 200
+// cycles = 10 s outlasts any turn, so a real ~10 L tank stays quiet.
+static constexpr uint8_t WARN_FUEL_DWELL_CYCLES = 200;
+// Release hysteresis in 1/8 L units (8 = 1.0 L): once a fuel warning is
+// latched it only clears above threshold + 1 L, so a level hovering on the
+// threshold cannot re-trigger the buzzer over and over.
+static constexpr uint8_t WARN_FUEL_HYST_X8 = 8;
 // Voltage in ×10 units (120 = 12.0 V).
 static constexpr uint16_t WARN_VOLTAGE_LOW_X10 = 120;
 // Engine load in % (×1 integer).

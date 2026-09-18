@@ -204,6 +204,27 @@ static inline void setWarn(WarningState& w, uint16_t prevBits, WarnBit bit, uint
         w.newLevel = level;
 }
 
+// Helper: dwell + hysteresis for a fuel threshold. flX8 is the smoothed level in
+// 1/8 L units, thresholdL the trip point in litres. The level must stay below the
+// threshold for WARN_FUEL_DWELL_CYCLES consecutive compute cycles before the
+// warning latches; once latched it holds until the level rises a further
+// WARN_FUEL_HYST_X8 above the threshold.
+static bool fuelBelow(uint8_t& count, uint16_t flX8, uint8_t thresholdL)
+{
+    bool latched = count >= WARN_FUEL_DWELL_CYCLES;
+    uint16_t thresholdX8 = (uint16_t)thresholdL * 8u + (latched ? WARN_FUEL_HYST_X8 : 0u);
+    if (flX8 < thresholdX8)
+    {
+        if (!latched)
+            count++;
+    }
+    else
+    {
+        count = 0;
+    }
+    return count >= WARN_FUEL_DWELL_CYCLES;
+}
+
 void OBDSignals::computeWarnings(uint8_t ecuAddr)
 {
     uint16_t prevBits = warnings.bits;
@@ -244,13 +265,15 @@ void OBDSignals::computeWarnings(uint8_t ecuAddr)
             if (ct < WARN_COOLANT_WARM_C)
                 setWarn(warnings, prevBits, WARN_COLD_ENG, 1);
         }
-        // Fuel: gate once, cache value, run both threshold checks
+        // Fuel: evaluated on the EMA-smoothed level with a dwell counter, so a
+        // tank sloshing on a turn or a bumpy road cannot fire a warning (and the
+        // buzzer) while there is still plenty of fuel in the tank.
         if (instruments.fuelLevelUpdated)
         {
-            uint8_t fl = instruments.fuelLevel;
-            if (fl < WARN_FUEL_CRIT_L)
+            uint16_t flX8 = instruments.fuelLevelSmoothX8;
+            if (fuelBelow(instruments.fuelCritCount, flX8, WARN_FUEL_CRIT_L))
                 setWarn(warnings, prevBits, WARN_FUEL_CRIT, 2);
-            if (fl < WARN_FUEL_LOW_L)
+            if (fuelBelow(instruments.fuelLowCount, flX8, WARN_FUEL_LOW_L))
                 setWarn(warnings, prevBits, WARN_FUEL_LOW, 1);
         }
     }
