@@ -4,6 +4,7 @@
 
 #include "obd/Model/OBDSignals.h"
 #include "obd/Model/DTCStore.h"
+#include "Config.h"
 
 using namespace obd::Model;
 
@@ -331,6 +332,73 @@ void test_oil_level_below_45_percent_is_critical()
     TEST_ASSERT_EQUAL_UINT8(3, signals.warnings.newLevel);
 }
 
+static void holdFuel(OBDSignals& s, uint16_t cycles)
+{
+    for (uint16_t i = 0; i < cycles; ++i)
+        s.computeWarnings(0x17);
+}
+
+static bool fuelCrit(OBDSignals& s)
+{
+    return (s.warnings.bits & (1u << WARN_FUEL_CRIT)) != 0;
+}
+
+void test_fuel_slosh_does_not_trigger_critical_warning()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    // ~10 L in the tank; a corner drops the sender reading for a few seconds.
+    signals.instruments.fuelLevel = 10;
+    signals.instruments.fuelLevelUpdated = true;
+    signals.instruments.fuelLevelSmoothX8 = 10u * 8u;
+
+    // Sender slosh pulls the smoothed level below the critical threshold, but
+    // only for 5 s (100 cycles) — shorter than the dwell, so nothing fires.
+    signals.instruments.fuelLevelSmoothX8 = 3u * 8u;
+    holdFuel(signals, 100);
+    TEST_ASSERT_FALSE(fuelCrit(signals));
+    TEST_ASSERT_FALSE(signals.warnings.hasNew);
+
+    // Level recovers — the dwell counter restarts from zero.
+    signals.instruments.fuelLevelSmoothX8 = 10u * 8u;
+    holdFuel(signals, 1);
+    signals.instruments.fuelLevelSmoothX8 = 3u * 8u;
+    holdFuel(signals, 100);
+    TEST_ASSERT_FALSE(fuelCrit(signals));
+}
+
+void test_fuel_critical_fires_when_sustained_and_holds_with_hysteresis()
+{
+    OBDSignals signals;
+    signals.reset();
+
+    signals.instruments.fuelLevel = 3;
+    signals.instruments.fuelLevelUpdated = true;
+    signals.instruments.fuelLevelSmoothX8 = 3u * 8u;
+
+    holdFuel(signals, WARN_FUEL_DWELL_CYCLES - 1);
+    TEST_ASSERT_FALSE(fuelCrit(signals));
+
+    holdFuel(signals, 1);
+    TEST_ASSERT_TRUE(fuelCrit(signals));
+    TEST_ASSERT_TRUE(signals.warnings.hasNew);
+    TEST_ASSERT_EQUAL_UINT8(2, signals.warnings.newLevel);
+    signals.warnings.hasNew = false;
+    signals.warnings.newLevel = 0;
+
+    // Sloshing back just over the threshold keeps it latched — no re-beep.
+    signals.instruments.fuelLevelSmoothX8 = (uint16_t)(WARN_FUEL_CRIT_L * 8u) + 4u;
+    holdFuel(signals, 5);
+    TEST_ASSERT_TRUE(fuelCrit(signals));
+    TEST_ASSERT_FALSE(signals.warnings.hasNew);
+
+    // Refuelling past threshold + hysteresis clears it.
+    signals.instruments.fuelLevelSmoothX8 = 20u * 8u;
+    holdFuel(signals, 1);
+    TEST_ASSERT_FALSE(fuelCrit(signals));
+}
+
 void test_new_level_reflects_only_newly_fired_warnings()
 {
     OBDSignals signals;
@@ -344,6 +412,10 @@ void test_new_level_reflects_only_newly_fired_warnings()
     // Fuel low (level 1) fires while OIL HOT is still active
     signals.instruments.fuelLevel = 7;
     signals.instruments.fuelLevelUpdated = true;
+    signals.instruments.fuelLevelSmoothX8 = 7u * 8u;
+    holdFuel(signals, WARN_FUEL_DWELL_CYCLES - 1);
+    signals.warnings.newLevel = 0;
+    signals.warnings.hasNew = false;
     setOilTemp(signals, 115);
     TEST_ASSERT_TRUE(signals.warnings.hasNew);
     TEST_ASSERT_EQUAL_UINT8(3, signals.warnings.maxLevel);
@@ -370,6 +442,8 @@ int main(int argc, char **argv)
     RUN_TEST(test_oil_hot_raised_when_threshold_value_is_skipped);
     RUN_TEST(test_oil_hot_stays_until_below_111);
     RUN_TEST(test_oil_level_below_45_percent_is_critical);
+    RUN_TEST(test_fuel_slosh_does_not_trigger_critical_warning);
+    RUN_TEST(test_fuel_critical_fires_when_sustained_and_holds_with_hysteresis);
     RUN_TEST(test_new_level_reflects_only_newly_fired_warnings);
 
     // DTCStore tests

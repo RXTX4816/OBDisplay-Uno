@@ -57,6 +57,8 @@ struct InstrumentSignals
     bool fuelLevelUpdated = false;
     uint8_t fuelLevelStart = 0;
     uint16_t fuelLevelSmoothX8 = 0; // EMA-smoothed fuel ×8 (1 unit = 0.125 L)
+    uint8_t fuelCritCount = 0;      // dwell counter for WARN_FUEL_CRIT
+    uint8_t fuelLowCount = 0;       // dwell counter for WARN_FUEL_LOW
 
     uint16_t fuelSensorResistance = 0;
     bool fuelSensorResistanceUpdated = false;
@@ -155,10 +157,10 @@ enum WarnBit : uint8_t
     WARN_COOL_HOT = 2,  // HIGH: coolantTemp > 93°C (both)
     WARN_OIL_LVL = 3,   // HIGH: oilLevelOk < 45% (raw < 115) (0x17)
     WARN_LOW_VOLT = 4,  // MED:  engine.voltage < 120 (12.0 V) (0x01)
-    WARN_FUEL_CRIT = 5, // MED:  fuelLevel < 4 L (0x17)
+    WARN_FUEL_CRIT = 5, // MED:  smoothed fuel < 4 L for 10 s (0x17)
     WARN_VERY_COLD = 6, // MED:  coolantTemp < 40°C (both)
     WARN_HIGH_LOAD = 7, // LOW:  engineLoad > 90% (0x01)
-    WARN_FUEL_LOW = 8,  // LOW:  fuelLevel < 8 L (0x17)
+    WARN_FUEL_LOW = 8,  // LOW:  smoothed fuel < 8 L for 10 s (0x17)
     WARN_COLD_ENG = 9,  // LOW:  coolantTemp < 75°C (both)
     WARN_COUNT = 10,
 };
