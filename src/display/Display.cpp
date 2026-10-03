@@ -355,70 +355,44 @@ void Display::drawChar2xToPage(uint8_t x, uint8_t y, char c, uint8_t page, uint8
     if (x >= 64 || y >= 128)
         return;
 
+    // The 14 px tall glyph spans rows y..y+13; shift places it relative to this page.
+    int8_t shift = (int8_t)(y - (uint8_t)(page << 3));
+    if (shift > 7 || shift < -13)
+        return;
+
     uint8_t glyph = ((uint8_t)c < 0x20 || (uint8_t)c > 0x7F) ? 0 : (uint8_t)(c - 0x20);
     const uint8_t* g = &kFont[(uint16_t)glyph * 5];
 
     // 5 columns × 2 = 10 pixel-wide glyph (+ 2px gap = 12px per char)
     for (uint8_t col = 0; col < 5; ++col)
     {
+        // Each of the 7 font rows becomes 2 pixel rows.
         uint8_t bits = pgm_read_byte(g + col);
-        uint8_t sx = x + (uint8_t)(col * 2);
-
+        uint16_t tall = 0;
         for (uint8_t row = 0; row < 7; ++row)
-        {
-            if (!(bits & (1u << row)))
-                continue;
+            if (bits & (1u << row))
+                tall |= (uint16_t)(3u << (row * 2));
 
-            // Draw a 2×2 block for this set pixel
-            for (uint8_t dy = 0; dy < 2; ++dy)
-            {
-                uint8_t py = y + (uint8_t)(row * 2) + dy;
-                if ((py >> 3) != page)
-                    continue;
-                uint8_t bit = py & 7u;
-                for (uint8_t dx = 0; dx < 2; ++dx)
-                {
-                    uint8_t px = sx + dx;
-                    if (px < 64)
-                        pageBuf[px] |= (uint8_t)(1u << bit);
-                }
-            }
-        }
+        uint8_t mask = shift >= 0 ? (uint8_t)(tall << shift) : (uint8_t)(tall >> -shift);
+        uint8_t sx = x + (uint8_t)(col * 2);
+        if (sx < 64)
+            pageBuf[sx] |= mask;
+        if (sx + 1 < 64)
+            pageBuf[sx + 1] |= mask;
     }
 }
 
+// Small text rows are page aligned (y = line * 8), so a glyph fills exactly one
+// page and overwrites its 6 columns whole: 7 font rows, bit 7 clear, 1 gap column.
 // cppcheck-suppress functionStatic
-void Display::drawCharToPage(uint8_t x, uint8_t y, char c, uint8_t page, uint8_t* pageBuf)
+void Display::drawCharToPage(uint8_t x, char c, uint8_t* pageBuf)
 {
-    if (x >= 64 || y >= 128)
-        return;
-
     uint8_t glyph = ((uint8_t)c < 0x20 || (uint8_t)c > 0x7F) ? 0 : (uint8_t)(c - 0x20);
     const uint8_t* g = &kFont[(uint16_t)glyph * 5];
 
-    // Draw 5 columns + 1 gap = 6 pixels wide per character
-    for (uint8_t cx = 0; cx < 6; ++cx)
-    {
-        uint8_t bits = (cx < 5) ? pgm_read_byte(g + cx) : 0x00;
-
-        for (uint8_t by = 0; by < 8; ++by)
-        {
-            bool pixel = (by < 7) && (bits & (1u << by));
-            uint8_t py = y + by;
-
-            // Check if this pixel is in the current page
-            if ((py >> 3) == page)
-            {
-                uint8_t bit = py & 7;
-                uint8_t idx = x + cx;
-
-                if (pixel)
-                    pageBuf[idx] |= (1u << bit);
-                else
-                    pageBuf[idx] &= ~(1u << bit);
-            }
-        }
-    }
+    for (uint8_t cx = 0; cx < 5; ++cx)
+        pageBuf[x + cx] = pgm_read_byte(g + cx) & 0x7Fu;
+    pageBuf[x + 5] = 0x00;
 }
 
 void Display::flush()
@@ -479,9 +453,11 @@ void Display::flush()
             else
             {
                 uint8_t y = (uint8_t)(e.line * 8); // row to pixel y
+                if ((y >> 3) != page)
+                    continue;
                 while (*s && x < 64)
                 {
-                    drawCharToPage(x, y, *s++, page, pageBuf);
+                    drawCharToPage(x, *s++, pageBuf);
                     x += 6;
                 }
             }

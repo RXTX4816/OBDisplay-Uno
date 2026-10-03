@@ -77,7 +77,7 @@ class Display
         char text[kTextLen] = {}; // text content, always copied here
     };
 
-    void drawCharToPage(uint8_t x, uint8_t y, char c, uint8_t page, uint8_t* pageBuf);
+    void drawCharToPage(uint8_t x, char c, uint8_t* pageBuf);
     void drawChar2xToPage(uint8_t x, uint8_t y, char c, uint8_t page, uint8_t* pageBuf);
     void addTextEntry(uint8_t x, uint8_t line, const char* text, uint8_t scale = 1);
     void markDirty()
