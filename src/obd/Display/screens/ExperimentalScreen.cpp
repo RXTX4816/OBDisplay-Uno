@@ -6,6 +6,10 @@ namespace obd
 namespace Display
 {
 
+#ifdef OBD_EXPERIMENTAL_SCREENS
+static const char kStrRule[] PROGMEM = "----------";
+#endif
+
 void initExperimentalScreen(DisplayManager& /*dm*/) {}
 
 void renderExperimentalScreen(const DisplayManager& dm, uint8_t /*screen*/,
@@ -19,7 +23,7 @@ void renderExperimentalScreen(const DisplayManager& dm, uint8_t /*screen*/,
     {
         // Full-screen digit entry — replaces the normal group view while active.
         dm.print(0, 0, F("Jump:Grp  "));
-        dm.print(0, 1, F("----------"));
+        dm.print(0, 1, reinterpret_cast<const __FlashStringHelper*>(kStrRule));
 
         // Row 3: three digit slots, each 3 chars wide; active slot wrapped in [].
         // Layout: [slot0][slot1] [slot2]  (cols 0-2, 3-5, gap at 6, 7-9)
@@ -49,7 +53,7 @@ void renderExperimentalScreen(const DisplayManager& dm, uint8_t /*screen*/,
         if (raw == 0u)
             dm.print(7, 6, F("!"));
 
-        dm.print(0, 9, F("----------"));
+        dm.print(0, 9, reinterpret_cast<const __FlashStringHelper*>(kStrRule));
         dm.print(0, 10, F("U/D:digit "));
         dm.print(0, 11, F("L/R:move  "));
         dm.print(0, 12, F("SEL=ok    "));

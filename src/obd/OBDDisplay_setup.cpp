@@ -21,6 +21,11 @@ static constexpr uint8_t kEepromAddrAutoConnect = 2;
 
 static constexpr uint8_t kPresetCount = 3;
 
+// Strings drawn on more than one setup screen; F() would store one copy per use.
+static const char kStrSel[] PROGMEM = "< Sel >";
+static const char kStrBaud[] PROGMEM = "Baud:";
+static const char kStrConnErr[] PROGMEM = "Conn. ERR";
+
 uint8_t readEepromFuel()
 {
     if (EEPROM.read(kEepromAddrMagic) != kEepromMagic)
@@ -100,7 +105,7 @@ void OBDDisplay::drawSetupHeader_(bool showBaud, bool showAddr, bool showBack)
 {
     if (showBaud)
     {
-        display_.print(0, 0, F("Baud:"));
+        display_.print(0, 0, reinterpret_cast<const __FlashStringHelper*>(kStrBaud));
         display_.print(5, 0, (int32_t)baudRate_);
     }
     if (showAddr)
@@ -182,7 +187,7 @@ void OBDDisplay::runSetupFlow_(uint8_t stage)
         {
             case 0:
                 display_.print(0, 0, F("Preset:"));
-                display_.print(0, 1, F("< Sel >"));
+                display_.print(0, 1, reinterpret_cast<const __FlashStringHelper*>(kStrSel));
                 display_.print(
                     0, 2,
                     reinterpret_cast<__FlashStringHelper*>(pgm_read_word(&kPresetNames[preset])));
@@ -195,8 +200,8 @@ void OBDDisplay::runSetupFlow_(uint8_t stage)
                 ptr = &baudPtr;
                 count = kBaudCount;
                 drawSetupHeader_(false, false, true);
-                display_.print(0, 2, F("Baud:"));
-                display_.print(0, 3, F("< Sel >"));
+                display_.print(0, 2, reinterpret_cast<const __FlashStringHelper*>(kStrBaud));
+                display_.print(0, 3, reinterpret_cast<const __FlashStringHelper*>(kStrSel));
                 display_.print(0, 4, (int32_t)kBaudRates[baudPtr]);
                 break;
             case 2:
@@ -207,7 +212,7 @@ void OBDDisplay::runSetupFlow_(uint8_t stage)
                 char buf[11];
                 drawSetupHeader_(true, false, true);
                 display_.print(0, 3, F("ECU Addr:"));
-                display_.print(0, 4, F("< Sel >"));
+                display_.print(0, 4, reinterpret_cast<const __FlashStringHelper*>(kStrSel));
                 buf[0] = '0';
                 buf[1] = 'x';
                 buf[2] = (char)pgm_read_byte(&kHexDigits[(a >> 4) & 0xF]);
@@ -291,7 +296,7 @@ bool OBDDisplay::ensureConnected_()
     if (wasConnected_)
     {
         display_.clear();
-        display_.print(0, 6, F("Conn. ERR"));
+        display_.print(0, 6, reinterpret_cast<const __FlashStringHelper*>(kStrConnErr));
         display_.print(0, 8, F("Lost"));
         display_.flush();
         delay(1000);
@@ -331,7 +336,7 @@ bool OBDDisplay::ensureConnected_()
         connected_ = false;
 
         display_.clear();
-        display_.print(0, 0, F("Conn. ERR"));
+        display_.print(0, 0, reinterpret_cast<const __FlashStringHelper*>(kStrConnErr));
         display_.print(0, 1, F("Retry..."));
 
         uint8_t err = kwp_.lastConnectError();
