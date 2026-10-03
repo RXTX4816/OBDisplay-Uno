@@ -24,7 +24,7 @@ namespace Display
 //   Row 9:     S:XXX
 //   Row 11: #04 E:XXXXX
 //   Row 12:    S:XXX
-//   Row 14: U/D:pg Sel:bk
+//   Row 14: UD:pg S:bk
 
 // clang-format off
 static const uint8_t PROGMEM kDtcMenuScript[] = {
@@ -120,7 +120,7 @@ void renderDtcScreen(DisplayManager& dm, uint8_t cursor, bool showActive, uint8_
             dm.print(0, rowS[i], buf);
         }
 
-        dm.print(0, 14, F("U/D:pg Sel:bk"));
+        dm.print(0, 14, F("UD:pg S:bk")); // 10 cols: longer text is cut
     }
 }
 

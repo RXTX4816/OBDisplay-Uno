@@ -259,7 +259,7 @@ void test_unit_strings()
     } const cases[] = {
         {1, "rpm"},   {2, "%%"},   {4, "ATDC"},   {5, "\xB0" "C"}, {6, "V"},     {7, "km/h"},
         {8, " "},     {12, "Ohm"}, {14, "bar"},   {15, "ms"},      {18, "mbar"}, {19, "l"},
-        {24, "A"},    {25, "g/s"}, {26, "C"},     {27, "\xB0"},    {30, "Degk/w"},
+        {24, "A"},    {25, "g/s"}, {26, "C"},     {27, "\xB0"},    {30, "Dk/w"},
         {34, "kW"},   {35, "l/h"}, {36, "km"},    {39, "mg/h"},    {41, "Ah"},   {42, "Kw"},
         {44, "h:m"},  {52, "Nm"},  {54, "count"}, {55, "s"},       {56, "WSC"},  {60, "sec"},
         {62, "S"},    {65, "mm"},  {68, "deg/s"}, {69, "bar"},     {70, "m/s2"}, {0, ""},
@@ -293,7 +293,8 @@ void test_every_unit_fits_and_is_terminated()
         memset(s.experimental.unit[0], 'X', sizeof(s.experimental.unit[0]));
         KWP::processKwpMeasurement(0x42, kGroup, 0, (uint8_t)k, 1, 1, s);
         TEST_ASSERT_EQUAL_CHAR('\0', s.experimental.unit[0][ExperimentalGroup::UnitWidth]);
-        TEST_ASSERT_TRUE(strlen(s.experimental.unit[0]) <= ExperimentalGroup::UnitWidth);
+        // The group view prints the unit after "k:NN", leaving 5 of 10 columns.
+        TEST_ASSERT_TRUE(strlen(s.experimental.unit[0]) <= 5);
     }
 }
 

@@ -85,7 +85,7 @@ static void fmtScaled(int32_t value, char* out)
         value = -value;
     }
     uint32_t u = (uint32_t)value;
-    utoa((uint16_t)(u / 10), p, 10);
+    ultoa(u / 10, p, 10); // 32-bit: group values reach 131071.0 (k=57)
     while (*p != '\0')
         ++p;
     *p++ = '.';
