@@ -63,6 +63,9 @@ class Display
     static constexpr uint8_t ROWS = 16; // 128 / 8 = 16 text rows
 
   private:
+#ifdef PIO_UNIT_TESTING
+    friend struct DisplayTestAccess; // test/test_display inspects the text entries
+#endif
     static constexpr uint8_t kMaxEntries = 24;
     static constexpr uint8_t kTextLen = 11; // 10 chars + null terminator
 

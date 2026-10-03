@@ -11,7 +11,21 @@
 #ifdef ARDUINO
 #include <Arduino.h>
 #include <avr/interrupt.h>
+#include <avr/pgmspace.h>
 #include <avr/sleep.h>
+
+// Unity keeps every test name as a string literal, i.e. in RAM on AVR: ~25
+// bytes per test, enough to push a large suite into stack overflow. Keep the
+// names in flash and copy only the running test's name into one buffer.
+static char unityTestName[64];
+#undef RUN_TEST
+#define RUN_TEST(func)                                                                             \
+    do                                                                                             \
+    {                                                                                              \
+        static const char name_[] PROGMEM = #func;                                                 \
+        strncpy_P(unityTestName, name_, sizeof(unityTestName) - 1);                                \
+        UnityDefaultTestRun(func, unityTestName, __LINE__);                                        \
+    } while (0)
 
 // Drain the UART, then sleep with interrupts off: simavr treats that as a clean
 // exit, so the test command terminates instead of spinning forever.
