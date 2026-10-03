@@ -1,14 +1,10 @@
 name: Release
 
+# Started by the tag that semantic-release.yml pushes after approval.
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to release (e.g. v0.2.0)'
-        required: true
 
 permissions:
   contents: write
@@ -24,7 +20,7 @@ jobs:
 
       - name: Get version from tag
         run: |
-          VERSION="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${{ github.ref_name }}"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           echo "VERSION_CLEAN=${VERSION#v}" >> "$GITHUB_ENV"
 
