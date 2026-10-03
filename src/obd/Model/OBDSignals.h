@@ -56,9 +56,9 @@ struct InstrumentSignals
     uint8_t fuelLevel = 0;
     bool fuelLevelUpdated = false;
     uint8_t fuelLevelStart = 0;
-    uint16_t fuelLevelSmoothX8 = 0; // EMA-smoothed fuel ×8 (1 unit = 0.125 L)
-    uint8_t fuelCritCount = 0;      // dwell counter for WARN_FUEL_CRIT
-    uint8_t fuelLowCount = 0;       // dwell counter for WARN_FUEL_LOW
+    uint16_t fuelLevelSmoothX8 = 0;  // EMA-smoothed fuel ×8 (1 unit = 0.125 L)
+    uint8_t fuelCritCount = 0;       // dwell counter for WARN_FUEL_CRIT
+    uint8_t fuelLowCount = 0;        // dwell counter for WARN_FUEL_LOW
     uint16_t fuelLevelSettledX8 = 0; // smoothed level held through slosh, feeds range (0 = unset)
     uint8_t fuelSettleCount = 0;     // cycles the smoothed level stayed off the settled one
     bool fuelSettleAbove = false;    // side of the settled level being counted
