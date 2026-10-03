@@ -543,7 +543,8 @@ bool KWP1281Session::readSensorsGroup(uint8_t group, Model::OBDSignals& signals)
             {
                 case 1:
                 {
-                    uint16_t rpm = (uint16_t)(0.2f * s[4] * s[5]);
+                    // rpm = 0.2*a*b; integer /5 keeps the soft-float library out of the build
+                    uint16_t rpm = (uint16_t)((uint16_t)s[4] * s[5] / 5u);
                     if (signals.instruments.engineRpm != rpm)
                     {
                         signals.instruments.engineRpm = rpm;
