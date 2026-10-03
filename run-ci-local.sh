@@ -51,13 +51,13 @@ else
 fi
 
 # Build
-echo -e "\n${YELLOW}[3/4] Building firmware (uno)...${NC}"
-if pio run -e uno; then
+echo -e "\n${YELLOW}[3/4] Building firmware (uno, uno_debug)...${NC}"
+if pio run -e uno -e uno_debug; then
     echo -e "${GREEN}✓ Build passed${NC}"
 
     # Extract and display memory usage
     echo -e "\n${YELLOW}Memory Usage:${NC}"
-    pio run -e uno 2>&1 | grep -E "RAM|Flash" || true
+    pio run -e uno -e uno_debug 2>&1 | grep -E "Processing|RAM|Flash" || true
 else
     echo -e "${RED}✗ Build failed${NC}"
     exit 1

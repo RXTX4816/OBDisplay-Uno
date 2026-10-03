@@ -50,11 +50,14 @@ jobs:
       - name: Install PlatformIO
         run: pipx install platformio
 
+      # Both images must fit: the debug build has less headroom and used to
+      # overflow unnoticed because only the release image was built here.
+      # tools/check_no_float.py fails either build if soft-float gets linked.
       - name: Build
-        run: pio run -e uno
+        run: pio run -e uno -e uno_debug
 
       - name: Report memory usage
-        run: pio run -e uno 2>&1 | grep -E "RAM|Flash" || true
+        run: pio run -e uno -e uno_debug 2>&1 | grep -E "Processing|RAM|Flash" || true
 
   test:
     needs: build
