@@ -379,10 +379,10 @@ void test_instruments_0x17_mapping()
     TEST_ASSERT_EQUAL_UINT32(31060, s.instruments.odometer);
     TEST_ASSERT_EQUAL_UINT8(45, s.instruments.fuelLevel);
     TEST_ASSERT_EQUAL_UINT16(9, s.instruments.fuelSensorResistance);
-    TEST_ASSERT_EQUAL_UINT8(18, s.instruments.ambientTemp);
-    TEST_ASSERT_EQUAL_UINT8(90, s.instruments.coolantTemp);
+    TEST_ASSERT_EQUAL_INT16(18, s.instruments.ambientTemp);
+    TEST_ASSERT_EQUAL_INT16(90, s.instruments.coolantTemp);
     TEST_ASSERT_EQUAL_UINT8(200, s.instruments.oilLevelOk);
-    TEST_ASSERT_EQUAL_UINT8(95, s.instruments.oilTemp);
+    TEST_ASSERT_EQUAL_INT16(95, s.instruments.oilTemp);
     TEST_ASSERT_TRUE(s.instruments.vehicleSpeedUpdated && s.instruments.engineRpmUpdated &&
                      s.instruments.odometerUpdated && s.instruments.fuelLevelUpdated &&
                      s.instruments.coolantTempUpdated && s.instruments.oilTempUpdated);
@@ -405,16 +405,37 @@ void test_engine_0x01_mapping()
     feed(s, 0x01, 6, 3, 20, 128, 127); // -1 %
 
     TEST_ASSERT_EQUAL_UINT16(800, s.instruments.engineRpm);
-    TEST_ASSERT_EQUAL_UINT8(85, s.engine.tempUnknown1);
+    TEST_ASSERT_EQUAL_INT16(85, s.engine.tempUnknown1);
     TEST_ASSERT_EQUAL_INT8(-10, s.engine.lambda);
     TEST_ASSERT_EQUAL_HEX8(0xB2, s.engine.basicSettingBits);
     TEST_ASSERT_EQUAL_UINT16(1012, s.engine.pressure);
     TEST_ASSERT_EQUAL_INT16(55, s.engine.tbAngle);
     TEST_ASSERT_EQUAL_INT16(-270, s.engine.steeringAngle);
     TEST_ASSERT_EQUAL_UINT16(117, s.engine.voltage);
-    TEST_ASSERT_EQUAL_UINT8(90, s.engine.tempUnknown2);
-    TEST_ASSERT_EQUAL_UINT8(14, s.engine.tempUnknown3);
+    TEST_ASSERT_EQUAL_INT16(90, s.engine.tempUnknown2);
+    TEST_ASSERT_EQUAL_INT16(14, s.engine.tempUnknown3);
     TEST_ASSERT_EQUAL_INT8(-1, s.engine.lambda2);
+}
+
+// Winter: k=5 is 0.1*a*(b-100), so b < 100 is below zero. Stored signed, a
+// cold start must read as cold, not wrap to 25x °C.
+void test_subzero_temperatures_stay_negative()
+{
+    OBDSignals s;
+    s.experimental.groupCurrent = 0;
+    feed(s, 0x17, 2, 3, 5, 10, 80);  // ambient -20 °C
+    feed(s, 0x17, 3, 0, 5, 10, 95);  // coolant -5 °C
+    feed(s, 0x17, 3, 2, 5, 10, 99);  // oil -1 °C
+    feed(s, 0x01, 1, 1, 5, 10, 60);  // -40 °C
+    feed(s, 0x01, 4, 2, 5, 10, 75);  // coolant -25 °C
+    feed(s, 0x01, 4, 3, 5, 10, 70);  // intake air -30 °C
+    TEST_ASSERT_EQUAL_INT16(-20, s.instruments.ambientTemp);
+    TEST_ASSERT_EQUAL_INT16(-5, s.instruments.coolantTemp);
+    TEST_ASSERT_EQUAL_INT16(-1, s.instruments.oilTemp);
+    TEST_ASSERT_EQUAL_INT16(-40, s.engine.tempUnknown1);
+    TEST_ASSERT_EQUAL_INT16(-25, s.engine.tempUnknown2);
+    TEST_ASSERT_EQUAL_INT16(-30, s.engine.tempUnknown3);
+    TEST_ASSERT_TRUE(s.instruments.coolantTempUpdated && s.engine.tempUnknown2Updated);
 }
 
 void test_engine_load_and_speed_groups_5_and_6()
@@ -474,6 +495,7 @@ void runTests()
     RUN_TEST(test_updated_flags_only_on_change);
     RUN_TEST(test_instruments_0x17_mapping);
     RUN_TEST(test_engine_0x01_mapping);
+    RUN_TEST(test_subzero_temperatures_stay_negative);
     RUN_TEST(test_engine_load_and_speed_groups_5_and_6);
     RUN_TEST(test_readiness_bits_group_100);
     RUN_TEST(test_unmapped_ecu_touches_no_named_signal);

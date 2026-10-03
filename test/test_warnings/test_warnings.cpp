@@ -21,14 +21,14 @@ static OBDSignals& fresh(OBDSignals& s)
     return s;
 }
 
-static void coolant17(OBDSignals& s, uint8_t t)
+static void coolant17(OBDSignals& s, int16_t t)
 {
     fresh(s).instruments.coolantTemp = t;
     s.instruments.coolantTempUpdated = true;
     s.computeWarnings(0x17);
 }
 
-static void coolant01(OBDSignals& s, uint8_t t)
+static void coolant01(OBDSignals& s, int16_t t)
 {
     fresh(s).engine.tempUnknown2 = t;
     s.engine.tempUnknown2Updated = true;
@@ -81,6 +81,32 @@ void test_normal_operating_temperature_is_quiet()
         coolant01(s, t);
         TEST_ASSERT_EQUAL_HEX16(0, s.warnings.bits);
     }
+}
+
+// Below 0 °C the engine is very cold, never overheated: the reading must not
+// wrap around into the critical COOL HOT warning (and its buzzer).
+void test_subzero_coolant_is_cold_not_hot()
+{
+    OBDSignals s;
+    for (int16_t t = -40; t < 0; ++t)
+    {
+        coolant17(s, t);
+        TEST_ASSERT_FALSE(has(s, WARN_COOL_HOT));
+        TEST_ASSERT_TRUE(has(s, WARN_VERY_COLD) && has(s, WARN_COLD_ENG));
+        TEST_ASSERT_EQUAL_UINT8(2, s.warnings.maxLevel);
+        coolant01(s, t);
+        TEST_ASSERT_FALSE(has(s, WARN_COOL_HOT));
+        TEST_ASSERT_TRUE(has(s, WARN_VERY_COLD) && has(s, WARN_COLD_ENG));
+    }
+}
+
+void test_subzero_oil_raises_nothing()
+{
+    OBDSignals s;
+    fresh(s).instruments.oilTemp = -25;
+    s.instruments.oilTempUpdated = true;
+    s.computeWarnings(0x17);
+    TEST_ASSERT_FALSE(has(s, WARN_OIL_HOT));
 }
 
 void test_low_voltage()
@@ -238,6 +264,8 @@ void runTests()
     RUN_TEST(test_coolant_hot_trips_above_threshold_on_both_ecus);
     RUN_TEST(test_cold_engine_levels_on_both_ecus);
     RUN_TEST(test_normal_operating_temperature_is_quiet);
+    RUN_TEST(test_subzero_coolant_is_cold_not_hot);
+    RUN_TEST(test_subzero_oil_raises_nothing);
     RUN_TEST(test_low_voltage);
     RUN_TEST(test_high_engine_load);
     RUN_TEST(test_oil_level);

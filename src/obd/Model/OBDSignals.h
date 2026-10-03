@@ -63,22 +63,22 @@ struct InstrumentSignals
     uint16_t fuelSensorResistance = 0;
     bool fuelSensorResistanceUpdated = false;
 
-    uint8_t ambientTemp = 0;
+    int16_t ambientTemp = 0; // °C, signed: sub-zero readings are common
     bool ambientTempUpdated = false;
 
-    uint8_t coolantTemp = 0;
+    int16_t coolantTemp = 0; // °C, signed
     bool coolantTempUpdated = false;
 
     uint8_t oilLevelOk = 0;
     bool oilLevelOkUpdated = false;
 
-    uint8_t oilTemp = 0;
+    int16_t oilTemp = 0; // °C, signed
     bool oilTempUpdated = false;
 };
 
 struct EngineSignals
 {
-    uint8_t tempUnknown1 = 0;
+    int16_t tempUnknown1 = 0; // °C, signed
     bool tempUnknown1Updated = false;
 
     int8_t lambda = 0;
@@ -111,10 +111,10 @@ struct EngineSignals
     uint16_t voltage = 0; // ×10 fixed-point (e.g. 123 = 12.3 V)
     bool voltageUpdated = false;
 
-    uint8_t tempUnknown2 = 0;
+    int16_t tempUnknown2 = 0; // °C, signed
     bool tempUnknown2Updated = false;
 
-    uint8_t tempUnknown3 = 0;
+    int16_t tempUnknown3 = 0; // °C, signed
     bool tempUnknown3Updated = false;
 
     uint16_t engineLoad = 0;

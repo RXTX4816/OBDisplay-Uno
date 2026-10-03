@@ -141,12 +141,12 @@ void DisplayManager::printBig(uint8_t x_px, uint8_t y_px, int16_t val, char suff
     display_.printBig(x_px, y_px, buf);
 }
 
-void DisplayManager::printBigWithLabel(uint8_t x_px, uint8_t y_px, uint16_t val,
+void DisplayManager::printBigWithLabel(uint8_t x_px, uint8_t y_px, int16_t val,
                                        const char* label) const
 {
     char buf[12];
     uint8_t i = 0;
-    utoa(val, buf, 10);
+    itoa(val, buf, 10); // signed: temperatures go below zero
     while (buf[i] != '\0')
         ++i;
     while (*label && i < 11)

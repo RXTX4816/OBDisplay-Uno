@@ -101,7 +101,7 @@ void initCockpitScreen(DisplayManager& /*dm*/, uint8_t /*screen*/, uint8_t /*add
 // Coolant at 100+ is dangerous, so show "-WARN-" instead of the number.
 // Oil temp is printed directly: 100–110 °C is normal under load and
 // "NNN O" (5 chars × 12 px = 60 px) still fits the 64 px width.
-static void printBigTemp(const DisplayManager& dm, uint8_t x, uint8_t y, uint8_t val,
+static void printBigTemp(const DisplayManager& dm, uint8_t x, uint8_t y, int16_t val,
                          const char* label)
 {
     if (val >= 100)
@@ -116,7 +116,7 @@ static void printBigTemp(const DisplayManager& dm, uint8_t x, uint8_t y, uint8_t
 static void printRangeRows(const DisplayManager& dm, const OBDSignals& s, uint8_t y)
 {
     if (s.computed.fuelPer100km > 0)
-        dm.printBigWithLabel(0, y, s.computed.kmRemaining, "K");
+        dm.printBigWithLabel(0, y, (int16_t)s.computed.kmRemaining, "K");
     else
         dm.printBig(0, y, "---");
 
@@ -138,14 +138,14 @@ static void renderCockpit17Big(const DisplayManager& dm, const OBDSignals& s)
 // Row layout (128 px):  speed RPM coolant load tbAngle voltage lambda intakeAir
 static void renderCockpit01Big(const DisplayManager& dm, const OBDSignals& s)
 {
-    dm.printBig(0, 0, s.instruments.vehicleSpeed);            // group 5 idx 2 [fixed]
-    dm.printBig(0, 16, s.instruments.engineRpm);              // group 1 idx 0
-    printBigTemp(dm, 0, 32, s.engine.tempUnknown2, " C");     // group 4 idx 2: coolant
-    dm.printBig(0, 48, (int16_t)s.engine.engineLoad, '%');    // group 5/6 idx 1 [fixed]
-    dm.printBigScaled10(0, 64, s.engine.tbAngle, 'T');        // group 3 idx 2
-    dm.printBigVoltage(0, 80, s.engine.voltage);              // group 4 idx 1 [fixed]
-    dm.printBig(0, 96, (int16_t)s.engine.lambda, '%');        // group 1 idx 2
-    dm.printBig(0, 112, (int16_t)s.engine.tempUnknown3, 'I'); // group 4 idx 3: intake air
+    dm.printBig(0, 0, s.instruments.vehicleSpeed);         // group 5 idx 2 [fixed]
+    dm.printBig(0, 16, s.instruments.engineRpm);           // group 1 idx 0
+    printBigTemp(dm, 0, 32, s.engine.tempUnknown2, " C");  // group 4 idx 2: coolant
+    dm.printBig(0, 48, (int16_t)s.engine.engineLoad, '%'); // group 5/6 idx 1 [fixed]
+    dm.printBigScaled10(0, 64, s.engine.tbAngle, 'T');     // group 3 idx 2
+    dm.printBigVoltage(0, 80, s.engine.voltage);           // group 4 idx 1 [fixed]
+    dm.printBig(0, 96, (int16_t)s.engine.lambda, '%');     // group 1 idx 2
+    dm.printBig(0, 112, s.engine.tempUnknown3, 'I');       // group 4 idx 3: intake air
 }
 
 // Shared helper for both bit-field screens (readiness + basic-setting).
@@ -206,11 +206,19 @@ static void renderSecondDashboard17(const DisplayManager& dm, const OBDSignals& 
 
     printRangeRows(dm, s, 48);
     dm.printBigWithLabel(0, 80, s.instruments.fuelLevelSmoothX8 >> 3, " F");
-    dm.printBigWithLabel(0, 96, ((uint16_t)s.instruments.oilLevelOk * 100u) / 255u, " %");
+    dm.printBigWithLabel(0, 96, (int16_t)(((uint16_t)s.instruments.oilLevelOk * 100u) / 255u),
+                         " %");
 }
 
 static void drawBarGauge(const DisplayManager& dm, uint8_t barX, uint8_t val, uint8_t maxVal,
                          uint8_t tickY, const char* label);
+
+// Bar input for a signed temperature: below zero is an empty bar, not a
+// wrapped-around full one.
+static uint8_t barTemp(int16_t t)
+{
+    return (t < 0) ? 0u : (t > 255) ? 255u : (uint8_t)t;
+}
 
 // ── 0x01 page 4: trip computer ───────────────────────────────────────────────
 // kmRemaining is non-zero only if fuel level was stored via 0x17 Settings→Fuel.
@@ -230,7 +238,7 @@ static void renderTripPage01(const DisplayManager& dm, const OBDSignals& s)
 
     // km remaining (0 = no fuel start set)
     if (s.computed.kmRemaining > 0)
-        dm.printBigWithLabel(0, 32, s.computed.kmRemaining, "K");
+        dm.printBigWithLabel(0, 32, (int16_t)s.computed.kmRemaining, "K");
     else
         dm.printBig(0, 32, "---K");
 
@@ -244,7 +252,7 @@ static void renderTripPage01(const DisplayManager& dm, const OBDSignals& s)
 static void renderBarsPage01(const DisplayManager& dm, const OBDSignals& s)
 {
     // coolant: group 4, 0–120 °C, tick at 90 °C → fillH=84, tickY=28
-    drawBarGauge(dm, 2, s.engine.tempUnknown2, 120, 28, "C");
+    drawBarGauge(dm, 2, barTemp(s.engine.tempUnknown2), 120, 28, "C");
     // engine load: 0–100 %, tick at 80 % → tickY = 112 - (112*80/100) = 22
     drawBarGauge(dm, 18, (uint8_t)s.engine.engineLoad, 100, 22, "L");
     // lambda: -15 to +15 % mapped to 0–30, tick at 0 % (centre) → tickY=56
@@ -296,9 +304,9 @@ static void drawBarGauge(const DisplayManager& dm, uint8_t barX, uint8_t val, ui
 static void renderBarsPage17(const DisplayManager& dm, const OBDSignals& s)
 {
     // coolant: 0–120 °C, tick at 90 °C (fillH=84 → tickY=28)
-    drawBarGauge(dm, 2, s.instruments.coolantTemp, 120, 28, "C");
+    drawBarGauge(dm, 2, barTemp(s.instruments.coolantTemp), 120, 28, "C");
     // oil temp: 0–120 °C, tick at 90 °C
-    drawBarGauge(dm, 18, s.instruments.oilTemp, 120, 28, "O");
+    drawBarGauge(dm, 18, barTemp(s.instruments.oilTemp), 120, 28, "O");
     // oil level: raw 0–255 mapped to 0–100 %, tick at 50 % (tickY=56)
     uint8_t oilPct = (uint8_t)(((uint16_t)s.instruments.oilLevelOk * 100u) / 255u);
     drawBarGauge(dm, 34, oilPct, 100, 56, "L");

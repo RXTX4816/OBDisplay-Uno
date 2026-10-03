@@ -70,7 +70,7 @@ class DisplayManager
     void printBig(uint8_t x_px, uint8_t y_px, uint16_t val) const;
     void printBig(uint8_t x_px, uint8_t y_px, int16_t val, char suffix) const;
     void printBig(uint8_t x_px, uint8_t y_px, const char* s) const;
-    void printBigWithLabel(uint8_t x_px, uint8_t y_px, uint16_t val, const char* label) const;
+    void printBigWithLabel(uint8_t x_px, uint8_t y_px, int16_t val, const char* label) const;
     // ×10 fixed-point shown as "X.X" + suffix (e.g. tbAngle 55 → "5.5T").
     // Out-of-range values (abs > 999) print "ERR" instead of overflowing.
     void printBigScaled10(uint8_t x_px, uint8_t y_px, int16_t val, char suffix) const;

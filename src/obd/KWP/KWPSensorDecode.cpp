@@ -511,8 +511,8 @@ signal_mapping:
                                    (uint16_t)(v / 10));
                             break;
                         case 3:
-                            setU8(signals.instruments.ambientTemp,
-                                  signals.instruments.ambientTempUpdated, (uint8_t)(v / 10));
+                            setI16(signals.instruments.ambientTemp,
+                                   signals.instruments.ambientTempUpdated, (int16_t)(v / 10));
                             break;
                     }
                     break;
@@ -520,16 +520,16 @@ signal_mapping:
                     switch (idx)
                     {
                         case 0:
-                            setU8(signals.instruments.coolantTemp,
-                                  signals.instruments.coolantTempUpdated, (uint8_t)(v / 10));
+                            setI16(signals.instruments.coolantTemp,
+                                   signals.instruments.coolantTempUpdated, (int16_t)(v / 10));
                             break;
                         case 1:
                             setU8(signals.instruments.oilLevelOk,
                                   signals.instruments.oilLevelOkUpdated, (uint8_t)(v / 10));
                             break;
                         case 2:
-                            setU8(signals.instruments.oilTemp, signals.instruments.oilTempUpdated,
-                                  (uint8_t)(v / 10));
+                            setI16(signals.instruments.oilTemp, signals.instruments.oilTempUpdated,
+                                   (int16_t)(v / 10));
                             break;
                         default:
                             break;
@@ -552,8 +552,8 @@ signal_mapping:
                                    signals.instruments.engineRpmUpdated, (uint16_t)(v / 10));
                             break;
                         case 1:
-                            setU8(signals.engine.tempUnknown1, signals.engine.tempUnknown1Updated,
-                                  (uint8_t)(v / 10));
+                            setI16(signals.engine.tempUnknown1, signals.engine.tempUnknown1Updated,
+                                   (int16_t)(v / 10));
                             break;
                         case 2:
                             setI8(signals.engine.lambda, signals.engine.lambdaUpdated,
@@ -593,12 +593,12 @@ signal_mapping:
                                    (uint16_t)v);
                             break; // ×10
                         case 2:
-                            setU8(signals.engine.tempUnknown2, signals.engine.tempUnknown2Updated,
-                                  (uint8_t)(v / 10));
+                            setI16(signals.engine.tempUnknown2, signals.engine.tempUnknown2Updated,
+                                   (int16_t)(v / 10));
                             break;
                         case 3:
-                            setU8(signals.engine.tempUnknown3, signals.engine.tempUnknown3Updated,
-                                  (uint8_t)(v / 10));
+                            setI16(signals.engine.tempUnknown3, signals.engine.tempUnknown3Updated,
+                                   (int16_t)(v / 10));
                             break;
                     }
                     break;

@@ -157,6 +157,66 @@ void test_hot_coolant_shows_warn_marker()
     endFrame();
 }
 
+void test_subzero_temperatures_on_dashboards()
+{
+    OBDSignals s;
+    typical(s);
+    s.instruments.oilTemp = -25;
+    s.instruments.coolantTemp = -25;
+    s.engine.tempUnknown2 = -40;
+    s.engine.tempUnknown3 = -40;
+    for (uint8_t page = 0; page <= 6; ++page)
+        renderCockpit(0x01, page, s, PSTR("sub-zero 0x01 page"));
+    for (uint8_t page = 0; page <= 3; ++page)
+        renderCockpit(0x17, page, s, PSTR("sub-zero 0x17 page"));
+
+    beginFrame();
+    renderCockpitScreen(dm, 0, 0x17, s, true);
+    EXPECT_TEXT(big(0, 39), "-25 O");
+    EXPECT_TEXT(big(0, 55), "-25 C");
+    endFrame();
+    beginFrame();
+    renderCockpitScreen(dm, 0, 0x01, s, true);
+    EXPECT_TEXT(big(0, 32), "-40 C");
+    EXPECT_TEXT(big(0, 112), "-40I");
+    endFrame();
+}
+
+// True if a filled bar (scale 3) of at least minHeight px starts at barX.
+static bool hasFillBarAt(uint8_t barX, uint8_t minHeight)
+{
+    for (uint8_t i = 0; i < DTA::count(display); ++i)
+        if (DTA::scale(display, i) == 3 && DTA::x(display, i) == barX &&
+            (uint8_t)DTA::text(display, i)[1] >= minHeight)
+            return true;
+    return false;
+}
+
+// Below zero the coolant/oil bars are empty, not a wrapped-around full bar.
+void test_subzero_bars_are_empty()
+{
+    OBDSignals s;
+    typical(s);
+    s.instruments.coolantTemp = -5;
+    s.instruments.oilTemp = -5;
+    s.engine.tempUnknown2 = -5;
+    beginFrame();
+    renderCockpitScreen(dm, 2, 0x17, s, true); // 0x17 bars: coolant x=2, oil x=18
+    TEST_ASSERT_FALSE(hasFillBarAt(2, 3));
+    TEST_ASSERT_FALSE(hasFillBarAt(18, 3));
+    endFrame();
+    beginFrame();
+    renderCockpitScreen(dm, 5, 0x01, s, true); // 0x01 bars: coolant x=2
+    TEST_ASSERT_FALSE(hasFillBarAt(2, 3));
+    endFrame();
+
+    s.instruments.coolantTemp = 60; // sanity: a warm engine does draw a bar
+    beginFrame();
+    renderCockpitScreen(dm, 2, 0x17, s, true);
+    TEST_ASSERT_TRUE(hasFillBarAt(2, 3));
+    endFrame();
+}
+
 void test_readiness_and_basic_setting_pages()
 {
     OBDSignals s;
@@ -439,6 +499,8 @@ void runTests()
     RUN_TEST(test_range_shows_dashes_until_consumption_known);
     RUN_TEST(test_cockpit_01_main_dashboard_content);
     RUN_TEST(test_hot_coolant_shows_warn_marker);
+    RUN_TEST(test_subzero_temperatures_on_dashboards);
+    RUN_TEST(test_subzero_bars_are_empty);
     RUN_TEST(test_readiness_and_basic_setting_pages);
     RUN_TEST(test_warning_summary_lists_every_active_warning);
     RUN_TEST(test_warning_flash_for_every_warning_and_level);
