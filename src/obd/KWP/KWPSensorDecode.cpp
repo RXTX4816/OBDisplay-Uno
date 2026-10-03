@@ -154,7 +154,7 @@ static const char kU_A[] PROGMEM = "A";
 static const char kU_gs[] PROGMEM = "g/s";
 static const char kU_C[] PROGMEM = "C";
 static const char kU_degSym[] PROGMEM = "\xB0";
-static const char kU_degkw[] PROGMEM = "Degk/w";
+static const char kU_degkw[] PROGMEM = "Dk/w"; // 5 cols after "k:NN"
 static const char kU_kW[] PROGMEM = "kW";
 static const char kU_lh[] PROGMEM = "l/h";
 static const char kU_km[] PROGMEM = "km";
@@ -233,19 +233,19 @@ static int32_t computeFormula(uint8_t k, byte a, byte b)
         {
             // c2 and c3 hardcoded per k, all in integer form.
             // Formula: v×10 = c1s*b/100 + c2_x10*a/1000 + c3_x10
-            // k=25:  1.421*b + 0.005494*a        → c1s=1421, c2_x100=5494, c3=0
-            // k=40,42: 0.1*b + 25.5*a - 400      → 10*b + 255*a - 4000 (×10)
-            // k=43:  0.1*b + 25.5*a              → 10*b + 255*a
+            // k=25:  1.421*b + a/182             → 1421*b/100 + 10*a/182 (×10)
+            // k=40,42: 0.1*b + 25.5*a - 400      → b + 255*a - 4000 (×10)
+            // k=43:  0.1*b + 25.5*a              → b + 255*a (×10)
             // k=53:  1.4222*b + 0.006*a - 182.04 → 14222*b/1000 + 6*a/1000 - 1820 (×10)
             switch (k)
             {
                 case 25:
-                    return (int32_t)1421 * b / 100; // c2 term (5494*a/1M) ≈ 0
+                    return (int32_t)1421 * b / 100 + (int32_t)a * 10 / 182;
                 case 40:
                 case 42:
-                    return (int32_t)b * 10 + (int32_t)255 * a - 4000L;
+                    return (int32_t)b + (int32_t)255 * a - 4000L;
                 case 43:
-                    return (int32_t)b * 10 + (int32_t)255 * a;
+                    return (int32_t)b + (int32_t)255 * a;
                 case 53:
                     return (int32_t)1422 * b / 100 + 6L * a / 100 - 1820L;
                 default:
@@ -323,7 +323,7 @@ void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte
                 units = b ? F("WARM") : F("COLD");
                 break;
             case 11: // lambda: 0.0001*a*(b-128)+1.0
-                v = (int32_t)a * ((int16_t)b - 128) / 100 + 10;
+                v = (int32_t)a * ((int16_t)b - 128) / 1000 + 10;
                 break;
             case 16: // Bin. Bits: 256*a + b
             case 17: // chr(a) chr(b) — show as raw 16-bit
@@ -359,7 +359,7 @@ void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte
                 v = ((int32_t)a * 60 + b) * 10;
                 break;
             case 46: // Dk/w: (a*b-3200)*0.0027
-                v = ((int32_t)a * b - 3200L) * 27L / 10000L * 10;
+                v = ((int32_t)a * b - 3200L) * 27L / 1000L;
                 break;
             case 50: // mbar: (b-128)/(0.01*a) = (b-128)*100/a
                 v = (a > 0) ? (int32_t)((int16_t)b - 128) * 1000 / a : 0;
@@ -402,14 +402,14 @@ void processKwpMeasurement(uint8_t ecuAddr, uint8_t group, int idx, byte k, byte
             case 67: // 640*a + 2.5*b
                 v = (int32_t)a * 6400L + (int32_t)b * 25;
                 break;
-            case 68: // (256*a+b)/7.365
-                v = ((int32_t)256 * a + b) * 200L / 1473L;
+            case 68: // (256*a+b)/7.365, 7.365 = 1473/200
+                v = ((int32_t)256 * a + b) * 2000L / 1473L;
                 break;
             case 69: // (256*a+b)*0.3254
-                v = ((int32_t)256 * a + b) * 3254L / 10000L;
+                v = ((int32_t)256 * a + b) * 3254L / 1000L;
                 break;
             case 70: // (256*a+b)*0.192
-                v = ((int32_t)256 * a + b) * 1920L / 10000L;
+                v = ((int32_t)256 * a + b) * 192L / 100L;
                 break;
             default:
                 break;
