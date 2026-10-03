@@ -47,6 +47,8 @@ namespace obd
 namespace Display
 {
 
+static const char kStrNotRead[] PROGMEM = "not read";
+
 using namespace Model;
 
 // clang-format off
@@ -171,7 +173,7 @@ static void renderReadinessScreen(const DisplayManager& dm, const OBDSignals& s)
     if (!s.engine.errorBitsUpdated)
     {
         dm.print(0, 0, F("Readiness"));
-        dm.print(0, 1, F("not read"));
+        dm.print(0, 1, reinterpret_cast<const __FlashStringHelper*>(kStrNotRead));
         return;
     }
     // Bits in group 100 value 1: 1=FAIL, 0=PASS
@@ -191,7 +193,7 @@ static void renderBasicSettingScreen(const DisplayManager& dm, const OBDSignals&
     if (!s.engine.basicSettingBitsUpdated)
     {
         dm.print(0, 0, F("BasicSet"));
-        dm.print(0, 1, F("not read"));
+        dm.print(0, 1, reinterpret_cast<const __FlashStringHelper*>(kStrNotRead));
         return;
     }
     renderBitField(dm, kBasicSettingLabels, 8, 9, s.engine.basicSettingBits, false);
