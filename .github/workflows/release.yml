@@ -37,33 +37,20 @@ jobs:
       - name: Install PlatformIO
         run: pipx install platformio
 
+      # Both images must build; the report covers both, the .hex is the uno one.
       - name: Build firmware
-        id: build
         run: |
-          BUILD_OUTPUT=$(pio run -e uno 2>&1)
-          echo "$BUILD_OUTPUT"
+          set -o pipefail
+          pio run -e uno -e uno_debug 2>&1 | tee build.log
 
-          RAM_LINE=$(echo "$BUILD_OUTPUT"  | grep -E "^RAM:")
-          FLASH_LINE=$(echo "$BUILD_OUTPUT" | grep -E "^Flash:")
-
-          RAM_PCT=$(echo   "$RAM_LINE"   | grep -oP '\d+\.\d+(?=%)' | head -1)
-          FLASH_PCT=$(echo "$FLASH_LINE" | grep -oP '\d+\.\d+(?=%)' | head -1)
-          RAM_USED=$(echo   "$RAM_LINE"   | grep -oP 'used \K\d+')
-          RAM_TOTAL=$(echo  "$RAM_LINE"   | grep -oP 'from \K\d+')
-          FLASH_USED=$(echo "$FLASH_LINE" | grep -oP 'used \K\d+')
-          FLASH_TOTAL=$(echo "$FLASH_LINE" | grep -oP 'from \K\d+')
-
-          echo "ram_pct=${RAM_PCT}"       >> "$GITHUB_OUTPUT"
-          echo "flash_pct=${FLASH_PCT}"   >> "$GITHUB_OUTPUT"
-          echo "ram_used=${RAM_USED}"     >> "$GITHUB_OUTPUT"
-          echo "ram_total=${RAM_TOTAL}"   >> "$GITHUB_OUTPUT"
-          echo "flash_used=${FLASH_USED}" >> "$GITHUB_OUTPUT"
-          echo "flash_total=${FLASH_TOTAL}" >> "$GITHUB_OUTPUT"
+      - name: Memory report
+        run: python3 tools/memory_report.py build.log memory
 
       - name: Collect artifacts
         run: |
           cp .pio/build/uno/firmware.hex "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.hex"
           cp .pio/build/uno/firmware.elf "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.elf"
+          cp memory/memory.json "OBDisplay-Uno-${{ env.VERSION_CLEAN }}-memory.json"
 
       - name: Generate release notes
         env:
@@ -95,8 +82,10 @@ jobs:
           | Commit | \`${SHA}\` |
           | Built | ${DATE} |
           | Target | Arduino Uno (ATmega328P, 16 MHz) |
-          | Flash | ${{ steps.build.outputs.flash_used }} / ${{ steps.build.outputs.flash_total }} bytes (${{ steps.build.outputs.flash_pct }}%) |
-          | RAM | ${{ steps.build.outputs.ram_used }} / ${{ steps.build.outputs.ram_total }} bytes (${{ steps.build.outputs.ram_pct }}%) |
+
+          ENDBUILDINFO
+            cat memory/memory.md
+            cat <<ENDBUILDINFO
 
           ### Flashing
 
@@ -123,7 +112,25 @@ jobs:
             --notes-file release-notes.md \
             "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.hex" \
             "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.elf" \
+            "OBDisplay-Uno-${{ env.VERSION_CLEAN }}-memory.json" \
           || gh release upload "${{ env.VERSION }}" \
             "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.hex" \
             "OBDisplay-Uno-${{ env.VERSION_CLEAN }}.elf" \
+            "OBDisplay-Uno-${{ env.VERSION_CLEAN }}-memory.json" \
             --clobber
+
+      # README badges read these via shields.io endpoint badges. shields.io
+      # cannot fetch github.com release downloads, so the files live on an
+      # orphan 'badges' branch (raw.githubusercontent.com) that is replaced on
+      # every release and never merged.
+      - name: Publish memory badges
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd memory/badges
+          git init -q -b badges
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Memory badges for ${{ env.VERSION }}"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" badges

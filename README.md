@@ -1,11 +1,11 @@
 # OBDisplay-Uno
 
 [![CI/CD](https://github.com/RXTX4816/OBDisplay-Uno/actions/workflows/ci.yml/badge.svg)](https://github.com/RXTX4816/OBDisplay-Uno/actions)
-[![RAM:](https://img.shields.io/badge/RAM-48.4%25_of_2048B-green)](https://github.com/RXTX4816/OBDisplay-Uno)
-[![Flash:](https://img.shields.io/badge/flash-98.6%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![RAM](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/RXTX4816/OBDisplay-Uno/badges/ram.json)](https://github.com/RXTX4816/OBDisplay-Uno/releases/latest)
+[![Flash](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/RXTX4816/OBDisplay-Uno/badges/flash.json)](https://github.com/RXTX4816/OBDisplay-Uno/releases/latest)
 [![MCU: ATmega328P](https://img.shields.io/badge/MCU-ATmega328P-blue)](https://www.microchip.com/en-us/product/atmega328p)
-[![RAM (debug):](https://img.shields.io/badge/RAM_(debug)-48.4%25_of_2048B-green)](https://github.com/RXTX4816/OBDisplay-Uno)
-[![Flash (debug):](https://img.shields.io/badge/flash_(debug)-99.8%25_of_32256B-red)](https://github.com/RXTX4816/OBDisplay-Uno)
+[![RAM (debug)](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/RXTX4816/OBDisplay-Uno/badges/ram-debug.json)](https://github.com/RXTX4816/OBDisplay-Uno/releases/latest)
+[![Flash (debug)](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/RXTX4816/OBDisplay-Uno/badges/flash-debug.json)](https://github.com/RXTX4816/OBDisplay-Uno/releases/latest)
 
 KWP-1281 K-Line trip computer for Arduino Uno with SH1107 OLED display (64×128 portrait).
 
