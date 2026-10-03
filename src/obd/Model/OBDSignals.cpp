@@ -257,7 +257,7 @@ void OBDSignals::computeWarnings(uint8_t ecuAddr)
         // Coolant: gate once, cache value, run all three threshold checks
         if (instruments.coolantTempUpdated)
         {
-            uint8_t ct = instruments.coolantTemp;
+            int16_t ct = instruments.coolantTemp; // signed: -5 °C is cold, not hot
             if (ct > WARN_COOLANT_HIGH_C)
                 setWarn(warnings, prevBits, WARN_COOL_HOT, 3);
             if (ct < WARN_COOLANT_COLD_C)
@@ -286,7 +286,7 @@ void OBDSignals::computeWarnings(uint8_t ecuAddr)
         // Coolant proxy from group 4: gate once, cache, run all threshold checks
         if (engine.tempUnknown2Updated)
         {
-            uint8_t t2 = engine.tempUnknown2;
+            int16_t t2 = engine.tempUnknown2;
             if (t2 > WARN_COOLANT_HIGH_C)
                 setWarn(warnings, prevBits, WARN_COOL_HOT, 3);
             if (t2 < WARN_COOLANT_COLD_C)

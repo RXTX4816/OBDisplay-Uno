@@ -118,8 +118,10 @@ void test_scaled_big_out_of_range_shows_err()
 void test_label_is_cut_to_buffer()
 {
     beginFrame();
-    dm.printBigWithLabel(0, 0, 65535, "ABCDEFGHIJ");
-    EXPECT_TEXT(big(0, 0), "65535ABCDE"); // 10 chars kept
+    dm.printBigWithLabel(0, 0, 32767, "ABCDEFGHIJ");
+    dm.printBigWithLabel(0, 16, -40, " C"); // signed: sub-zero temperatures
+    EXPECT_TEXT(big(0, 0), "32767ABCDE"); // 10 chars kept
+    EXPECT_TEXT(big(0, 16), "-40 C");
     endFrame();
 }
 

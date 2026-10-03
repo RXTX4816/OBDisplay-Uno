@@ -257,7 +257,7 @@ static bool oilHot(const OBDSignals& s)
     return (s.warnings.bits & (1u << WARN_OIL_HOT)) != 0;
 }
 
-static void setOilTemp(OBDSignals& s, uint8_t t)
+static void setOilTemp(OBDSignals& s, int16_t t)
 {
     s.instruments.oilTemp = t;
     s.instruments.oilTempUpdated = true;

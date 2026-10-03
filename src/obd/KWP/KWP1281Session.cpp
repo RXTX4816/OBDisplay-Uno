@@ -551,7 +551,7 @@ bool KWP1281Session::readSensorsGroup(uint8_t group, Model::OBDSignals& signals)
                         signals.instruments.engineRpmUpdated = true;
                     }
 
-                    uint8_t cool = (uint8_t)((int16_t)s[7] * ((int16_t)s[8] - 100) / 10);
+                    int16_t cool = (int16_t)((int16_t)s[7] * ((int16_t)s[8] - 100) / 10);
                     if (signals.instruments.coolantTemp != cool)
                     {
                         signals.instruments.coolantTemp = cool;
