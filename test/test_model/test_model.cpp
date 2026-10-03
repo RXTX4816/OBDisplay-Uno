@@ -1,6 +1,7 @@
-// Combined Unity test runner for host-safe model components.
+// Model tests: OBDSignals computations, warnings and DTCStore.
+// Run on the host and on the simulated ATmega328P (16-bit int, avr-libc).
 
-#include <unity.h>
+#include "../unity_runner.h"
 
 #include "obd/Model/OBDSignals.h"
 #include "obd/Model/DTCStore.h"
@@ -422,12 +423,8 @@ void test_new_level_reflects_only_newly_fired_warnings()
     TEST_ASSERT_EQUAL_UINT8(1, signals.warnings.newLevel);
 }
 
-int main(int argc, char **argv)
+void runTests()
 {
-    (void)argc;
-    (void)argv;
-    UNITY_BEGIN();
-
     // OBDSignals tests
     RUN_TEST(test_signals_reset_clears_all_values);
     RUN_TEST(test_signals_zero_time_elapsed);
@@ -452,6 +449,6 @@ int main(int argc, char **argv)
     RUN_TEST(test_dtc_store_set_out_of_range_is_ignored);
     RUN_TEST(test_dtc_store_overwrite_existing);
     RUN_TEST(test_dtc_store_all_slots_fillable);
-
-    return UNITY_END();
 }
+
+UNITY_SUITE_MAIN()

@@ -12,7 +12,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Check formatting
-echo -e "\n${YELLOW}[1/4] Checking code formatting (clang-format)...${NC}"
+echo -e "\n${YELLOW}[1/5] Checking code formatting (clang-format)...${NC}"
 if ! command -v clang-format &> /dev/null; then
     echo -e "${RED}ERROR: clang-format not installed${NC}"
     echo "Install with: sudo apt-get install clang-format (Linux) or brew install clang-format (macOS)"
@@ -28,7 +28,7 @@ else
 fi
 
 # Static analysis
-echo -e "\n${YELLOW}[2/4] Running static analysis (cppcheck)...${NC}"
+echo -e "\n${YELLOW}[2/5] Running static analysis (cppcheck)...${NC}"
 if ! command -v cppcheck &> /dev/null; then
     echo -e "${RED}ERROR: cppcheck not installed${NC}"
     echo "Install with: sudo apt-get install cppcheck (Linux) or brew install cppcheck (macOS)"
@@ -51,7 +51,7 @@ else
 fi
 
 # Build
-echo -e "\n${YELLOW}[3/4] Building firmware (uno, uno_debug)...${NC}"
+echo -e "\n${YELLOW}[3/5] Building firmware (uno, uno_debug)...${NC}"
 if pio run -e uno -e uno_debug; then
     echo -e "${GREEN}✓ Build passed${NC}"
 
@@ -64,11 +64,19 @@ else
 fi
 
 # Tests
-echo -e "\n${YELLOW}[4/4] Running unit tests (native)...${NC}"
+echo -e "\n${YELLOW}[4/5] Running unit tests (native)...${NC}"
 if pio test -e native; then
     echo -e "${GREEN}✓ Tests passed${NC}"
 else
     echo -e "${RED}✗ Tests failed${NC}"
+    exit 1
+fi
+
+echo -e "\n${YELLOW}[5/5] Running unit tests (simulated ATmega328P)...${NC}"
+if pio test -e uno_sim; then
+    echo -e "${GREEN}✓ Simulator tests passed${NC}"
+else
+    echo -e "${RED}✗ Simulator tests failed${NC}"
     exit 1
 fi
 
