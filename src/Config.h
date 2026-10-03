@@ -70,6 +70,10 @@ static constexpr uint8_t WARN_FUEL_DWELL_CYCLES = 200;
 // latched it only clears above threshold + 1 L, so a level hovering on the
 // threshold cannot re-trigger the buzzer over and over.
 static constexpr uint8_t WARN_FUEL_HYST_X8 = 8;
+// Range, L/100km, L/h and burned fuel follow the smoothed level only after it
+// has stayed above or below the last settled value for this many compute
+// cycles (200 = 10 s), so a corner does not spike consumption or drop range.
+static constexpr uint8_t FUEL_SETTLE_DWELL_CYCLES = 200;
 // Voltage in ×10 units (120 = 12.0 V).
 static constexpr uint16_t WARN_VOLTAGE_LOW_X10 = 120;
 // Engine load in % (×1 integer).
