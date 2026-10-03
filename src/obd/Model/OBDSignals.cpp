@@ -91,11 +91,40 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuA
                 (uint16_t)((int16_t)instruments.fuelLevelSmoothX8 + step);
         }
 
-        // ── Fuel burned via smoothed level ──────────────────────────────────
-        // burnedX8 in 1/8 L units; clamp to zero if smooth somehow exceeds start.
+        // ── Settled level: smoothed level held through tank slosh ───────────
+        // The smoothed level still dips by several litres on a corner. Follow it
+        // only once it has stayed on one side of the settled level for
+        // FUEL_SETTLE_DWELL_CYCLES in a row; switching sides restarts the count.
+        // 0 = unset (after reset): take the smoothed level as is.
+        {
+            uint16_t smX8 = instruments.fuelLevelSmoothX8;
+            uint16_t& settledX8 = instruments.fuelLevelSettledX8;
+            bool above = smX8 > settledX8;
+            if (settledX8 == 0u || smX8 == settledX8)
+            {
+                settledX8 = smX8;
+                instruments.fuelSettleCount = 0;
+            }
+            else
+            {
+                if (above != instruments.fuelSettleAbove)
+                {
+                    instruments.fuelSettleAbove = above;
+                    instruments.fuelSettleCount = 0;
+                }
+                if (++instruments.fuelSettleCount >= FUEL_SETTLE_DWELL_CYCLES)
+                {
+                    settledX8 = smX8;
+                    instruments.fuelSettleCount = 0;
+                }
+            }
+        }
+
+        // ── Fuel burned via settled level ───────────────────────────────────
+        // burnedX8 in 1/8 L units; clamp to zero if the level somehow exceeds start.
         uint16_t startX8 = (uint16_t)instruments.fuelLevelStart * 8u;
-        uint16_t burnedX8 = (instruments.fuelLevelSmoothX8 < startX8)
-                                ? (startX8 - instruments.fuelLevelSmoothX8)
+        uint16_t burnedX8 = (instruments.fuelLevelSettledX8 < startX8)
+                                ? (startX8 - instruments.fuelLevelSettledX8)
                                 : 0u;
         computed.fuelBurnedSinceStart = (uint8_t)(burnedX8 >> 3u);
         computed.fuelBurnedSinceStartUpdated = true;
@@ -129,10 +158,10 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuA
                 : 0u;
         computed.fuelPerHourUpdated = true;
 
-        // ── kmRemaining: fuelLevelSmoothX8*125/fuelPer100km ──────────────────
+        // ── kmRemaining: fuelLevelSettledX8*125/fuelPer100km ─────────────────
         uint32_t kmR =
             (computed.fuelPer100km > 0u)
-                ? ((uint32_t)instruments.fuelLevelSmoothX8 * 125u / computed.fuelPer100km)
+                ? ((uint32_t)instruments.fuelLevelSettledX8 * 125u / computed.fuelPer100km)
                 : 0u;
         computed.kmRemaining = (uint16_t)(kmR > 9999u ? 9999u : kmR);
         computed.kmRemainingUpdated = true;

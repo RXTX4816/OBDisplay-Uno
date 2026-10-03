@@ -250,6 +250,89 @@ void test_fuelper100km_uses_smooth_distance()
                      signals.computed.fuelPer100km <= 91);
 }
 
+// Range and consumption must not follow tank slosh (#64). Speed 0 keeps the
+// trip fixed, so only the fuel level can move the results.
+static uint32_t fuelClockMs;
+
+static void driveFuelTrip(OBDSignals& s)
+{
+    fuelClockMs = 3600UL * 1000UL;
+    s.reset();
+    s.instruments.vehicleSpeed = 100;
+    s.instruments.fuelLevelStart = 40;
+    s.instruments.fuelLevelSmoothX8 = 30u * 8u; // 10 L burned
+    s.compute(0, 0, 0x17, 0);
+    s.compute(fuelClockMs, 0, 0x17, 0); // 100 km
+    s.instruments.vehicleSpeed = 0;
+}
+
+static void holdCompute(OBDSignals& s, uint16_t cycles)
+{
+    for (uint16_t i = 0; i < cycles; ++i)
+    {
+        fuelClockMs += 50;
+        s.compute(fuelClockMs, 0, 0x17, 0);
+    }
+}
+
+void test_range_and_consumption_ignore_fuel_slosh()
+{
+    OBDSignals signals;
+    driveFuelTrip(signals);
+    const uint16_t range = signals.computed.kmRemaining;
+    const uint16_t per100 = signals.computed.fuelPer100km;
+    TEST_ASSERT_EQUAL_UINT8(10, signals.computed.fuelBurnedSinceStart);
+    TEST_ASSERT_EQUAL_UINT16(100, per100); // 10 L / 100 km
+    TEST_ASSERT_EQUAL_UINT16(300, range);  // 30 L at 10 L/100km
+
+    // A corner drags the smoothed level 8 L down for 5 s: nothing moves.
+    signals.instruments.fuelLevelSmoothX8 = 22u * 8u;
+    holdCompute(signals, 100);
+    TEST_ASSERT_EQUAL_UINT16(range, signals.computed.kmRemaining);
+    TEST_ASSERT_EQUAL_UINT16(per100, signals.computed.fuelPer100km);
+    TEST_ASSERT_EQUAL_UINT8(10, signals.computed.fuelBurnedSinceStart);
+
+    // Back on the settled level for one sample restarts the dwell.
+    signals.instruments.fuelLevelSmoothX8 = 30u * 8u;
+    holdCompute(signals, 1);
+    signals.instruments.fuelLevelSmoothX8 = 22u * 8u;
+    holdCompute(signals, FUEL_SETTLE_DWELL_CYCLES - 1);
+    TEST_ASSERT_EQUAL_UINT16(range, signals.computed.kmRemaining);
+    TEST_ASSERT_EQUAL_UINT16(per100, signals.computed.fuelPer100km);
+}
+
+void test_range_follows_sustained_fuel_drop()
+{
+    OBDSignals signals;
+    driveFuelTrip(signals);
+
+    // 5 L really used: held below for the whole dwell, then adopted.
+    signals.instruments.fuelLevelSmoothX8 = 25u * 8u;
+    holdCompute(signals, FUEL_SETTLE_DWELL_CYCLES - 1);
+    TEST_ASSERT_EQUAL_UINT8(10, signals.computed.fuelBurnedSinceStart);
+    holdCompute(signals, 1);
+    TEST_ASSERT_EQUAL_UINT8(15, signals.computed.fuelBurnedSinceStart);
+    TEST_ASSERT_EQUAL_UINT16(150, signals.computed.fuelPer100km); // 15 L / 100 km
+    TEST_ASSERT_EQUAL_UINT16(166, signals.computed.kmRemaining);  // 25 L at 15 L/100km
+}
+
+void test_settled_fuel_restarts_dwell_when_side_changes()
+{
+    OBDSignals signals;
+    driveFuelTrip(signals);
+
+    // Below for most of the dwell, then above: neither side has lasted long enough.
+    signals.instruments.fuelLevelSmoothX8 = 28u * 8u;
+    holdCompute(signals, FUEL_SETTLE_DWELL_CYCLES - 1);
+    signals.instruments.fuelLevelSmoothX8 = 32u * 8u;
+    holdCompute(signals, FUEL_SETTLE_DWELL_CYCLES - 1);
+    TEST_ASSERT_EQUAL_UINT16(30u * 8u, signals.instruments.fuelLevelSettledX8);
+
+    // Refuel stays up: adopted after one more cycle.
+    holdCompute(signals, 1);
+    TEST_ASSERT_EQUAL_UINT16(32u * 8u, signals.instruments.fuelLevelSettledX8);
+}
+
 // ---- Warning tests ----
 
 static bool oilHot(const OBDSignals& s)
@@ -433,6 +516,9 @@ void runTests()
     RUN_TEST(test_speed_integration_accumulates_distance);
     RUN_TEST(test_fuel_ema_smooths_spike);
     RUN_TEST(test_fuelper100km_uses_smooth_distance);
+    RUN_TEST(test_range_and_consumption_ignore_fuel_slosh);
+    RUN_TEST(test_range_follows_sustained_fuel_drop);
+    RUN_TEST(test_settled_fuel_restarts_dwell_when_side_changes);
 
     // Warning tests
     RUN_TEST(test_oil_hot_not_raised_up_to_110);
