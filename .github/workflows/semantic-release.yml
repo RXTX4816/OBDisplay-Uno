@@ -1,15 +1,10 @@
 name: Semantic Release
 
-# Starts by itself when the CI workflow finishes on main, so pull requests never
-# show it. It only proceeds if CI passed on a push (i.e. a merge), and then waits
-# on the `release` environment: nothing is tagged until a required reviewer
-# approves it on the run page ("Review deployments"). Unapproved runs expire.
-# workflow_dispatch stays as a manual fallback; it waits for the same approval.
+# Started by hand (Actions -> Semantic Release -> Run workflow on main) when a
+# release is wanted, e.g. after testing in the car. It then waits on the
+# `release` environment: nothing is tagged until a required reviewer approves it
+# on the run page ("Review deployments"). Merges to main do not start it.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -19,17 +14,13 @@ jobs:
   semantic-release:
     name: Create Semantic Release
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push')
     environment: release
     steps:
-      # Tag exactly the commit CI tested, even if main moved on meanwhile.
+      # Tag the commit the run was started on, even if main moves on meanwhile.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
           token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Configure git

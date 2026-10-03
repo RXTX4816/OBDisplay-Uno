@@ -125,7 +125,7 @@ Every push to `main` runs three steps:
 2. **Build** — `pio run -e uno`, flash and RAM usage reported
 3. **Test** — `pio test -e native` (model layer unit tests)
 
-Releases are created via the **Semantic Release** workflow (Actions → Semantic Release → Run workflow). It reads conventional commits since the last tag and bumps the version (`feat:` → minor, `fix:` → patch, `BREAKING CHANGE:` → major), creates a tag, and triggers the **Release** workflow which uploads `firmware.hex` and `firmware.elf`.
+Releases are created via the **Semantic Release** workflow (Actions → Semantic Release → Run workflow). It reads conventional commits since the last tag and bumps the version (`feat:` → minor, `fix:` → patch, `BREAKING CHANGE:` → major), creates a tag, and triggers the **Release** workflow which uploads `firmware.hex` and `firmware.elf`. Merges to `main` never release on their own: start the workflow by hand when a build is ready (e.g. after testing in the car), then approve it under **Review deployments** on the run page.
 
 Wiki pages in `docs/wiki/` are automatically synced to the GitHub Wiki on each push to `main`.
 
