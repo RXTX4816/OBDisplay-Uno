@@ -43,13 +43,17 @@ The overlay alternates on/off at ~177 ms intervals. If multiple warnings fire si
 | 3 | CRIT | COOL HOT | Coolant > 93 °C | 0x17, 0x01 | 5 × 50 ms |
 | 3 | CRIT | OIL LVL | Oil level < 45 % | 0x17 | 5 × 50 ms |
 | 2 | CAUT | LOW VOLT | Battery voltage < 12.0 V | 0x01 | 3 × 30 ms |
-| 2 | CAUT | FUEL CRIT | Fuel < 4 L | 0x17 | 3 × 30 ms |
+| 2 | CAUT | FUEL CRIT | Fuel < 4 L for 10 s | 0x17 | 3 × 30 ms |
 | 2 | CAUT | VERY COLD | Coolant < 40 °C | 0x17, 0x01 | 3 × 30 ms |
 | 1 | ALRT | HIGH LOAD | Engine load > 90 % | 0x01 | silent |
-| 1 | ALRT | FUEL LOW | Fuel < 8 L | 0x17 | silent |
+| 1 | ALRT | FUEL LOW | Fuel < 8 L for 10 s | 0x17 | silent |
 | 1 | ALRT | COLD ENG | Coolant < 75 °C | 0x17, 0x01 | silent |
 
 Thresholds are set in `src/Config.h`. The overlay severity label shows the highest active level.
+
+Temperatures are signed, so sub-zero readings (e.g. −5 °C on a winter cold start) raise VERY COLD and COLD ENG, never COOL HOT.
+
+The fuel warnings ignore tank slosh: they read the smoothed fuel level, and it must stay below the threshold for `WARN_FUEL_DWELL_CYCLES` (200 cycles = 10 s) in a row before the warning fires; one reading above the threshold restarts the count. Once active, a fuel warning only clears when the level rises 1 L above the threshold (`WARN_FUEL_HYST_X8`), so a tank sitting right at the trip point does not replay the beep.
 
 With the optional [buzzer](Hardware-Setup#buzzer-optional) wired, the beep pattern plays once when a warning appears, 40 ms apart, and follows the highest level among the warnings that *just appeared*. For example, FUEL LOW appearing while OIL HOT is already active stays silent. Warnings that stay active or clear do not beep. The pattern blocks the main loop for its duration (≤ ~0.4 s), well inside the ECU timeout.
 
@@ -73,17 +77,21 @@ Four screens, navigated with UP/DOWN.
 99 C
 
 33 L
-20AIR
+450K
+8.3L
 ```
 
 | Row | Field | Format | Notes |
 |---|---|---|---|
 | 0 | Vehicle speed | `NNN` km/h | |
 | 1 | Engine RPM | `NNNN` | |
-| 2 | Oil temperature | `NN O` | Shows the number at ≥ 100 °C too (e.g. `105 O`) |
-| 3 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C |
+| 2 | Oil temperature | `NN O` | Shows the number at ≥ 100 °C too (e.g. `105 O`); negative below 0 °C (e.g. `-5 O`) |
+| 3 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C; negative below 0 °C |
 | 4 | Fuel level | `NN L` | Smoothed (EMA filtered) |
-| 5 | Ambient temperature | `NNAIR` | |
+| 5 | Estimated range | `NNNK` km | Shows `---` if no fuel consumption data |
+| 6 | Fuel consumption | `N.NL` L/100 km | Shows `0.0L` until driving |
+
+Range and consumption are calculated from a *settled* fuel level that ignores tank slosh (see [Range and consumption](#range-and-consumption-0x17)).
 
 **Screen 1** — second dashboard:
 
@@ -103,7 +111,7 @@ Four screens, navigated with UP/DOWN.
 | 1 | Oil temperature | `NN O` | Shows the number at ≥ 100 °C too (e.g. `105 O`) |
 | 2 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C |
 | 3 | Estimated range | `NNNK` km | Shows `---` if no fuel consumption data |
-| 4 | Fuel consumption | `N.NL` L/100 km | Shows `---` until driving |
+| 4 | Fuel consumption | `N.NL` L/100 km | Shows `0.0L` until driving |
 | 5 | Fuel level | `NN F` | Smoothed |
 | 6 | Oil level | `NN %` | ECU raw 0–255 mapped to 0–100 % |
 
@@ -118,11 +126,15 @@ Four vertical bars (fill from bottom):
 | L | Oil level % | 0–100 | 50 % |
 | F | Fuel level L | 0–`FUEL_TANK_MAX_LITERS` | 50 % |
 
-`FUEL_TANK_MAX_LITERS` defaults to 55 L; adjust in `Config.h` for your vehicle.
+`FUEL_TANK_MAX_LITERS` defaults to 55 L; adjust in `Config.h` for your vehicle. Temperatures below 0 °C show an empty bar.
 
 **Screen 3** — warning summary (small font):
 
 Lists every active warning as a two-word label (e.g. `OIL PRES`, `FUEL LOW`), or `ALL OK` if none are active. Updates at ~177 ms.
+
+#### Range and consumption (0x17)
+
+Fuel burned, L/100 km, L/h and km remaining are computed from the fuel level sensor. Cornering sloshes the tank and drops the sender reading by several litres, which would spike consumption and cut the range on every turn. These values therefore use a **settled** level: it only takes over the smoothed level after the smoothed level has stayed above or below it for `FUEL_SETTLE_DWELL_CYCLES` (200 cycles = 10 s) in a row. A corner is over long before that, so the readings stay put; real consumption or a refuel shows up after 10 s. The fuel level row itself still shows the smoothed value.
 
 ---
 

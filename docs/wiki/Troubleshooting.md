@@ -30,10 +30,12 @@
 
 ## Flash too full
 
-- The production build (`pio run -e uno`) typically runs at ~92–97% flash depending on feature state. The debug build (`uno_debug`) is larger.
+- The production build (`pio run -e uno`) is at ~97% flash, the debug build (`uno_debug`) at ~98%. The current numbers are in the README badges and in each release's memory report.
 - If you add features, monitor `pio run` output for flash/RAM percentages. RAM overflows cause silent crashes.
 - Disable `OBD_EXPERIMENTAL_SCREENS` if not needed — it saves meaningful flash.
 - `-fno-inline-small-functions` is **not safe** to add — it causes a stack overflow on the Settings screen.
+- Linker relaxation (`-Wl,--relax`) would save ~260 bytes but is **not safe** with this toolchain (avr-gcc 7.3 / binutils 2.26): combined with LTO and switch jump tables it can miscompile.
+- A build fails with a soft-float error if any `float`/`double` math is linked in. Rewrite it as fixed-point integer math.
 
 ## Upload fails / `avrdude` errors
 

@@ -47,7 +47,10 @@ src/
 |---|---|---|
 | `uno` | `pio run -e uno` | Production: smallest binary, all `DBG()` expanded to nothing |
 | `uno_debug` | `pio run -e uno_debug` | Debug build: binary frame logging over USB serial |
-| `native` | `pio test -e native` | Host-side model unit tests (no Arduino required) |
+| `native` | `pio test -e native` | Unit tests on the host (no Arduino required) |
+| `uno_sim` | `pio test -e uno_sim` | The same unit tests on a simulated ATmega328P (simavr) |
+
+The `uno` and `uno_debug` builds run `tools/check_no_float.py` after linking and fail if any AVR soft-float symbol ends up in the firmware (~600 bytes for a single float expression). Use fixed-point integer math instead.
 
 ## Build macros
 
@@ -109,7 +112,7 @@ The SH1107 driver uses a **text-only, on-demand rendering strategy** to stay wit
 
 - **No framebuffer** — renders directly over I2C, saving ~920 bytes
 - **Entry buffer** — up to 20 text entries (position + string) queued per frame
-- **Page-by-page rendering** — 128 px tall = 16 pages; rendered individually during flush
+- **Page-by-page rendering** — 128 px tall = 16 pages; rendered individually during flush. Small-font glyphs are written as whole column bytes and the 2× font as pre-doubled columns, so a flush costs little CPU time
 - **Batch I2C** — all writes grouped into 16-byte transfers (~16 transactions per full-screen update)
 - **Conditional refresh** — re-renders only on menu state change OR on the 177 ms timer
 
@@ -119,28 +122,46 @@ The SH1107 driver uses a **text-only, on-demand rendering strategy** to stay wit
 
 ## CI/CD
 
-Every push to `main` runs three steps:
+Every push and pull request runs three jobs:
 
 1. **Lint** — `clang-format` style check + `cppcheck` static analysis
-2. **Build** — `pio run -e uno`, flash and RAM usage reported
-3. **Test** — `pio test -e native` (model layer unit tests)
+2. **Build** — `pio run -e uno -e uno_debug`, flash and RAM usage reported. A debug image that no longer fits in flash fails CI.
+3. **Test** — `pio test -e native`, then `pio test -e uno_sim`
 
-Releases are created via the **Semantic Release** workflow (Actions → Semantic Release → Run workflow). It reads conventional commits since the last tag and bumps the version (`feat:` → minor, `fix:` → patch, `BREAKING CHANGE:` → major), creates a tag, and triggers the **Release** workflow which uploads `firmware.hex` and `firmware.elf`.
+### Releases
+
+After every merge to `main` whose CI passes, the **Semantic Release** workflow starts by itself and waits for approval in the `release` environment (a required reviewer approves it on the run page). It tags the exact commit CI tested, bumping the version from the conventional commits since the last tag (`feat:` → minor, `fix:` → patch, `BREAKING CHANGE:` → major). If there are no new commits it ends without a release. It can still be started by hand (Actions → Semantic Release → Run workflow), which waits for the same approval.
+
+The tag triggers the **Release** workflow, which builds `uno` and `uno_debug` and attaches:
+
+- `OBDisplay-Uno-<version>.hex` and `.elf`
+- `OBDisplay-Uno-<version>-memory.json` — RAM/flash usage of both builds (from `tools/memory_report.py`), also shown as a *Memory usage* table in the release notes
+
+It also force-pushes four shields.io badge files to the orphan `badges` branch; the RAM/flash badges in the README read from there and update on every release. That branch is never merged.
 
 Wiki pages in `docs/wiki/` are automatically synced to the GitHub Wiki on each push to `main`.
 
 ## Unit tests
 
-Tests live in `test/` and target the `native` environment (Linux x86, no Arduino dependency):
+Tests live in `test/`, one folder per suite:
 
-- `test_dtc_store.cpp` — DTCStore read/clear/overflow
-- `test_obd_signals.cpp` / `test_obd_signals_more.cpp` — sensor decode and signal computation
+| Suite | Covers |
+|---|---|
+| `test_model` | Signal computation, fuel smoothing, range and consumption, DTC store |
+| `test_warnings` | Warning thresholds, fuel dwell and hysteresis, sub-zero temperatures |
+| `test_kwp_decode` | KWP-1281 measurement decoding for both ECUs |
+| `test_menu` | Menu and screen navigation |
+| `test_display_render` | Font renderers and page buffers |
+| `test_display_screens` | Cockpit and other screen layouts |
 
-Run with:
+Every suite runs in two places:
 
 ```bash
-pio test -e native
+pio test -e native    # host: fast, easy to debug
+pio test -e uno_sim   # simulated Uno: 16-bit int, avr-libc, real PROGMEM
 ```
+
+The host has 32-bit `int`, treats `PROGMEM` as plain memory and does floats in hardware, so bugs like fixed-point overflow or a flash table read without `pgm_read_*` only show up on `uno_sim`. It builds each suite with the production compiler flags and runs it under simavr (installed by PlatformIO as `tool-simavr`). A run is capped at 180 s, so a hang or stack overflow fails the suite instead of stalling CI. `test/unity_runner.h` provides the shared entry point (`main()` on the host, `setup()` on AVR).
 
 Or locally with the CI script:
 

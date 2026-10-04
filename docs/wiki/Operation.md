@@ -26,7 +26,7 @@ Cockpit  ←→  Experimental  ←→  Debug  ←→  DTC  ←→  Settings
 
 | Screen | Content |
 |---|---|
-| 0 | Main dashboard: speed, RPM, oil temp, coolant, fuel level, ambient |
+| 0 | Main dashboard: speed, RPM, oil temp, coolant, fuel level, km remaining, L/100km |
 | 1 | Second dashboard: speed, oil/coolant temps, km remaining, L/100km, fuel level, oil level % |
 | 2 | Bar gauges: coolant °C, oil temp °C, oil level %, fuel L |
 | 3 | Warning summary: lists all active warnings, or ALL OK |
