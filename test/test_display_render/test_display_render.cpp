@@ -211,6 +211,20 @@ void test_signal_fields_without_signals_print_zero()
     endFrame();
 }
 
+// The simulated bus has no OLED: every address byte is NACKed, which the driver
+// must treat as a failed frame (reset bus + OLED, retry once, count it) and
+// still finish in bounded time instead of hanging the firmware.
+void test_flush_without_display_finishes_and_counts_error()
+{
+    const uint8_t before = ::Display::i2cErrors();
+    const uint32_t start = millis();
+    beginFrame();
+    display.print(0, 0, "x");
+    endFrame();
+    TEST_ASSERT_TRUE(millis() - start < 200);
+    TEST_ASSERT_TRUE(before == 255 || ::Display::i2cErrors() > before);
+}
+
 void runTests()
 {
     RUN_TEST(test_print_places_text_on_column_grid);
@@ -226,6 +240,7 @@ void runTests()
     RUN_TEST(test_every_screen_vm_opcode);
     RUN_TEST(test_mode_string_for_each_kwp_mode);
     RUN_TEST(test_signal_fields_without_signals_print_zero);
+    RUN_TEST(test_flush_without_display_finishes_and_counts_error);
 }
 
 UNITY_SUITE_MAIN()

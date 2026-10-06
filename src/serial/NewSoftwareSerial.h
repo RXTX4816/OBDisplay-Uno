@@ -13,6 +13,9 @@
 class NewSoftwareSerial
 {
   private:
+#ifdef PIO_UNIT_TESTING
+    friend struct SoftSerialTestAccess; // test/test_kwp_receive fills the RX buffer
+#endif
     uint8_t _receivePin;
     uint8_t _receiveBitMask;
     volatile uint8_t* _receivePortRegister;

@@ -102,6 +102,8 @@ static int32_t getFieldInt(FieldId fid, const ScreenCtx& ctx)
             return d ? (int32_t)d->attempts : 0;
         case FLD_DBG_RAM:
             return d ? (int32_t)d->freeRam : 0;
+        case FLD_DBG_I2C:
+            return d ? (int32_t)d->i2cErrors : 0;
         // Context
         case FLD_KWP_MODE:
             return (int32_t)ctx.kwpMode;

@@ -390,6 +390,7 @@ void OBDDisplay::updateDisplay_()
                 di.baud = baudRate_;
                 di.group = kwpGroup_;
                 di.freeRam = freeRam_();
+                di.i2cErrors = ::Display::i2cErrors();
                 display_.renderDebug(di, static_cast<int>(kwpMode_));
                 break;
             }
