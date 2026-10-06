@@ -52,7 +52,7 @@ static void twiByte(uint8_t b, uint8_t expectStatus)
 static void twiStart(uint8_t addr)
 {
     if (twiStep((1 << TWINT) | (1 << TWSTA) | (1 << TWEN), 0x08)) // START sent
-        twiByte((uint8_t)(addr << 1), 0x18);                       // SLA+W, ACK
+        twiByte((uint8_t)(addr << 1), 0x18);                      // SLA+W, ACK
 }
 
 static void twiWrite(uint8_t b)
@@ -82,17 +82,17 @@ static void twiStop()
 static void twiRecover()
 {
     TWCR = 0;
-    PORTC &= (uint8_t) ~((1 << PC4) | (1 << PC5));
+    PORTC &= (uint8_t)~((1 << PC4) | (1 << PC5));
     for (uint8_t i = 0; i < 9; ++i)
     {
         DDRC |= (1 << PC5);
         delayMicroseconds(5);
-        DDRC &= (uint8_t) ~(1 << PC5);
+        DDRC &= (uint8_t)~(1 << PC5);
         delayMicroseconds(5);
     }
     DDRC |= (1 << PC4); // SDA low while SCL high: START
     delayMicroseconds(5);
-    DDRC &= (uint8_t) ~(1 << PC4); // SDA released while SCL high: STOP
+    DDRC &= (uint8_t)~(1 << PC4); // SDA released while SCL high: STOP
     delayMicroseconds(5);
     twiInit();
     twiOk = true;
