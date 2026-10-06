@@ -82,17 +82,17 @@ static void twiStop()
 static void twiRecover()
 {
     TWCR = 0;
-    PORTC &= (uint8_t)~((1 << PC4) | (1 << PC5));
+    PORTC &= ~((1 << PC4) | (1 << PC5));
     for (uint8_t i = 0; i < 9; ++i)
     {
         DDRC |= (1 << PC5);
         delayMicroseconds(5);
-        DDRC &= (uint8_t)~(1 << PC5);
+        DDRC &= ~(1 << PC5);
         delayMicroseconds(5);
     }
     DDRC |= (1 << PC4); // SDA low while SCL high: START
     delayMicroseconds(5);
-    DDRC &= (uint8_t)~(1 << PC4); // SDA released while SCL high: STOP
+    DDRC &= ~(1 << PC4); // SDA released while SCL high: STOP
     delayMicroseconds(5);
     twiInit();
     twiOk = true;
