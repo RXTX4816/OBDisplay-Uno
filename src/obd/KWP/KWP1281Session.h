@@ -43,6 +43,9 @@ class KWP1281Session
     const char (*ecuLinesData() const)[11] { return ecuLines_; }
 
   private:
+#ifdef PIO_UNIT_TESTING
+    friend struct KwpTestAccess; // test/test_kwp_receive drives receiveBlock_()
+#endif
     NewSoftwareSerial& obd_;
     uint8_t txPin_;
     uint16_t baudRate_;

@@ -57,6 +57,9 @@ class Display
     void drawBar(uint8_t x, uint8_t y, uint8_t w, uint8_t h);
     void drawBarClear(uint8_t x, uint8_t y, uint8_t w, uint8_t h);
 
+    // Frames that hit an I2C error and were recovered since boot (saturates at 255).
+    static uint8_t i2cErrors();
+
     static constexpr uint8_t WIDTH = 64; // portrait pixels
     static constexpr uint8_t HEIGHT = 128;
     static constexpr uint8_t COLS = 10; // 64 / 6 ≈ 10 text columns
@@ -79,6 +82,7 @@ class Display
 
     void drawCharToPage(uint8_t x, char c, uint8_t* pageBuf);
     void drawChar2xToPage(uint8_t x, uint8_t y, char c, uint8_t page, uint8_t* pageBuf);
+    void sendFrame();
     void addTextEntry(uint8_t x, uint8_t line, const char* text, uint8_t scale = 1);
     void markDirty()
     {

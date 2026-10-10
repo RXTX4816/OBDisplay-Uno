@@ -9,6 +9,14 @@ constexpr uint8_t OLED_I2C_ADDR = 0x3C;
 
 // Minimal blocking TWI driver — master TX only, single fixed address.
 // Replaces Arduino Wire (~1.3 KB) for write-only OLED communication.
+//
+// Every wait is bounded and every step checks the TWI status: noise on long
+// SDA/SCL wires can leave TWINT unset forever or NACK a byte. The first failure
+// sets twiOk = false and turns the rest of the transfer into no-ops; flush()
+// then resets the bus and the OLED and sends the frame again.
+static bool twiOk = true;
+static uint8_t twiErrors = 0; // failed frames since boot, saturating
+
 static void twiInit()
 {
     PORTC |= (1 << PC4) | (1 << PC5); // pull-ups on SDA/SCL
@@ -16,33 +24,78 @@ static void twiInit()
     TWBR = 72;                        // 100 kHz @ 16 MHz: (16e6/100e3 - 16) / 2
 }
 
-static void twiWait()
+// Start one TWI action and wait for it; ~30 ms timeout (one byte takes ~90 µs).
+static bool twiStep(uint8_t ctrl, uint8_t expectStatus)
 {
+    if (!twiOk)
+        return false;
+    TWCR = ctrl;
+    uint16_t n = 0;
     while (!(TWCR & (1 << TWINT)))
-        ;
+    {
+        if (--n == 0)
+            return twiOk = false;
+    }
+    if ((TWSR & 0xF8) != expectStatus)
+        twiOk = false;
+    return twiOk;
+}
+
+static void twiByte(uint8_t b, uint8_t expectStatus)
+{
+    if (!twiOk)
+        return;
+    TWDR = b;
+    twiStep((1 << TWINT) | (1 << TWEN), expectStatus);
 }
 
 static void twiStart(uint8_t addr)
 {
-    TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN);
-    twiWait();
-    TWDR = (uint8_t)(addr << 1); // write direction
-    TWCR = (1 << TWINT) | (1 << TWEN);
-    twiWait();
+    if (twiStep((1 << TWINT) | (1 << TWSTA) | (1 << TWEN), 0x08)) // START sent
+        twiByte((uint8_t)(addr << 1), 0x18);                      // SLA+W, ACK
 }
 
 static void twiWrite(uint8_t b)
 {
-    TWDR = b;
-    TWCR = (1 << TWINT) | (1 << TWEN);
-    twiWait();
+    twiByte(b, 0x28); // data, ACK
 }
 
 static void twiStop()
 {
+    if (!twiOk)
+        return;
     TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWSTO);
+    uint16_t n = 0;
     while (TWCR & (1 << TWSTO))
-        ;
+    {
+        if (--n == 0)
+        {
+            twiOk = false;
+            return;
+        }
+    }
+}
+
+// Free a bus left mid-byte: hand the pins back from the TWI unit, clock SCL 9×
+// so a slave holding SDA low finishes its byte, then send START + STOP.
+// Pins are driven open-drain: PORT bit 0, DDR selects low (1) or released (0).
+static void twiRecover()
+{
+    TWCR = 0;
+    PORTC &= ~((1 << PC4) | (1 << PC5));
+    for (uint8_t i = 0; i < 9; ++i)
+    {
+        DDRC |= (1 << PC5);
+        delayMicroseconds(5);
+        DDRC &= ~(1 << PC5);
+        delayMicroseconds(5);
+    }
+    DDRC |= (1 << PC4); // SDA low while SCL high: START
+    delayMicroseconds(5);
+    DDRC &= ~(1 << PC4); // SDA released while SCL high: STOP
+    delayMicroseconds(5);
+    twiInit();
+    twiOk = true;
 }
 
 // SH1107 initialization sequence (from U8g2 driver, proven working).
@@ -174,14 +227,14 @@ void writeCmd(uint8_t c)
     twiStop();
 }
 
-void sendInit()
+// cmdDelayMs: 5 at boot for stability; 0 when re-initializing after a bus error.
+void sendInit(uint8_t cmdDelayMs)
 {
     for (uint8_t i = 0; i < sizeof(kInit); ++i)
     {
         writeCmd(pgm_read_byte(&kInit[i]));
-        delay(5); // Per-command delay for stability
+        delay(cmdDelayMs);
     }
-    delay(200); // Post-init stabilization
 }
 
 } // namespace
@@ -198,7 +251,8 @@ void Display::begin()
     delay(100);
 
     DBG(DBG_DISP_SEQ);
-    sendInit();
+    sendInit(5);
+    delay(200); // Post-init stabilization
     DBG(DBG_DISP_INIT_DONE);
 
     delay(500); // Extra stabilization time
@@ -400,6 +454,29 @@ void Display::flush()
     if (!dirty_)
         return;
 
+    // A bus error aborts the frame: reset the bus and the OLED (it may have taken
+    // stray bytes as commands and shifted its addressing), then send it once more.
+    for (uint8_t attempt = 0; attempt < 2; ++attempt)
+    {
+        sendFrame();
+        if (twiOk)
+            break;
+        if (twiErrors < 255)
+            ++twiErrors;
+        twiRecover();
+        sendInit(0);
+    }
+
+    dirty_ = false;
+}
+
+uint8_t Display::i2cErrors()
+{
+    return twiErrors;
+}
+
+void Display::sendFrame()
+{
     // Render page-by-page
     for (uint8_t page = 0; page < 16; ++page)
     {
@@ -483,6 +560,4 @@ void Display::flush()
             twiStop();
         }
     }
-
-    dirty_ = false;
 }

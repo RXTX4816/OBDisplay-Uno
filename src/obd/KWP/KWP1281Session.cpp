@@ -115,22 +115,29 @@ bool KWP1281Session::receiveBlock_(uint8_t s[], int maxsize, int& size, int sour
     unsigned long timeout = millis() + timeoutMs_;
     uint16_t tempIterationCounter = 0;
     uint8_t temp0x0FCounter = 0; // For communication errors in startup procedure (1200 baud)
+    const bool lowBaudInit =
+        (baudRate_ == 1200 || baudRate_ == 2400 || baudRate_ == 4800) && initializationPhase;
 
     while ((recvCount == 0) || (recvCount != size))
     {
-        while (obd_.available())
+        // Stop draining at the end of the block: bytes after it (line noise, the
+        // ECU's next block) must not be appended to this one. The low-baud init
+        // resync below relies on reading past the end, so it keeps draining.
+        while ((lowBaudInit || (recvCount == 0) || (recvCount != size)) && obd_.available())
         {
             int16_t data = readByte_();
             if (data == -1)
             {
                 return false;
             }
-            s[recvCount] = (uint8_t)data;
+            // The low-baud init resync below counts bytes past maxsize; never
+            // store them, s[] has only maxsize slots.
+            if (recvCount < maxsize)
+                s[recvCount] = (uint8_t)data;
             ++recvCount;
 
             // 1200/2400/4800 baud init-phase fix, mirrored from original
-            if ((baudRate_ == 1200 || baudRate_ == 2400 || baudRate_ == 4800) &&
-                initializationPhase && (recvCount > maxsize))
+            if (lowBaudInit && (recvCount > maxsize))
             {
                 if (data == 0x55)
                 {

@@ -354,13 +354,15 @@ void test_experimental_jump_view()
 
 void test_debug_screen()
 {
-    DebugInfo di{1, 255, 255, 255, 0x17, 10400, 255, -32768};
+    DebugInfo di{1, 255, 255, 255, 0x17, 10400, 255, -32768, 255};
     beginFrame();
     renderDebugScreen(dm, di, 1);
     assertLayout(PSTR("debug"));
     EXPECT_TEXT(small(4, 5), "0x17");
     EXPECT_TEXT(small(5, 6), "10400");
     EXPECT_TEXT(small(4, 3), "Sensor");
+    EXPECT_TEXT(small(0, 9), "I2C:");
+    EXPECT_TEXT(small(4, 9), "255");
     endFrame();
 }
 

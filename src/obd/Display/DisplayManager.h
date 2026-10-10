@@ -24,6 +24,7 @@ struct DebugInfo
     uint16_t baud;     // baud rate selected
     uint8_t group;     // current KWP group
     int16_t freeRam;   // estimated free RAM (bytes)
+    uint8_t i2cErrors; // recovered OLED I2C errors since boot (::Display::i2cErrors)
 };
 
 class DisplayManager
