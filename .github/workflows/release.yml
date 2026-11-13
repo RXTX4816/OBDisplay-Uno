@@ -1,6 +1,6 @@
 name: Release
 
-# Started by the tag that semantic-release.yml pushes after approval.
+# Started by the tag that a manual Semantic Release run (semantic-release.yml) pushes.
 on:
   push:
     tags:

@@ -130,7 +130,7 @@ Every push and pull request runs three jobs:
 
 ### Releases
 
-After every merge to `main` whose CI passes, the **Semantic Release** workflow starts by itself and waits for approval in the `release` environment (a required reviewer approves it on the run page). It tags the exact commit CI tested, bumping the version from the conventional commits since the last tag (`feat:` → minor, `fix:` → patch, `BREAKING CHANGE:` → major). If there are no new commits it ends without a release. It can still be started by hand (Actions → Semantic Release → Run workflow), which waits for the same approval.
+Releases are started by hand; merging to `main` does not release anything. Open Actions → **Semantic Release** → **Run workflow** on `main`, or run `gh workflow run semantic-release.yml -R RXTX4816/OBDisplay-Uno -f dry_run=false`. The **dry run** box is checked by default: such a run only writes the next version and the commits since the last tag to the run summary, without tagging (`gh workflow run semantic-release.yml -R RXTX4816/OBDisplay-Uno` does the same). With it unchecked, the tip of `main` is tagged, bumping the version from the conventional commits since the last tag (`feat:` → minor, `fix:` → patch, `BREAKING CHANGE:` → major). The tagging job runs in the `release` environment, so a required reviewer configured there still has to approve it on the run page. It refuses to run if CI has not passed on that commit yet, and ends without a release if there are no new commits.
 
 The tag triggers the **Release** workflow, which builds `uno` and `uno_debug` and attaches:
 
