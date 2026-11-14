@@ -1,45 +1,72 @@
 name: Semantic Release
 
-# Starts by itself when the CI workflow finishes on main, so pull requests never
-# show it. It only proceeds if CI passed on a push (i.e. a merge), and then waits
-# on the `release` environment: nothing is tagged until a required reviewer
-# approves it on the run page ("Review deployments"). Unapproved runs expire.
-# workflow_dispatch stays as a manual fallback; it waits for the same approval.
+# Releases are started by hand: Actions → Semantic Release → Run workflow (on
+# main), or `gh workflow run semantic-release.yml -f dry_run=false`. Nothing
+# runs on a merge.
+#
+# The version job refuses any ref other than main and any commit without a
+# successful CI run, computes the next version from the conventional commits
+# since the last tag and writes both to the run summary. With "dry run" checked (the default) it stops there. Unchecked, the
+# tag job tags the tip of main, which starts the Release workflow. The tag job
+# runs in the `release` environment, so its protection rules (e.g. a required
+# reviewer, approved via "Review deployments") still apply.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run (only show the next version and changelog, do not tag)
+        type: boolean
+        default: true
+
+concurrency:
+  group: semantic-release
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
+  actions: read
 
 jobs:
-  semantic-release:
-    name: Create Semantic Release
+  version:
+    name: Determine next version
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push')
-    environment: release
+    outputs:
+      next_version: ${{ steps.version.outputs.next_version }}
+      change_type: ${{ steps.version.outputs.change_type }}
+      sha: ${{ steps.version.outputs.sha }}
     steps:
-      # Tag exactly the commit CI tested, even if main moved on meanwhile.
+      - name: Require main
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::Releases are only made from main, this run was started on $REF."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-          token: ${{ secrets.RELEASE_TOKEN }}
 
-      - name: Configure git
+      # Only release a commit CI has passed on.
+      - name: Require a successful CI run on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
+          SHA=$(git rev-parse HEAD)
+          OK=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$SHA&branch=main&status=success&per_page=1" \
+            --jq '.total_count')
+          if [ "$OK" = "0" ]; then
+            echo "::error::No successful CI run on main for $SHA (yet). Wait for CI to finish (or run it by hand), then start the release again."
+            exit 1
+          fi
 
       - name: Determine next version
         id: version
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
+          SHA=$(git rev-parse HEAD)
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "NONE")
           echo "Last tag: $LAST_TAG"
 
@@ -55,21 +82,24 @@ jobs:
             echo "$p" | grep -qE '^[0-9]+$'
           }
 
+          if [ "$LAST_TAG" = "NONE" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${LAST_TAG}..HEAD"
+          fi
+
           if [ "$LAST_TAG" = "NONE" ] || ! is_semver "$LAST_TAG"; then
             NEXT_VERSION="v1.0.0"
             CHANGE_TYPE="initial"
             echo "No valid semver tag found (last: $LAST_TAG) — bootstrapping at $NEXT_VERSION"
           else
-            COMMITS=$(git log "${LAST_TAG}..HEAD" --format='%s')
+            COMMITS=$(git log "$RANGE" --format='%s')
 
             if [ -z "$COMMITS" ]; then
               echo "No commits since $LAST_TAG. Nothing to release."
-              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "### Nothing to release — \`$SHA\` is already tagged \`$LAST_TAG\`" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
-
-            echo "Commits since $LAST_TAG:"
-            echo "$COMMITS"
 
             MAJOR=$(echo "$LAST_TAG" | cut -d. -f1 | sed 's/v//')
             MINOR=$(echo "$LAST_TAG" | cut -d. -f2)
@@ -87,32 +117,56 @@ jobs:
             fi
           fi
 
-          echo "Next version: $NEXT_VERSION ($CHANGE_TYPE)"
-          echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-          echo "change_type=$CHANGE_TYPE" >> "$GITHUB_OUTPUT"
-
-      - name: Check if tag already exists
-        id: tag-check
-        if: steps.version.outputs.skip != 'true'
-        run: |
-          VERSION="${{ steps.version.outputs.next_version }}"
-          if git rev-parse "$VERSION" >/dev/null 2>&1; then
-            echo "Tag $VERSION already exists, skipping"
-            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/$NEXT_VERSION" >/dev/null; then
+            echo "::error::Tag $NEXT_VERSION already exists."
+            exit 1
           fi
 
+          CHANGELOG=$(git log "$RANGE" --format='- %s (%h)')
+          echo "Next version: $NEXT_VERSION ($CHANGE_TYPE)"
+          echo "Commits since $LAST_TAG:"
+          echo "$CHANGELOG"
+
+          {
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "### Dry run: next release would be \`$NEXT_VERSION\` ($CHANGE_TYPE)"
+              echo
+              echo "Nothing was tagged. Run the workflow again with *dry run* unchecked to release."
+            else
+              echo "### Releasing \`$NEXT_VERSION\` ($CHANGE_TYPE)"
+              echo
+              echo "The tag is created by the *Create tag* job in the \`release\` environment."
+            fi
+            echo
+            echo "Commit \`$SHA\`, commits since \`$LAST_TAG\`:"
+            echo
+            echo "$CHANGELOG"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "change_type=$CHANGE_TYPE" >> "$GITHUB_OUTPUT"
+          if [ "$DRY_RUN" != "true" ]; then
+            echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+  tag:
+    name: Create tag
+    needs: version
+    if: needs.version.outputs.next_version != '' && !inputs.dry_run
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
       - name: Create and push tag
-        if: steps.tag-check.outputs.tag_exists == 'false'
         env:
-          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
-          CHANGE_TYPE: ${{ steps.version.outputs.change_type }}
+          NEXT_VERSION: ${{ needs.version.outputs.next_version }}
+          CHANGE_TYPE: ${{ needs.version.outputs.change_type }}
+          SHA: ${{ needs.version.outputs.sha }}
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          SHA=$(git rev-parse HEAD)
+          # RELEASE_TOKEN (a PAT) rather than GITHUB_TOKEN, so the tag push
+          # triggers release.yml.
           gh api repos/${{ github.repository }}/git/refs \
             --method POST \
             -f ref="refs/tags/${NEXT_VERSION}" \
             -f sha="${SHA}"
-          echo "Created tag $NEXT_VERSION ($CHANGE_TYPE) — release.yml will trigger automatically"
+          echo "Created tag $NEXT_VERSION ($CHANGE_TYPE) on $SHA — release.yml will trigger automatically"
