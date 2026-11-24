@@ -7,6 +7,8 @@
 #include "obd/Model/DTCStore.h"
 #include "Config.h"
 
+#include <string.h>
+
 using namespace obd::Model;
 
 // ---- OBDSignals tests ----
@@ -40,6 +42,25 @@ void test_compute_realistic_trip()
     // fuelPer100km ×10: 5L/100km → 50
     TEST_ASSERT_TRUE(signals.computed.fuelPer100km >= 45 &&
                      signals.computed.fuelPer100km <= 55);
+}
+
+// reset() clears with memset (far smaller than assigning default-constructed
+// temporaries on AVR). A non-zero default added to one of these structs must
+// show up here. Static: zero-initialised padding, so memcmp is exact on host.
+static OBDSignals freshSignals;
+
+void test_signals_reset_restores_every_default()
+{
+    static OBDSignals s;
+    memset(&s.instruments, 0x5A, sizeof s.instruments);
+    memset(&s.engine, 0x5A, sizeof s.engine);
+    memset(&s.computed, 0x5A, sizeof s.computed);
+    memset(&s.warnings, 0x5A, sizeof s.warnings);
+    s.reset();
+    TEST_ASSERT_EQUAL_MEMORY(&freshSignals.instruments, &s.instruments, sizeof s.instruments);
+    TEST_ASSERT_EQUAL_MEMORY(&freshSignals.engine, &s.engine, sizeof s.engine);
+    TEST_ASSERT_EQUAL_MEMORY(&freshSignals.computed, &s.computed, sizeof s.computed);
+    TEST_ASSERT_EQUAL_MEMORY(&freshSignals.warnings, &s.warnings, sizeof s.warnings);
 }
 
 // ---- DTCStore tests ----
@@ -510,6 +531,7 @@ void runTests()
 {
     // OBDSignals tests
     RUN_TEST(test_signals_reset_clears_all_values);
+    RUN_TEST(test_signals_reset_restores_every_default);
     RUN_TEST(test_signals_zero_time_elapsed);
     RUN_TEST(test_compute_realistic_trip);
     RUN_TEST(test_signals_fuel_consumption_calculation);

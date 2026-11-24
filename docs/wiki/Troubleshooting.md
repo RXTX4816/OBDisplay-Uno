@@ -35,6 +35,7 @@
 - Disable `OBD_EXPERIMENTAL_SCREENS` if not needed — it saves meaningful flash.
 - `-fno-inline-small-functions` is **not safe** to add — it causes a stack overflow on the Settings screen.
 - Linker relaxation (`-Wl,--relax`) would save ~260 bytes but is **not safe** with this toolchain (avr-gcc 7.3 / binutils 2.26): combined with LTO and switch jump tables it can miscompile.
+- Assigning a default-constructed temporary (`x = Struct{}`) emits a second copy of the struct's constructor; for the signal structs that was ~340 bytes. `OBDSignals::reset()` clears them with `memset` instead.
 - A build fails with a soft-float error if any `float`/`double` math is linked in. Rewrite it as fixed-point integer math.
 
 ## Upload fails / `avrdude` errors

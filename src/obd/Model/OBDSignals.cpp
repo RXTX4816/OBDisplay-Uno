@@ -2,6 +2,8 @@
 #include "OBDSignals.h"
 #include "../../Config.h"
 
+#include <string.h>
+
 namespace obd
 {
 namespace Model
@@ -37,11 +39,16 @@ void ExperimentalGroup::invertGroupSide()
 
 void OBDSignals::reset()
 {
-    instruments = InstrumentSignals{};
-    engine = EngineSignals{};
+    // memset instead of assigning default-constructed temporaries: on AVR
+    // that emitted a second copy of each constructor (~340 bytes of flash).
+    // Every default in these structs is zero except engine.bitsAsString;
+    // test_signals_reset_restores_every_default catches a new non-zero one.
+    memset(&instruments, 0, sizeof instruments);
+    memset(&engine, 0, sizeof engine);
+    memset(engine.bitsAsString, ' ', sizeof engine.bitsAsString - 1);
     experimental.reset();
-    computed = ComputedStats{};
-    warnings = WarningState{};
+    memset(&computed, 0, sizeof computed);
+    memset(&warnings, 0, sizeof warnings);
     prevComputeMs_ = 0xFFFFFFFFu;
     tripDistAccum_ = 0;
     fuelBurnAccum01_ = 0;
