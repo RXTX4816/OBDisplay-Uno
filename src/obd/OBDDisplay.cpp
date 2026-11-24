@@ -270,6 +270,8 @@ void OBDDisplay::computeValues_()
 {
     signals_.compute(millis(), connectTimeStart_, addrSelected_, fuelStartL_);
     signals_.computeWarnings(addrSelected_);
+    if (addrSelected_ == 0x17)
+        saveFuelFloor_();
     if (signals_.warnings.hasNew)
     {
         signals_.warnings.hasNew = false;

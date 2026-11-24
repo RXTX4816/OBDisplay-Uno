@@ -2,6 +2,8 @@
 #include "OBDSignals.h"
 #include "../../Config.h"
 
+#include <string.h>
+
 namespace obd
 {
 namespace Model
@@ -37,11 +39,17 @@ void ExperimentalGroup::invertGroupSide()
 
 void OBDSignals::reset()
 {
-    instruments = InstrumentSignals{};
-    engine = EngineSignals{};
+    // memset instead of assigning default-constructed temporaries: on AVR
+    // that emitted a second copy of each constructor (~340 bytes of flash).
+    // Every default in these structs is zero except engine.bitsAsString;
+    // test_signals_reset_restores_every_default catches a new non-zero one.
+    memset(&instruments, 0, sizeof instruments);
+    memset(&engine, 0, sizeof engine);
+    memset(engine.bitsAsString, ' ', sizeof engine.bitsAsString - 1);
     experimental.reset();
-    computed = ComputedStats{};
-    warnings = WarningState{};
+    memset(&computed, 0, sizeof computed);
+    memset(&warnings, 0, sizeof warnings);
+    memset(&fuelFloor, 0, sizeof fuelFloor);
     prevComputeMs_ = 0xFFFFFFFFu;
     tripDistAccum_ = 0;
     fuelBurnAccum01_ = 0;
@@ -67,8 +75,13 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuA
         prevComputeMs_ = nowMs;
         // tripDistAccum_ in units of km/h × ms; 36000 km/h·ms = 0.01 km
         tripDistAccum_ += (uint32_t)instruments.vehicleSpeed * deltaMs;
-        computed.tripDistance100 += tripDistAccum_ / 36000u;
+        // One 50 ms cycle covers well under 1 km: the step fits 16 bits.
+        uint16_t step = (uint16_t)(tripDistAccum_ / 36000u);
         tripDistAccum_ %= 36000u;
+        computed.tripDistance100 += step;
+        // No overflow check: the tank is dry long before 655 km past the floor.
+        if (fuelFloor.active())
+            fuelFloor.dist100 += step;
     }
     computed.elapsedKmSinceStart = (uint16_t)(computed.tripDistance100 / 100u);
     computed.elapsedKmSinceStartUpdated = true;
@@ -83,6 +96,10 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuA
         if (instruments.fuelLevelUpdated)
         {
             uint16_t newX8 = (uint16_t)instruments.fuelLevel << 3u;
+            // 0 = no reading yet (seed poll at connect failed): take the first
+            // one as is instead of climbing from 0 through the fuel floor.
+            if (instruments.fuelLevelSmoothX8 == 0u)
+                instruments.fuelLevelSmoothX8 = newX8;
             int16_t delta = (int16_t)newX8 - (int16_t)instruments.fuelLevelSmoothX8;
             int16_t step = (delta < 0) ? (delta >> 6) : (delta >> 5);
             if (step == 0 && delta != 0)
@@ -120,6 +137,20 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuA
             }
         }
 
+        // ── Fuel floor: enter at FUEL_FLOOR_L, leave on refuel ──────────────
+        // settled - 1 < (FUEL_FLOOR_L + 1) × 8 - 1 also skips 0 (not known yet).
+        FuelFloor& ff = fuelFloor;
+        uint16_t fuelX8 = instruments.fuelLevelSettledX8;
+        {
+            bool active = ff.active();
+            if (active ? fuelX8 >= FUEL_FLOOR_EXIT_L * 8u
+                       : (uint16_t)(fuelX8 - 1u) < (FUEL_FLOOR_L + 1u) * 8u - 1u)
+            {
+                ff.dist100 = active ? 0u : 1u;
+                ff.per100 = 0u;
+            }
+        }
+
         // ── Fuel burned via settled level ───────────────────────────────────
         // burnedX8 in 1/8 L units; clamp to zero if the level somehow exceeds start.
         uint16_t startX8 = (uint16_t)instruments.fuelLevelStart * 8u;
@@ -135,10 +166,12 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuA
         // you need 10 km before consuming a full sensor step, so shorter trips yield
         // nonsensical values (e.g. 1 L sensor noise over 1 km → 100+ L/100km).
         // Capped at 300 (30.0 L/100km) as a safety net for any edge-case transient.
+        bool measured = false; // trip-based value, not the momentary RPM estimate
         if (burnedX8 > 0u && computed.tripDistance100 > 1000u)
         {
             uint16_t candidate = (uint16_t)((uint32_t)burnedX8 * 12500u / computed.tripDistance100);
             computed.fuelPer100km = (candidate > 300u) ? 300u : candidate;
+            measured = true;
         }
         else if (instruments.vehicleSpeed > 17u)
         {
@@ -149,6 +182,20 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuA
         {
             computed.fuelPer100km = 0u;
         }
+        // At the floor the sender no longer drops, so the live value would fall
+        // with every km. Freeze the measured value (or the default), and count
+        // the fuel down from FUEL_FLOOR_L by distance instead of the sender.
+        if (ff.active())
+        {
+            if (ff.per100 == 0u)
+                ff.per100 = measured ? computed.fuelPer100km : FUEL_FLOOR_DEFAULT_PER100;
+            computed.fuelPer100km = ff.per100;
+            // 12500 / per100 = km ×100 per 1/8 L; 16-bit only. per100 is
+            // 1..300 here (resumeFuelFloor rejects more), so it never divides by 0.
+            uint16_t usedX8 = ff.dist100 / (12500u / ff.per100);
+            fuelX8 = (usedX8 < FUEL_FLOOR_L * 8u) ? (uint16_t)(FUEL_FLOOR_L * 8u - usedX8) : 0u;
+            ff.leftX8 = (uint8_t)fuelX8;
+        }
         computed.fuelPer100kmUpdated = true;
 
         // ── fuelPerHour ×10: burnedX8*4500/sec ───────────────────────────────
@@ -158,11 +205,10 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuA
                 : 0u;
         computed.fuelPerHourUpdated = true;
 
-        // ── kmRemaining: fuelLevelSettledX8*125/fuelPer100km ─────────────────
+        // ── kmRemaining: fuelX8*125/fuelPer100km ─────────────────────────────
+        // fuelX8: the settled level, or the estimate below the floor.
         uint32_t kmR =
-            (computed.fuelPer100km > 0u)
-                ? ((uint32_t)instruments.fuelLevelSettledX8 * 125u / computed.fuelPer100km)
-                : 0u;
+            (computed.fuelPer100km > 0u) ? ((uint32_t)fuelX8 * 125u / computed.fuelPer100km) : 0u;
         computed.kmRemaining = (uint16_t)(kmR > 9999u ? 9999u : kmR);
         computed.kmRemainingUpdated = true;
     }
@@ -220,6 +266,25 @@ void OBDSignals::compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuA
         }
         computed.kmRemainingUpdated = true;
     }
+}
+
+void OBDSignals::resumeFuelFloor()
+{
+    // The odometer moves in 10 km steps, so one step can be a tick during the
+    // last km before power-off. More than one step means the car was driven
+    // with the display unplugged: count the odometer difference (unbiased,
+    // ±10 km). 0 = not read; the low 16 bits make the difference wrap-safe.
+    // 300 km is more than FUEL_FLOOR_L lasts; the clamp keeps it in 16 bits.
+    // A refuel meanwhile ends the floor on the first compute anyway.
+    FuelFloor& ff = fuelFloor;
+    // A torn EEPROM write can leave any value; above the 30 L/100km cap the
+    // estimate could divide by zero. 0 = take the default on the next compute.
+    if (ff.per100 > 300u)
+        ff.per100 = 0u;
+    uint16_t odoNow = (uint16_t)instruments.odometer;
+    uint16_t unseenKm = odoNow - ff.odo;
+    if (ff.active() && odoNow != 0u && ff.odo != 0u && unseenKm > 10u)
+        ff.dist100 += (unseenKm > 300u ? 300u : unseenKm) * 100u;
 }
 
 // Helper: set a warning bit and update maxLevel (and newLevel if the bit was not set before)

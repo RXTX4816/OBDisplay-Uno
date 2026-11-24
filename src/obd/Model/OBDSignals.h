@@ -2,6 +2,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <stddef.h>
 
 namespace obd
 {
@@ -150,6 +151,25 @@ struct ComputedStats
     bool kmRemainingUpdated = false;
 };
 
+// Remaining-fuel estimate below the lowest level the 0x17 tank sender can
+// measure (see FUEL_FLOOR_L in Config.h). The first SavedBytes are also the
+// EEPROM record that OBDDisplay saves while driving and loads at connect.
+struct FuelFloor
+{
+    // km ×100 driven since the floor, 0 = no floor. Entering starts at 1, so
+    // no separate flag is needed (10 m bias).
+    uint16_t dist100 = 0;
+    uint16_t per100 = 0; // L/100km ×10 frozen at the floor (0 = set on next compute)
+    uint16_t odo = 0;    // low 16 bits of the odometer (km) at the last save
+    uint8_t leftX8 = 0;  // estimated litres ×8 left (1 unit = 0.125 L), not saved
+
+    static constexpr uint8_t SavedBytes = 6;
+    bool active() const { return dist100 != 0u; }
+};
+// OBDDisplay copies the first SavedBytes as the EEPROM record.
+static_assert(offsetof(FuelFloor, leftX8) == FuelFloor::SavedBytes,
+              "FuelFloor saved fields must come first, without padding");
+
 // Warning bitmask bits are ordered HIGH→MED→LOW so a forward iteration renders by severity.
 // bit 0–3: HIGH  bit 4–6: MED  bit 7–9: LOW
 enum WarnBit : uint8_t
@@ -183,10 +203,14 @@ struct OBDSignals
     ExperimentalGroup experimental;
     ComputedStats computed;
     WarningState warnings;
+    FuelFloor fuelFloor;
 
     void reset();
     void compute(uint32_t nowMs, uint32_t connectTimeStart, uint8_t ecuAddr, uint8_t fuelStartL);
     void computeWarnings(uint8_t ecuAddr);
+    // Call after loading a saved fuelFloor and reading the odometer: adds the
+    // distance driven while the display was unplugged.
+    void resumeFuelFloor();
 
     uint32_t prevComputeMs_ = 0xFFFFFFFFu; // 0xFFFFFFFF = uninitialized sentinel
     uint32_t tripDistAccum_ = 0;           // sub-unit accumulator (km/h × ms, mod 36000)

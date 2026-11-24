@@ -15,8 +15,8 @@
 //   y= 39   oil temperature        e.g. "99 O"  / "105 O"
 //   y= 55   coolant temperature    e.g. "99 C"  / "-WARN-" if >=100
 //   [+7 px gap]
-//   y= 78   fuel level (L)         e.g. "33 L"
-//   y= 94   km remaining           e.g. "450K"  / "---" if no data
+//   y= 78   fuel level (L)         e.g. "33 L"  / "~1.8L" below the sender floor
+//   y= 94   km remaining           e.g. "450K"  / "~24K" floor estimate / "---"
 //   y=110   L/100km                e.g. "8.3L"
 //
 // ADDR_INSTRUMENTS (0x17), page 1 — second dashboard, 7 rows (112 px):
@@ -25,7 +25,7 @@
 //   y= 32   coolant     e.g. "88 C"  / "-WARN-" if >=100
 //   y= 48   km remain   e.g. "450K"  / "---" if no data
 //   y= 64   L/100km     e.g. "8.3L"
-//   y= 80   fuel level  e.g. "33 F"
+//   y= 80   fuel level  e.g. "33 F"  / "~1.8F" below the sender floor
 //   y= 96   oil level   e.g. "50 %"  (0–255 → 0–100%)
 //
 // ADDR_ENGINE (0x01), page 0 — 8 rows (exactly 126 px of 128):
@@ -115,14 +115,33 @@ static void printBigTemp(const DisplayManager& dm, uint8_t x, uint8_t y, int16_t
 // Two consumption rows shared by both 0x17 dashboards: km remaining at y,
 // current L/100km at y+16.  kmRemaining is only meaningful once a fuel start
 // level has been stored (Settings→Fuel) and consumption has been computed.
+// Below the sender's floor (#83) the range is an estimate: "~24K".
 static void printRangeRows(const DisplayManager& dm, const OBDSignals& s, uint8_t y)
 {
     if (s.computed.fuelPer100km > 0)
+    {
         dm.printBigWithLabel(0, y, (int16_t)s.computed.kmRemaining, "K");
+        if (s.fuelFloor.active())
+            dm.prefixLast('~');
+    }
     else
         dm.printBig(0, y, "---");
 
     dm.printBigScaled10(0, y + 16, (int16_t)s.computed.fuelPer100km, 'L');
+}
+
+// Fuel row on both 0x17 dashboards: the sender in litres ("33 L"), or below
+// its floor the estimate in tenths, rounded ("~1.8L"). label is " L" or " F".
+static void printFuelRow(const DisplayManager& dm, const OBDSignals& s, uint8_t y,
+                         const char* label)
+{
+    if (s.fuelFloor.active())
+    {
+        dm.printBigScaled10(0, y, (int16_t)((s.fuelFloor.leftX8 * 5u + 2u) >> 2), label[1]);
+        dm.prefixLast('~');
+    }
+    else
+        dm.printBigWithLabel(0, y, (int16_t)(s.instruments.fuelLevelSmoothX8 >> 3), label);
 }
 
 // ── 0x17 page 0: existing big dashboard ──────────────────────────────────────
@@ -132,7 +151,7 @@ static void renderCockpit17Big(const DisplayManager& dm, const OBDSignals& s)
     dm.printBig(0, 16, s.instruments.engineRpm);
     dm.printBigWithLabel(0, 39, s.instruments.oilTemp, " O");
     printBigTemp(dm, 0, 55, s.instruments.coolantTemp, " C");
-    dm.printBigWithLabel(0, 78, s.instruments.fuelLevelSmoothX8 >> 3, " L");
+    printFuelRow(dm, s, 78, " L");
     printRangeRows(dm, s, 94);
 }
 
@@ -207,7 +226,7 @@ static void renderSecondDashboard17(const DisplayManager& dm, const OBDSignals& 
     printBigTemp(dm, 0, 32, s.instruments.coolantTemp, " C");
 
     printRangeRows(dm, s, 48);
-    dm.printBigWithLabel(0, 80, s.instruments.fuelLevelSmoothX8 >> 3, " F");
+    printFuelRow(dm, s, 80, " F");
     dm.printBigWithLabel(0, 96, (int16_t)(((uint16_t)s.instruments.oilLevelOk * 100u) / 255u),
                          " %");
 }

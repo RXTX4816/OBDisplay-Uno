@@ -128,6 +128,36 @@ void test_range_shows_dashes_until_consumption_known()
     endFrame();
 }
 
+// Below the sender's floor (#83) fuel and range are estimates, marked with "~".
+void test_fuel_floor_shows_estimate_on_both_dashboards()
+{
+    OBDSignals s;
+    typical(s);
+    s.instruments.fuelLevelSmoothX8 = 3 * 8;
+    s.fuelFloor.dist100 = 500;
+    s.fuelFloor.leftX8 = 14; // 1.75 L, shown rounded
+    s.computed.kmRemaining = 24;
+    beginFrame();
+    renderCockpitScreen(dm, 0, 0x17, s, true);
+    EXPECT_TEXT(big(0, 78), "~1.8L");
+    EXPECT_TEXT(big(0, 94), "~24K");
+    EXPECT_TEXT(big(0, 110), "7.4L");
+    endFrame();
+    beginFrame();
+    renderCockpitScreen(dm, 1, 0x17, s, true);
+    EXPECT_TEXT(big(0, 48), "~24K");
+    EXPECT_TEXT(big(0, 80), "~1.8F");
+    endFrame();
+
+    // Range not known yet at the floor: dashes, the fuel estimate stays.
+    s.computed.fuelPer100km = 0;
+    beginFrame();
+    renderCockpitScreen(dm, 0, 0x17, s, true);
+    EXPECT_TEXT(big(0, 78), "~1.8L");
+    EXPECT_TEXT(big(0, 94), "---");
+    endFrame();
+}
+
 void test_cockpit_01_main_dashboard_content()
 {
     OBDSignals s;
@@ -499,6 +529,7 @@ void runTests()
     RUN_TEST(test_every_cockpit_page_fits_with_extreme_values);
     RUN_TEST(test_cockpit_17_main_dashboard_content);
     RUN_TEST(test_range_shows_dashes_until_consumption_known);
+    RUN_TEST(test_fuel_floor_shows_estimate_on_both_dashboards);
     RUN_TEST(test_cockpit_01_main_dashboard_content);
     RUN_TEST(test_hot_coolant_shows_warn_marker);
     RUN_TEST(test_subzero_temperatures_on_dashboards);

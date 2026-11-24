@@ -368,6 +368,17 @@ void Display::printBig(uint8_t x_px, uint8_t y_px, const char* s)
     markDirty();
 }
 
+void Display::prefixLast(char c)
+{
+    if (entryCount_ == 0)
+        return;
+    char* t = entries_[entryCount_ - 1].text;
+    for (uint8_t i = kTextLen - 1; i > 0; --i)
+        t[i] = t[i - 1];
+    t[kTextLen - 1] = '\0'; // a full-length text loses its last char
+    t[0] = c;
+}
+
 void Display::printBig(uint8_t x_px, uint8_t y_px, int32_t n)
 {
     if (entryCount_ >= kMaxEntries)

@@ -60,6 +60,12 @@ class Display
     // Frames that hit an I2C error and were recovered since boot (saturates at 255).
     static uint8_t i2cErrors();
 
+    // Prepend c to the text added last (e.g. "~" to mark an estimate). Only
+    // inside a batch: outside one the entry has already been flushed. If the
+    // last print was dropped because the table was full, c lands on the entry
+    // before; the layout tests keep every page well below kMaxEntries.
+    void prefixLast(char c);
+
     static constexpr uint8_t WIDTH = 64; // portrait pixels
     static constexpr uint8_t HEIGHT = 128;
     static constexpr uint8_t COLS = 10; // 64 / 6 ≈ 10 text columns
