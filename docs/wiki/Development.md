@@ -61,6 +61,19 @@ These `#define` flags gate optional functionality. Add them to `build_flags` in 
 | `OBD_DEBUG` | `uno_debug` | Enable binary serial debug logging |
 | `OBD_EXPERIMENTAL_SCREENS` | `uno_debug` | Include ExperimentalScreen and DebugScreen content |
 
+## EEPROM layout
+
+| Byte | Content | Written by |
+|---|---|---|
+| 0 | Magic `0xA5` (bytes 0–1 are initialised) | Settings → Fuel |
+| 1 | Fuel start level in L for the `0x01` trip computer (0 = never set) | Settings → Fuel |
+| 2 | Boot autoconnect preset (0 = off, 1 = `0x01` @ 9600, 2 = `0x17` @ 10400) | Setup |
+| 3–4 | Fuel floor: km × 100 since the floor (0 = no floor) | `0x17` session, ~every 1.3 km at the floor |
+| 5–6 | Fuel floor: L/100 km × 10 frozen at the floor | same |
+| 7–8 | Fuel floor: low 16 bits of the odometer (km) at the save | same |
+
+Bytes 3–8 are the first 6 bytes of `Model::FuelFloor`, stored bit-inverted so that erased cells (`0xFF`) read back as "no floor" without a magic byte. `EEPROM.update()` only writes bytes that changed. See [Fuel below the sender's floor](Screen-Reference#fuel-below-the-senders-floor-0x17).
+
 ## Binary debug logging (`OBD_DEBUG`)
 
 When built with `-D OBD_DEBUG`, the firmware emits compact 5-byte binary frames over the hardware serial port (USB, 115200 baud):

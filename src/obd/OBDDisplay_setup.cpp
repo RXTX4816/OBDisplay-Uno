@@ -10,14 +10,17 @@
 namespace obd
 {
 
-// EEPROM layout (first 3 bytes):
+// EEPROM layout (first 9 bytes):
 //   Byte 0: magic 0xA5 (indicates initialized)
 //   Byte 1: fuel level in L when last set from 0x17 (0 = never set)
 //   Byte 2: boot autoconnect preset (0 = off, 1 = 0x01 @ 9600, 2 = 0x17 @ 10400)
+//   Byte 3-8: fuel floor (#83): Model::FuelFloor's first 6 bytes, stored
+//             bit-inverted so erased cells (0xFF) read as 0 = no floor
 static constexpr uint8_t kEepromMagic = 0xA5;
 static constexpr uint8_t kEepromAddrMagic = 0;
 static constexpr uint8_t kEepromAddrFuel = 1;
 static constexpr uint8_t kEepromAddrAutoConnect = 2;
+static constexpr uint8_t kEepromAddrFloor = 3;
 
 static constexpr uint8_t kPresetCount = 3;
 
@@ -44,6 +47,34 @@ uint8_t readEepromAutoConnect()
 {
     uint8_t preset = EEPROM.read(kEepromAddrAutoConnect);
     return preset < kPresetCount ? preset : 0;
+}
+
+// Copy fuelFloor's saved bytes to EEPROM (only changed bytes get written) or
+// back. Bit-inverted, so erased cells (0xFF) load as 0 = no floor.
+void OBDDisplay::fuelFloorEeprom_(bool save)
+{
+    uint8_t* p = reinterpret_cast<uint8_t*>(&signals_.fuelFloor);
+    for (uint8_t i = 0; i < Model::FuelFloor::SavedBytes; ++i)
+    {
+        if (save)
+            EEPROM.update(kEepromAddrFloor + i, (uint8_t)~p[i]);
+        else
+            p[i] = (uint8_t)~EEPROM.read(kEepromAddrFloor + i);
+    }
+}
+
+// Saves when the key changes: on entering and leaving the floor and every
+// 1.28 km in between (0 = no floor). That is a few dozen writes per tank
+// against ~100k cycles per cell; a power-off loses at most 1.28 km.
+void OBDDisplay::saveFuelFloor_()
+{
+    Model::FuelFloor& ff = signals_.fuelFloor;
+    uint8_t key = (uint8_t)((ff.dist100 + 127u) >> 7);
+    if (key == fuelFloorSavedKey_)
+        return;
+    fuelFloorSavedKey_ = key;
+    ff.odo = (uint16_t)signals_.instruments.odometer;
+    fuelFloorEeprom_(true);
 }
 
 using namespace Display;
@@ -379,6 +410,18 @@ bool OBDDisplay::ensureConnected_()
     signals_.instruments.odometerStart = signals_.instruments.odometer;
     signals_.instruments.fuelLevelStart = signals_.instruments.fuelLevel;
     signals_.instruments.fuelLevelSmoothX8 = (uint16_t)signals_.instruments.fuelLevel * 8u;
+    // Fuel floor (#83): after a power-off or a fresh setup it lives only in
+    // EEPROM; a reconnect keeps the live state, which is newer. 0xFF forces a
+    // save on the first compute, storing the unseen km and today's odometer.
+    if (addrSelected_ == 0x17)
+    {
+        if (!signals_.fuelFloor.active())
+        {
+            fuelFloorEeprom_(false);
+            signals_.resumeFuelFloor();
+        }
+        fuelFloorSavedKey_ = 0xFF;
+    }
     computeValues_();
     return true;
 }

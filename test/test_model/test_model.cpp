@@ -56,11 +56,13 @@ void test_signals_reset_restores_every_default()
     memset(&s.engine, 0x5A, sizeof s.engine);
     memset(&s.computed, 0x5A, sizeof s.computed);
     memset(&s.warnings, 0x5A, sizeof s.warnings);
+    memset(&s.fuelFloor, 0x5A, sizeof s.fuelFloor);
     s.reset();
     TEST_ASSERT_EQUAL_MEMORY(&freshSignals.instruments, &s.instruments, sizeof s.instruments);
     TEST_ASSERT_EQUAL_MEMORY(&freshSignals.engine, &s.engine, sizeof s.engine);
     TEST_ASSERT_EQUAL_MEMORY(&freshSignals.computed, &s.computed, sizeof s.computed);
     TEST_ASSERT_EQUAL_MEMORY(&freshSignals.warnings, &s.warnings, sizeof s.warnings);
+    TEST_ASSERT_EQUAL_MEMORY(&freshSignals.fuelFloor, &s.fuelFloor, sizeof s.fuelFloor);
 }
 
 // ---- DTCStore tests ----
@@ -354,6 +356,172 @@ void test_settled_fuel_restarts_dwell_when_side_changes()
     TEST_ASSERT_EQUAL_UINT16(32u * 8u, signals.instruments.fuelLevelSettledX8);
 }
 
+// ---- Fuel floor (#83) ----
+// The Golf 4 sender stops at 3 L. 100 km at 9 L/100km brings a 13 L tank to
+// the floor; after that, distance must count the estimate down, not the sender.
+static void driveToFuelFloor(OBDSignals& s)
+{
+    fuelClockMs = 3600UL * 1000UL;
+    s.reset();
+    s.instruments.vehicleSpeed = 100;
+    s.instruments.fuelLevelStart = 13;
+    s.instruments.fuelLevelSmoothX8 = 4u * 8u;
+    s.compute(0, 0, 0x17, 0);
+    s.compute(fuelClockMs, 0, 0x17, 0); // 100 km, settled at 4 L
+    s.instruments.vehicleSpeed = 0;
+    s.instruments.fuelLevelSmoothX8 = FUEL_FLOOR_L * 8u; // reading drops to 3 L
+    holdCompute(s, FUEL_SETTLE_DWELL_CYCLES);            // settled follows: floor reached
+}
+
+static void driveKm(OBDSignals& s, uint16_t km)
+{
+    s.instruments.vehicleSpeed = 100;
+    fuelClockMs += (uint32_t)km * 36000UL; // 100 km/h: 36 s per km
+    s.compute(fuelClockMs, 0, 0x17, 0);
+    s.instruments.vehicleSpeed = 0;
+}
+
+void test_fuel_floor_counts_down_with_distance()
+{
+    OBDSignals signals;
+    driveToFuelFloor(signals);
+    TEST_ASSERT_TRUE(signals.fuelFloor.active());
+    TEST_ASSERT_EQUAL_UINT8(24, signals.fuelFloor.leftX8); // assumed 3.0 L
+    TEST_ASSERT_EQUAL_UINT16(100, signals.computed.fuelPer100km); // 10 L / 100 km at the floor
+    TEST_ASSERT_EQUAL_UINT16(30, signals.computed.kmRemaining);
+
+    // The sender stays at 3 L; 10 km at 10 L/100km use 1.0 L.
+    driveKm(signals, 10);
+    TEST_ASSERT_EQUAL_UINT8(16, signals.fuelFloor.leftX8); // 2.0 L
+    TEST_ASSERT_EQUAL_UINT16(100, signals.computed.fuelPer100km); // frozen, not 80/110 km
+    TEST_ASSERT_EQUAL_UINT16(20, signals.computed.kmRemaining);
+
+    // Past the assumed 3.0 L the estimate stays at zero.
+    driveKm(signals, 40);
+    TEST_ASSERT_EQUAL_UINT8(0, signals.fuelFloor.leftX8);
+    TEST_ASSERT_EQUAL_UINT16(0, signals.computed.kmRemaining);
+}
+
+void test_fuel_floor_ends_on_refuel_only()
+{
+    OBDSignals signals;
+    driveToFuelFloor(signals);
+    driveKm(signals, 10);
+
+    // Sender back to 4 L (float lifted, not a refuel): estimate carries on.
+    signals.instruments.fuelLevelSmoothX8 = 4u * 8u;
+    holdCompute(signals, FUEL_SETTLE_DWELL_CYCLES);
+    TEST_ASSERT_TRUE(signals.fuelFloor.active());
+    TEST_ASSERT_EQUAL_UINT8(16, signals.fuelFloor.leftX8);
+
+    // 20 L in the tank for the settle time: back to the sender.
+    signals.instruments.fuelLevelSmoothX8 = 20u * 8u;
+    holdCompute(signals, FUEL_SETTLE_DWELL_CYCLES);
+    TEST_ASSERT_FALSE(signals.fuelFloor.active());
+    TEST_ASSERT_EQUAL_UINT16(0, signals.fuelFloor.dist100);
+    driveKm(signals, 1);
+    TEST_ASSERT_EQUAL_UINT16(0, signals.fuelFloor.dist100);
+}
+
+void test_fuel_floor_without_measured_consumption_uses_default()
+{
+    // Power-on with the tank already at the floor: no trip-measured L/100km.
+    OBDSignals signals;
+    fuelClockMs = 0;
+    signals.reset();
+    signals.instruments.fuelLevelStart = FUEL_FLOOR_L;
+    signals.instruments.fuelLevelSmoothX8 = FUEL_FLOOR_L * 8u;
+    holdCompute(signals, 2);
+    TEST_ASSERT_TRUE(signals.fuelFloor.active());
+    TEST_ASSERT_EQUAL_UINT16(FUEL_FLOOR_DEFAULT_PER100, signals.computed.fuelPer100km);
+    TEST_ASSERT_EQUAL_UINT16(37, signals.computed.kmRemaining); // 3.0 L at 8.0 L/100km
+
+    // Pulling away at 3000 rpm, 18 km/h: the RPM estimate (38 L/100km) must
+    // not be frozen for the rest of the tank.
+    signals.instruments.engineRpm = 3000;
+    signals.instruments.vehicleSpeed = 18;
+    holdCompute(signals, 20);
+    TEST_ASSERT_EQUAL_UINT16(FUEL_FLOOR_DEFAULT_PER100, signals.computed.fuelPer100km);
+
+    // 10 km at 8.0 L/100km: 0.8 L used.
+    signals.instruments.vehicleSpeed = 0;
+    signals.fuelFloor.dist100 = 1001;
+    holdCompute(signals, 1);
+    TEST_ASSERT_EQUAL_UINT8(18, signals.fuelFloor.leftX8); // 2.25 L (1/8 L steps)
+}
+
+void test_fuel_level_seeds_from_first_reading_after_failed_poll()
+{
+    // The seed poll at connect failed: smoothed starts at 0. The first real
+    // reading must be taken as is, not climbed to from 0 (which would pass
+    // through the floor and start the estimate on a full tank).
+    OBDSignals signals;
+    fuelClockMs = 0;
+    signals.reset();
+    signals.instruments.fuelLevel = 30;
+    signals.instruments.fuelLevelUpdated = true;
+    holdCompute(signals, 1);
+    TEST_ASSERT_EQUAL_UINT16(30u * 8u, signals.instruments.fuelLevelSmoothX8);
+    TEST_ASSERT_FALSE(signals.fuelFloor.active());
+}
+
+static void resumeAt(OBDSignals& s, uint32_t odoNow, uint16_t odoAtSave, uint16_t per100 = 100)
+{
+    fuelClockMs = 0;
+    s.reset();
+    s.instruments.odometer = odoNow;
+    s.instruments.fuelLevelStart = FUEL_FLOOR_L;
+    s.instruments.fuelLevelSmoothX8 = FUEL_FLOOR_L * 8u;
+    s.fuelFloor.dist100 = 500; // as loaded from EEPROM: 5 km since the floor
+    s.fuelFloor.per100 = per100; // default: 10 L/100km
+    s.fuelFloor.odo = odoAtSave;
+    s.resumeFuelFloor();
+    holdCompute(s, 1);
+}
+
+void test_fuel_floor_resumes_after_power_off()
+{
+    OBDSignals signals;
+    resumeAt(signals, 123460, (uint16_t)123460u);
+    TEST_ASSERT_TRUE(signals.fuelFloor.active());
+    TEST_ASSERT_EQUAL_UINT16(500, signals.fuelFloor.dist100);
+    TEST_ASSERT_EQUAL_UINT8(20, signals.fuelFloor.leftX8); // 2.5 L
+    TEST_ASSERT_EQUAL_UINT16(25, signals.computed.kmRemaining);
+
+    // One odometer step can be a tick during the last km before power-off.
+    resumeAt(signals, 123470, (uint16_t)123460u);
+    TEST_ASSERT_EQUAL_UINT16(500, signals.fuelFloor.dist100);
+}
+
+void test_fuel_floor_counts_drives_without_display()
+{
+    // 20 km more on the odometer than on the last save: driven unplugged.
+    OBDSignals signals;
+    resumeAt(signals, 123480, (uint16_t)123460u);
+    TEST_ASSERT_EQUAL_UINT16(2500, signals.fuelFloor.dist100);
+    TEST_ASSERT_EQUAL_UINT8(4, signals.fuelFloor.leftX8); // 0.5 L
+
+    // The saved odometer is the low 16 bits: still right across the wrap.
+    resumeAt(signals, 65546, (uint16_t)65526u);
+    TEST_ASSERT_EQUAL_UINT16(2500, signals.fuelFloor.dist100);
+
+    // Odometer not read yet, now or at the save: nothing to compare.
+    resumeAt(signals, 0, (uint16_t)123460u);
+    TEST_ASSERT_EQUAL_UINT16(500, signals.fuelFloor.dist100);
+    resumeAt(signals, 123460, 0);
+    TEST_ASSERT_EQUAL_UINT16(500, signals.fuelFloor.dist100);
+}
+
+void test_fuel_floor_rejects_garbage_consumption_from_eeprom()
+{
+    // A torn write can leave any per100; above 12500 the estimate would divide
+    // by zero. Anything above the 30 L/100km cap falls back to the default.
+    OBDSignals signals;
+    resumeAt(signals, 123460, (uint16_t)123460u, 40000);
+    TEST_ASSERT_EQUAL_UINT16(FUEL_FLOOR_DEFAULT_PER100, signals.computed.fuelPer100km);
+    TEST_ASSERT_EQUAL_UINT8(21, signals.fuelFloor.leftX8); // 3.0 − 5 km × 8.0 / 100 = 2.6 L
+}
+
 // ---- Warning tests ----
 
 static bool oilHot(const OBDSignals& s)
@@ -541,6 +709,13 @@ void runTests()
     RUN_TEST(test_range_and_consumption_ignore_fuel_slosh);
     RUN_TEST(test_range_follows_sustained_fuel_drop);
     RUN_TEST(test_settled_fuel_restarts_dwell_when_side_changes);
+    RUN_TEST(test_fuel_floor_counts_down_with_distance);
+    RUN_TEST(test_fuel_floor_ends_on_refuel_only);
+    RUN_TEST(test_fuel_floor_without_measured_consumption_uses_default);
+    RUN_TEST(test_fuel_level_seeds_from_first_reading_after_failed_poll);
+    RUN_TEST(test_fuel_floor_resumes_after_power_off);
+    RUN_TEST(test_fuel_floor_counts_drives_without_display);
+    RUN_TEST(test_fuel_floor_rejects_garbage_consumption_from_eeprom);
 
     // Warning tests
     RUN_TEST(test_oil_hot_not_raised_up_to_110);

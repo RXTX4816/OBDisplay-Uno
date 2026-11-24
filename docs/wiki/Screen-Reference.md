@@ -87,11 +87,11 @@ Four screens, navigated with UP/DOWN.
 | 1 | Engine RPM | `NNNN` | |
 | 2 | Oil temperature | `NN O` | Shows the number at ≥ 100 °C too (e.g. `105 O`); negative below 0 °C (e.g. `-5 O`) |
 | 3 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C; negative below 0 °C |
-| 4 | Fuel level | `NN L` | Smoothed (EMA filtered) |
-| 5 | Estimated range | `NNNK` km | Shows `---` if no fuel consumption data |
-| 6 | Fuel consumption | `N.NL` L/100 km | Shows `0.0L` until driving |
+| 4 | Fuel level | `NN L` | Smoothed (EMA filtered). Below the sender's floor: estimate `~N.NL` |
+| 5 | Estimated range | `NNNK` km | Shows `---` if no fuel consumption data. Below the floor: `~NNK` |
+| 6 | Fuel consumption | `N.NL` L/100 km | Shows `0.0L` until driving. Frozen below the floor |
 
-Range and consumption are calculated from a *settled* fuel level that ignores tank slosh (see [Range and consumption](#range-and-consumption-0x17)).
+Range and consumption are calculated from a *settled* fuel level that ignores tank slosh (see [Range and consumption](#range-and-consumption-0x17)). Once the tank is so low that the sender stops at its lowest reading, fuel and range turn into estimates marked with `~` (see [Fuel below the sender's floor](#fuel-below-the-senders-floor-0x17)).
 
 **Screen 1** — second dashboard:
 
@@ -110,9 +110,9 @@ Range and consumption are calculated from a *settled* fuel level that ignores ta
 | 0 | Vehicle speed | `NNN` km/h | |
 | 1 | Oil temperature | `NN O` | Shows the number at ≥ 100 °C too (e.g. `105 O`) |
 | 2 | Coolant temperature | `NN C` | Shows `-WARN-` at ≥ 100 °C |
-| 3 | Estimated range | `NNNK` km | Shows `---` if no fuel consumption data |
-| 4 | Fuel consumption | `N.NL` L/100 km | Shows `0.0L` until driving |
-| 5 | Fuel level | `NN F` | Smoothed |
+| 3 | Estimated range | `NNNK` km | Shows `---` if no fuel consumption data. Below the floor: `~NNK` |
+| 4 | Fuel consumption | `N.NL` L/100 km | Shows `0.0L` until driving. Frozen below the floor |
+| 5 | Fuel level | `NN F` | Smoothed. Below the floor: estimate `~N.NF` |
 | 6 | Oil level | `NN %` | ECU raw 0–255 mapped to 0–100 % |
 
 **Screen 2** — bar gauges:
@@ -135,6 +135,38 @@ Lists every active warning as a two-word label (e.g. `OIL PRES`, `FUEL LOW`), or
 #### Range and consumption (0x17)
 
 Fuel burned, L/100 km, L/h and km remaining are computed from the fuel level sensor. Cornering sloshes the tank and drops the sender reading by several litres, which would spike consumption and cut the range on every turn. These values therefore use a **settled** level: it only takes over the smoothed level after the smoothed level has stayed above or below it for `FUEL_SETTLE_DWELL_CYCLES` (200 cycles = 10 s) in a row. A corner is over long before that, so the readings stay put; real consumption or a refuel shows up after 10 s. The fuel level row itself still shows the smoothed value.
+
+#### Fuel below the sender's floor (0x17)
+
+The Golf 4 tank sender is a float on a resistor track. It is least accurate at the bottom of the tank, the cluster damps its signal, and it has a lower limit: it stops at **3 L** and keeps reading 3 L until the tank is dry. When it first shows 3 L, the real amount can be anything from 3.0 to about 3.9 L; after that, the reading no longer says anything.
+
+Without special handling this broke the range: fuel burned stops growing at the floor while the distance keeps growing, so L/100 km drops and **the range went up while the tank ran dry**.
+
+So once the *settled* level reads `FUEL_FLOOR_L` (3 L), the display stops trusting the sender for fuel and counts down by distance instead:
+
+```
+remaining ≈ 3.0 L − distance since the floor × consumption at the floor
+```
+
+| What | How |
+|---|---|
+| Start of the estimate | The settled level first reads 3 L. It is held through slosh for 10 s like the range, so a corner at 6 L does not start it. |
+| Assumed fuel at the start | 3.0 L, the lowest value the reading allows. If there was really 3.9 L, that is hidden reserve: near empty the estimate errs low, which is the safe direction. |
+| Distance | The speed-integrated trip distance (0.01 km steps). The odometer only moves in 10 km steps, too coarse for this. |
+| Consumption | The L/100 km value at the floor, frozen, if the trip has measured one (more than 10 km driven with the level dropping). Otherwise, e.g. power-on with the tank already at the floor, `FUEL_FLOOR_DEFAULT_PER100` (8.0 L/100 km) is frozen instead: the RPM/speed estimate is a momentary value, and freezing a pull-away at 38 L/100 km would empty the estimate within a few km. |
+| Display | Fuel `~1.8L` (screen 0) / `~1.8F` (screen 1) and range `~24K`. The `~` marks a calculation, not a sensor reading. L/100 km shows the frozen value. At the end the estimate stays at `~0.0L` / `~0K`. |
+| Connect with a failed first read | The first fuel reading that arrives is taken as is, so the smoothed level does not climb up from 0 through the floor and start the estimate on a full tank. |
+| End of the estimate | A refuel: the settled level reads `FUEL_FLOOR_EXIT_L` (5 L) or more, held for the settle time (10 s). A float bobbing up to 4 L does not end it. |
+
+**Power cycles.** The estimate survives switching the car off: the distance since the floor, the frozen consumption and the odometer are saved to EEPROM when the floor is reached, about every 1.3 km while driving, and when it ends. At the next connect to `0x17` it carries on where it was; a power-off loses at most 1.3 km. That is a few dozen EEPROM writes per tank against ~100,000 write cycles per cell, so wear does not matter.
+
+**Drives with the display unplugged** (or connected to `0x01`) are not counted by the trip distance. At the next `0x17` connect the saved odometer is compared with the current one. One 10 km step is ignored: it can be a single tick during the last km before power-off. More than one step proves an unseen drive, and the odometer difference is added to the distance (accurate to ±10 km).
+
+**Bar gauge and warnings** still use the sender: the fuel bar on screen 2 stays at 3 L, and `FUEL LOW` / `FUEL CRIT` stay active (they fire at 8 L / 4 L, above the floor).
+
+**Other cars.** `FUEL_FLOOR_L` and `FUEL_FLOOR_EXIT_L` in `Config.h` set the floor and the refuel threshold. To check where your sender stops, watch `0x17` group 2 on the [Experimental](#experimental) screen (`uno_debug` build) on a low-tank drive: value 2 is the litre reading, value 3 the sender resistance. Once the litres stick while the resistance still changes, that reading is the floor. Only `0x17` uses the floor; the `0x01` trip computer counts fuel burned from RPM × load down from the EEPROM start level and never reads the sender.
+
+The design, the numbers and the memory budget are in [`docs/FUEL_FLOOR.md`](https://github.com/RXTX4816/OBDisplay-Uno/blob/main/docs/FUEL_FLOOR.md).
 
 ---
 

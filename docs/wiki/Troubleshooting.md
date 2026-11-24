@@ -28,6 +28,14 @@
 - Confirm the ECU address and measurement group mapping for your specific ECU. The default mapping targets the instruments cluster (`0x17`) of a 1J platform VW with a Marelli 1.6 16V engine ECU (`0x01`). Other ECUs have different group contents.
 - Use a VCDS or equivalent KWP tool to record raw group data and compare against what `KWPSensorDecode.cpp` expects.
 
+## Fuel shows `~1.8L` / range `~24K`
+
+That is the estimate below the tank sender's floor (3 L on a Golf 4), not a sensor reading: see [Fuel below the sender's floor](Screen-Reference#fuel-below-the-senders-floor-0x17).
+
+- **The estimate is still shown after refuelling:** it ends once the settled level reads 5 L or more for 10 s. A few litres from a jerry can that leave the reading below 5 L do not end it.
+- **It runs out much too early or late:** it uses the L/100 km frozen when the reading hit 3 L: the trip's measured value, or 8.0 L/100 km (`FUEL_FLOOR_DEFAULT_PER100`) if the trip was under 10 km. If your car uses much more or less, adjust that default. On another car, also check `FUEL_FLOOR_L` in `Config.h`.
+- **It jumped down after a drive:** the odometer moved more than 10 km since the last save, so the drive with the display unplugged was counted.
+
 ## Flash too full
 
 - The production build (`pio run -e uno`) is at ~97% flash, the debug build (`uno_debug`) at ~98%. The current numbers are in the README badges and in each release's memory report.

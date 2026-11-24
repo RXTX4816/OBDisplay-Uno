@@ -75,6 +75,8 @@ class DisplayManager
     // ×10 fixed-point shown as "X.X" + suffix (e.g. tbAngle 55 → "5.5T").
     // Out-of-range values (abs > 999) print "ERR" instead of overflowing.
     void printBigScaled10(uint8_t x_px, uint8_t y_px, int16_t val, char suffix) const;
+    // Prepend c to the text printed last, e.g. '~' for an estimate (in a batch).
+    void prefixLast(char c) const { display_.prefixLast(c); }
     // ×10 voltage: drops decimal, appends 'V' (e.g. 123 → "12V").
     void printBigVoltage(uint8_t x_px, uint8_t y_px, uint16_t val) const;
 

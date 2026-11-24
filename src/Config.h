@@ -74,6 +74,18 @@ static constexpr uint8_t WARN_FUEL_HYST_X8 = 8;
 // has stayed above or below the last settled value for this many compute
 // cycles (200 = 10 s), so a corner does not spike consumption or drop range.
 static constexpr uint8_t FUEL_SETTLE_DWELL_CYCLES = 200;
+// Fuel floor (0x17, #83): the Golf 4 tank sender stops at about 3 L and keeps
+// reading 3 L until the tank is dry. Once the settled level reads FUEL_FLOOR_L
+// in whole litres (below FUEL_FLOOR_L + 1), the remaining fuel is estimated as
+// FUEL_FLOOR_L minus the distance driven since then at the consumption frozen
+// at that point. The estimate ends when the settled level reaches
+// FUEL_FLOOR_EXIT_L again (refuel).
+static constexpr uint8_t FUEL_FLOOR_L = 3;
+static constexpr uint8_t FUEL_FLOOR_EXIT_L = 5;
+// L/100km ×10 frozen at the floor when the trip has no measured consumption
+// yet (under 10 km, e.g. power-on with the tank already at the floor). The
+// RPM/speed estimate is a momentary value and would freeze a pull-away spike.
+static constexpr uint16_t FUEL_FLOOR_DEFAULT_PER100 = 80;
 // Voltage in ×10 units (120 = 12.0 V).
 static constexpr uint16_t WARN_VOLTAGE_LOW_X10 = 120;
 // Engine load in % (×1 integer).

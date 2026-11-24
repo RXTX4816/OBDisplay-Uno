@@ -73,6 +73,9 @@ class OBDDisplay
     // 0x01 fuel tracking
     uint8_t fuelStartL_ = 0; // fuel level at session start (from EEPROM, L)
 
+    // 0x17 fuel floor persistence (#83): key of the last EEPROM save.
+    uint8_t fuelFloorSavedKey_ = 0xFF;
+
     // Readiness immediate-poll request: set from input handler when user
     // navigates to the readiness page; cleared after the next group-100 poll.
     bool requestReadiness_ = false;
@@ -123,6 +126,8 @@ class OBDDisplay
     bool ensureConnected_();
     void pollEcu_();
     void computeValues_();
+    void saveFuelFloor_();
+    void fuelFloorEeprom_(bool save);
     void handleInput_();
     void updateDisplay_();
 
